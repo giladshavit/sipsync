@@ -24,8 +24,8 @@ export default function GameScreen() {
     if (snapshot?.state === 'PERSONAL_SUMMARY' && playerId) {
       const myOutcome = outcomesRef.current[playerId];
       router.replace({
-        pathname: `/room/${code}/summary`,
-        params: { outcomeJson: myOutcome ? JSON.stringify(myOutcome) : '' },
+        pathname: '/room/[code]/summary',
+        params: { code, outcomeJson: myOutcome ? JSON.stringify(myOutcome) : '' },
       });
     }
   }, [snapshot?.state, code, playerId]);

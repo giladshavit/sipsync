@@ -16,8 +16,9 @@ export default function LobbyScreen() {
   useEffect(() => {
     if (snapshot?.state === 'TUTORIAL') {
       router.replace({
-        pathname: `/room/${code}/tutorial`,
+        pathname: '/room/[code]/tutorial',
         params: {
+          code,
           tutorialType: snapshot.tutorialType ?? 'timed_text',
           tutorialAsset: snapshot.tutorialAsset ?? '',
         },

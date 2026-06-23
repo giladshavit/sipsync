@@ -35,7 +35,7 @@ export default function PodiumScreen() {
   // Navigate when admin starts another session (Play Again → LOBBY)
   useEffect(() => {
     if (snapshot?.state === 'LOBBY') {
-      router.replace(`/room/${code}/lobby`);
+      router.replace({ pathname: '/room/[code]/lobby', params: { code } });
     }
   }, [snapshot?.state, code]);
 

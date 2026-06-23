@@ -78,12 +78,12 @@ export default function SummaryScreen() {
   // ── Navigate on FSM transitions ───────────────────────────────────────────
   useEffect(() => {
     if (snapshot?.state === 'LOBBY') {
-      router.replace(`/room/${code}/lobby`);
+      router.replace({ pathname: '/room/[code]/lobby', params: { code } });
     }
     if (snapshot?.state === 'PODIUM') {
       router.replace({
-        pathname: `/room/${code}/podium`,
-        params: { outcomeJson: outcomeJson ?? '' },
+        pathname: '/room/[code]/podium',
+        params: { code, outcomeJson: outcomeJson ?? '' },
       });
     }
   }, [snapshot?.state, code, outcomeJson]);

@@ -52,7 +52,7 @@ export default function TutorialScreen() {
   // Navigate when server confirms PLAYING
   useEffect(() => {
     if (snapshot?.state === 'PLAYING') {
-      router.replace(`/room/${code}/game`);
+      router.replace({ pathname: '/room/[code]/game', params: { code } });
     }
   }, [snapshot?.state, code]);
 

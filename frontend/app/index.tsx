@@ -35,9 +35,10 @@ export default function HomeScreen() {
       });
       if (!res.ok) throw new Error();
       const data: { code: string; share_url: string } = await res.json();
-      router.push(
-        `/room/${data.code}/lobby?isAdmin=true&shareUrl=${encodeURIComponent(data.share_url)}`
-      );
+      router.push({
+        pathname: '/room/[code]/lobby',
+        params: { code: data.code, isAdmin: 'true', shareUrl: data.share_url },
+      });
     } catch {
       setError('Could not create room. Check your connection.');
     } finally {
