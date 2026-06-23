@@ -266,6 +266,45 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     "new_state": RoomState.LOBBY.value,
                 })
 
+            elif msg_type == "GOTO_PODIUM":
+                admin_id = await redis.hget(f"room:{code}", "admin_id")
+                if player_id != admin_id:
+                    continue
+                try:
+                    await fsm.transition(code, RoomState.PODIUM)
+                except ValueError:
+                    continue
+                await broadcast(code, {
+                    "type": "FSM_TRANSITION",
+                    "new_state": RoomState.PODIUM.value,
+                })
+
+            elif msg_type == "ADMIN_NEXT":
+                admin_id = await redis.hget(f"room:{code}", "admin_id")
+                if player_id != admin_id:
+                    continue
+                try:
+                    await fsm.transition(code, RoomState.LOBBY)
+                except ValueError:
+                    continue
+                await broadcast(code, {
+                    "type": "FSM_TRANSITION",
+                    "new_state": RoomState.LOBBY.value,
+                })
+
+            elif msg_type == "END_NIGHT":
+                admin_id = await redis.hget(f"room:{code}", "admin_id")
+                if player_id != admin_id:
+                    continue
+                await redis.delete(
+                    f"room:{code}",
+                    f"room:{code}:players",
+                    f"room:{code}:deck",
+                    f"room:{code}:game_ids",
+                    f"room:{code}:game",
+                )
+                await broadcast(code, {"type": "ROOM_DISSOLVED"})
+
             elif msg_type == "GAME_ACTION":
                 if player_id is None:
                     continue
