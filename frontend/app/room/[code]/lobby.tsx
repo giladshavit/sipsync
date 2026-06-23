@@ -15,7 +15,13 @@ export default function LobbyScreen() {
   // Navigate when FSM transitions out of LOBBY
   useEffect(() => {
     if (snapshot?.state === 'TUTORIAL') {
-      router.replace(`/room/${code}/tutorial`);
+      router.replace({
+        pathname: `/room/${code}/tutorial`,
+        params: {
+          tutorialType: snapshot.tutorialType ?? 'timed_text',
+          tutorialAsset: snapshot.tutorialAsset ?? '',
+        },
+      });
     }
   }, [snapshot?.state, code]);
 

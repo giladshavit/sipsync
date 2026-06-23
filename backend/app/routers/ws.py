@@ -6,7 +6,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.engine import fsm
 from app.engine.deck import deck
 from app.engine.fsm import RoomState
-from app.engine.game_loader import load_game
+from app.engine.game_loader import GAME_REGISTRY, load_game
 from app.redis_client import redis
 
 router = APIRouter(tags=["websocket"])
@@ -181,13 +181,30 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
                 if player_id != admin_id:
                     continue
+
+                # Select the next game now so tutorial info can be broadcast
+                game_id = await deck.pop_next_game(code)
+                if game_id is None:
+                    continue
+                await redis.hset(f"room:{code}", "active_game", game_id)
+
                 try:
                     await fsm.transition(code, RoomState.TUTORIAL)
                 except ValueError:
                     continue
+
+                game_cls = GAME_REGISTRY.get(game_id)
                 await broadcast(code, {
                     "type": "FSM_TRANSITION",
                     "new_state": RoomState.TUTORIAL.value,
+                    **(
+                        {
+                            "tutorial_type": game_cls.tutorial_type,
+                            "tutorial_asset": game_cls.tutorial_asset,
+                        }
+                        if game_cls
+                        else {}
+                    ),
                 })
 
             elif msg_type == "TUTORIAL_DONE":
@@ -195,11 +212,10 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 if player_id != admin_id:
                     continue
 
-                game_id = await deck.pop_next_game(code)
+                # Game was selected during ADMIN_START
+                game_id = await redis.hget(f"room:{code}", "active_game")
                 if game_id is None:
                     continue
-
-                await redis.hset(f"room:{code}", "active_game", game_id)
 
                 game = load_game(game_id)
                 players_raw = await redis.hgetall(f"room:{code}:players")
