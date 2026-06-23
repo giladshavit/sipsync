@@ -36,9 +36,14 @@ export interface UseRoomSocket {
   dissolved: boolean;
 }
 
+const RECONNECT_DELAY_MS = 1500;
+
 export function useRoomSocket(code: string): UseRoomSocket {
   const { playerId, displayName } = usePlayerIdentity();
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   // Ref so consumers can read outcomes synchronously at FSM-transition time
@@ -46,102 +51,123 @@ export function useRoomSocket(code: string): UseRoomSocket {
   const outcomesRef = useRef<Record<string, PlayerOutcome>>({});
   const [dissolved, setDissolved] = useState(false);
 
+  // Keep stable refs to identity so the connect function always uses latest values
+  const playerIdRef = useRef(playerId);
+  const displayNameRef = useRef(displayName);
+  playerIdRef.current = playerId;
+  displayNameRef.current = displayName;
+
   useEffect(() => {
     if (!playerId || !displayName) return;
+    unmountedRef.current = false;
 
-    const ws = new WebSocket(`${WS_BASE}/ws/${code}`);
-    wsRef.current = ws;
+    function connect() {
+      if (unmountedRef.current) return;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      ws.send(
-        JSON.stringify({
-          type: 'HANDSHAKE',
-          player_id: playerId,
-          display_name: displayName,
-          local_ts: Date.now(),
-        }),
-      );
-    };
+      const ws = new WebSocket(`${WS_BASE}/ws/${code}`);
+      wsRef.current = ws;
 
-    ws.onmessage = (event: MessageEvent<string>) => {
-      const msg = JSON.parse(event.data);
+      ws.onopen = () => {
+        if (unmountedRef.current) { ws.close(); return; }
+        setIsConnected(true);
+        ws.send(
+          JSON.stringify({
+            type: 'HANDSHAKE',
+            player_id: playerIdRef.current,
+            display_name: displayNameRef.current,
+            local_ts: Date.now(),
+          }),
+        );
+      };
 
-      switch (msg.type) {
-        case 'ROOM_STATE':
-          setSnapshot({
-            state: msg.state,
-            admin_id: msg.admin_id,
-            players: msg.players ?? {},
-          });
-          break;
+      ws.onmessage = (event: MessageEvent<string>) => {
+        const msg = JSON.parse(event.data);
 
-        case 'PLAYER_JOINED':
-          setSnapshot((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  players: {
-                    ...prev.players,
-                    [msg.player_id]: {
-                      display_name: msg.display_name,
-                      score: msg.score ?? 0,
-                      clock_offset: msg.clock_offset ?? 0,
+        switch (msg.type) {
+          case 'ROOM_STATE':
+            setSnapshot({
+              state: msg.state,
+              admin_id: msg.admin_id,
+              players: msg.players ?? {},
+            });
+            break;
+
+          case 'PLAYER_JOINED':
+            setSnapshot((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    players: {
+                      ...prev.players,
+                      [msg.player_id]: {
+                        display_name: msg.display_name,
+                        score: msg.score ?? 0,
+                        clock_offset: msg.clock_offset ?? 0,
+                      },
                     },
-                  },
-                }
-              : prev,
-          );
-          break;
+                  }
+                : prev,
+            );
+            break;
 
-        case 'PLAYER_LEFT': {
-          setSnapshot((prev) => {
-            if (!prev) return prev;
-            const { [msg.player_id]: _removed, ...rest } = prev.players;
-            return { ...prev, players: rest };
-          });
-          break;
+          case 'PLAYER_LEFT': {
+            setSnapshot((prev) => {
+              if (!prev) return prev;
+              const { [msg.player_id]: _removed, ...rest } = prev.players;
+              return { ...prev, players: rest };
+            });
+            break;
+          }
+
+          case 'OUTCOMES':
+            // Store in ref only — game.tsx reads it synchronously on FSM transition
+            outcomesRef.current = msg.outcomes ?? {};
+            break;
+
+          case 'ROOM_DISSOLVED':
+            setDissolved(true);
+            break;
+
+          case 'GAME_STATE':
+            setSnapshot((prev) =>
+              prev
+                ? { ...prev, activeGameId: msg.game_id, gameState: msg.state as Record<string, unknown> }
+                : prev,
+            );
+            break;
+
+          case 'FSM_TRANSITION':
+            setSnapshot((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    state: msg.new_state,
+                    ...(msg.tutorial_type
+                      ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
+                      : {}),
+                  }
+                : prev,
+            );
+            break;
         }
+      };
 
-        case 'OUTCOMES':
-          // Store in ref only — game.tsx reads it synchronously on FSM transition
-          outcomesRef.current = msg.outcomes ?? {};
-          break;
+      ws.onclose = () => {
+        setIsConnected(false);
+        wsRef.current = null;
+        // Auto-reconnect unless the component unmounted intentionally
+        if (!unmountedRef.current) {
+          reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
+        }
+      };
+    }
 
-        case 'ROOM_DISSOLVED':
-          setDissolved(true);
-          break;
-
-        case 'GAME_STATE':
-          setSnapshot((prev) =>
-            prev
-              ? { ...prev, activeGameId: msg.game_id, gameState: msg.state as Record<string, unknown> }
-              : prev,
-          );
-          break;
-
-        case 'FSM_TRANSITION':
-          setSnapshot((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  state: msg.new_state,
-                  ...(msg.tutorial_type
-                    ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
-                    : {}),
-                }
-              : prev,
-          );
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-    };
+    connect();
 
     return () => {
-      ws.close();
+      unmountedRef.current = true;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
       wsRef.current = null;
     };
   }, [code, playerId, displayName]);
