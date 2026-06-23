@@ -28,6 +28,15 @@ class RedLightGreenLight(BaseMiniGame):
             "timeout_at": execute_at + _TIMEOUT_MS,
         }
 
+    def on_timeout(
+        self, current_state: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        taps: dict = current_state.get("taps", {})
+        execute_at: int = int(current_state.get("execute_at", 0))
+        clock_offsets: dict[str, int] = current_state.get("clock_offsets", {})
+        outcomes = _compute_outcomes(taps, execute_at, clock_offsets)
+        return {**current_state, "status": "DONE"}, outcomes
+
     def handle_ws_event(
         self,
         player_id: str,

@@ -63,6 +63,57 @@ async def broadcast(code: str, message: dict) -> None:
     await redis.publish(f"pubsub:room:{code}", json.dumps(message))
 
 
+async def _enrich_scores_and_broadcast(code: str, outcomes: dict) -> None:
+    """Update cumulative player scores and broadcast OUTCOMES + FSM_TRANSITION."""
+    players_raw = await redis.hgetall(f"room:{code}:players")
+    players = {pid: json.loads(d) for pid, d in players_raw.items()}
+    enriched: dict[str, dict] = {}
+    for pid, outcome in outcomes.items():
+        player_data = players.get(pid, {})
+        delta = outcome.get("score_delta", 0)
+        new_score = int(player_data.get("score", 0)) + delta
+        player_data["score"] = new_score
+        await redis.hset(f"room:{code}:players", pid, json.dumps(player_data))
+        enriched[pid] = {**outcome, "total_score": new_score}
+    await broadcast(code, {"type": "OUTCOMES", "outcomes": enriched})
+    await broadcast(code, {
+        "type": "FSM_TRANSITION",
+        "new_state": RoomState.PERSONAL_SUMMARY.value,
+    })
+
+
+async def _game_timeout(code: str, timeout_at: int) -> None:
+    """Auto-resolve the game once the tap window closes for any non-tapping players."""
+    delay_s = max(0.0, (timeout_at - int(time.time() * 1000)) / 1000)
+    await asyncio.sleep(delay_s)
+
+    async with _room_lock(code):
+        if await redis.hget(f"room:{code}", "state") != RoomState.PLAYING:
+            return  # already finished via normal taps
+
+        active_game_id = await redis.hget(f"room:{code}", "active_game")
+        if not active_game_id:
+            return
+
+        current_state = await _get_game_state(code)
+        taps: dict = current_state.get("taps", {})
+        clock_offsets: dict = current_state.get("clock_offsets", {})
+
+        if set(taps.keys()) >= set(clock_offsets.keys()):
+            return  # all tapped already — normal path handled it
+
+        game = load_game(active_game_id)
+        new_state, outcomes = game.on_timeout(current_state)
+        await _set_game_state(code, new_state)
+
+        try:
+            await fsm.transition(code, RoomState.PERSONAL_SUMMARY)
+        except ValueError:
+            return
+
+    await _enrich_scores_and_broadcast(code, outcomes)
+
+
 async def _handle_game_action(code: str, player_id: str, payload: dict) -> None:
     """
     Atomically read game state, apply the player's action, persist the result,
@@ -105,23 +156,7 @@ async def _handle_game_action(code: str, player_id: str, payload: dict) -> None:
     })
 
     if finished:
-        players_raw = await redis.hgetall(f"room:{code}:players")
-        players = {pid: json.loads(d) for pid, d in players_raw.items()}
-
-        enriched: dict[str, dict] = {}
-        for pid, outcome in outcomes.items():
-            player_data = players.get(pid, {})
-            delta = outcome.get("score_delta", 0)
-            new_score = int(player_data.get("score", 0)) + delta
-            player_data["score"] = new_score
-            await redis.hset(f"room:{code}:players", pid, json.dumps(player_data))
-            enriched[pid] = {**outcome, "total_score": new_score}
-
-        await broadcast(code, {"type": "OUTCOMES", "outcomes": enriched})
-        await broadcast(code, {
-            "type": "FSM_TRANSITION",
-            "new_state": RoomState.PERSONAL_SUMMARY.value,
-        })
+        await _enrich_scores_and_broadcast(code, outcomes)
 
 
 @router.websocket("/ws/{code}")
@@ -262,6 +297,10 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     "game_id": game_id,
                     "state": initial_state,
                 })
+
+                timeout_at: int | None = initial_state.get("timeout_at")
+                if timeout_at:
+                    asyncio.create_task(_game_timeout(code, timeout_at))
 
             elif msg_type == "NEXT_ROUND":
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
