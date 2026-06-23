@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, MutableRefObject } from 'react';
 import { usePlayerIdentity } from './usePlayerIdentity';
 import { API_BASE } from '@/constants/api';
 
@@ -20,10 +20,19 @@ export interface RoomSnapshot {
   gameState?: Record<string, unknown>;
 }
 
+export interface PlayerOutcome {
+  result: 'WIN' | 'LOSE' | 'SAFE';
+  chasers: number;
+  score_delta: number;
+  total_score: number;
+  reason?: string;
+}
+
 export interface UseRoomSocket {
   snapshot: RoomSnapshot | null;
   isConnected: boolean;
   send: (msg: object) => void;
+  outcomesRef: MutableRefObject<Record<string, PlayerOutcome>>;
 }
 
 export function useRoomSocket(code: string): UseRoomSocket {
@@ -31,6 +40,9 @@ export function useRoomSocket(code: string): UseRoomSocket {
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
+  // Ref so consumers can read outcomes synchronously at FSM-transition time
+  // without waiting for a React re-render (avoids a setSnapshot race).
+  const outcomesRef = useRef<Record<string, PlayerOutcome>>({});
 
   useEffect(() => {
     if (!playerId || !displayName) return;
@@ -89,6 +101,11 @@ export function useRoomSocket(code: string): UseRoomSocket {
           break;
         }
 
+        case 'OUTCOMES':
+          // Store in ref only — game.tsx reads it synchronously on FSM transition
+          outcomesRef.current = msg.outcomes ?? {};
+          break;
+
         case 'GAME_STATE':
           setSnapshot((prev) =>
             prev
@@ -127,5 +144,5 @@ export function useRoomSocket(code: string): UseRoomSocket {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  return { snapshot, isConnected, send };
+  return { snapshot, isConnected, send, outcomesRef };
 }

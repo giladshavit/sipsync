@@ -8,7 +8,7 @@ import { ActiveGameScreen } from '@/components/ActiveGameScreen';
 export default function GameScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send } = useRoomSocket(code);
+  const { snapshot, send, outcomesRef } = useRoomSocket(code);
 
   // Our clock offset is stored server-side and echoed back in ROOM_STATE players
   const clockOffset =
@@ -21,10 +21,14 @@ export default function GameScreen() {
   }
 
   useEffect(() => {
-    if (snapshot?.state === 'PERSONAL_SUMMARY') {
-      router.replace(`/room/${code}/summary`);
+    if (snapshot?.state === 'PERSONAL_SUMMARY' && playerId) {
+      const myOutcome = outcomesRef.current[playerId];
+      router.replace({
+        pathname: `/room/${code}/summary`,
+        params: { outcomeJson: myOutcome ? JSON.stringify(myOutcome) : '' },
+      });
     }
-  }, [snapshot?.state, code]);
+  }, [snapshot?.state, code, playerId]);
 
   return (
     <View className="flex-1">
