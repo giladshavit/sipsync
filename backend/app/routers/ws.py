@@ -3,6 +3,8 @@ import json
 import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.engine import fsm
+from app.engine.fsm import RoomState
 from app.redis_client import redis
 
 router = APIRouter(tags=["websocket"])
@@ -93,6 +95,19 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     "type": "PLAYER_JOINED",
                     "player_id": player_id,
                     "display_name": display_name,
+                })
+
+            elif msg_type == "ADMIN_START":
+                admin_id = await redis.hget(f"room:{code}", "admin_id")
+                if player_id != admin_id:
+                    continue
+                try:
+                    await fsm.transition(code, RoomState.TUTORIAL)
+                except ValueError:
+                    continue
+                await broadcast(code, {
+                    "type": "FSM_TRANSITION",
+                    "new_state": RoomState.TUTORIAL.value,
                 })
 
     except WebSocketDisconnect:
