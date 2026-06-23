@@ -8,8 +8,6 @@ dist/
 build/
 *.egg
 
-# uv
-uv.lock
 
 # Environment
 .env
