@@ -253,6 +253,19 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     "state": initial_state,
                 })
 
+            elif msg_type == "NEXT_ROUND":
+                admin_id = await redis.hget(f"room:{code}", "admin_id")
+                if player_id != admin_id:
+                    continue
+                try:
+                    await fsm.transition(code, RoomState.LOBBY)
+                except ValueError:
+                    continue
+                await broadcast(code, {
+                    "type": "FSM_TRANSITION",
+                    "new_state": RoomState.LOBBY.value,
+                })
+
             elif msg_type == "GAME_ACTION":
                 if player_id is None:
                     continue
