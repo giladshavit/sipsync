@@ -142,12 +142,16 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
 
                 clock_offset = int(time.time() * 1000) - local_ts
 
+                # Preserve existing score across reconnects (screen transitions
+                # close and reopen the WebSocket, so score must survive).
+                existing_raw = await redis.hget(f"room:{code}:players", player_id)
+                existing = json.loads(existing_raw) if existing_raw else {}
                 await redis.hset(
                     f"room:{code}:players",
                     player_id,
                     json.dumps({
                         "display_name": display_name,
-                        "score": 0,
+                        "score": existing.get("score", 0),
                         "clock_offset": clock_offset,
                     }),
                 )
@@ -183,10 +187,16 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                             "state": current_game_state,
                         }))
 
+                # Re-read the player record so the broadcast includes the
+                # correct score (not zero) when reconnecting after a round.
+                rejoined_raw = await redis.hget(f"room:{code}:players", player_id)
+                rejoined = json.loads(rejoined_raw) if rejoined_raw else {}
                 await broadcast(code, {
                     "type": "PLAYER_JOINED",
                     "player_id": player_id,
                     "display_name": display_name,
+                    "score": rejoined.get("score", 0),
+                    "clock_offset": rejoined.get("clock_offset", 0),
                 })
 
             elif msg_type == "ADMIN_START":
@@ -315,7 +325,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
     finally:
         if player_id:
             _connections.get(code, {}).pop(player_id, None)
-            await redis.hdel(f"room:{code}:players", player_id)
+            # Do NOT delete from Redis — player data (score, display_name) must
+            # survive screen transitions that close and reopen the WebSocket.
             await broadcast(code, {
                 "type": "PLAYER_LEFT",
                 "player_id": player_id,

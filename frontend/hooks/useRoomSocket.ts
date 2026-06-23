@@ -85,8 +85,8 @@ export function useRoomSocket(code: string): UseRoomSocket {
                     ...prev.players,
                     [msg.player_id]: {
                       display_name: msg.display_name,
-                      score: 0,
-                      clock_offset: 0,
+                      score: msg.score ?? 0,
+                      clock_offset: msg.clock_offset ?? 0,
                     },
                   },
                 }
