@@ -1,7 +1,23 @@
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import { Redirect } from 'expo-router';
+import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 
-// Full implementation in M1 Issue #14 (deep-link join, room creation)
+// Full room-creation / join logic in M1 Issue #14
 export default function HomeScreen() {
+  const { isLoading, isOnboarded, displayName } = usePlayerIdentity();
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 items-center justify-center bg-ink">
+        <ActivityIndicator color="#F59E0B" />
+      </View>
+    );
+  }
+
+  if (!isOnboarded) {
+    return <Redirect href="/onboarding" />;
+  }
+
   return (
     <View className="flex-1 justify-center px-6 bg-ink">
       <View className="mb-14">
@@ -11,6 +27,11 @@ export default function HomeScreen() {
         <Text className="text-chalk text-5xl font-bold tracking-tightest leading-none">
           SipSync
         </Text>
+        {displayName && (
+          <Text className="text-fog text-sm mt-3">
+            Playing as {displayName}
+          </Text>
+        )}
       </View>
 
       <View className="gap-3">
