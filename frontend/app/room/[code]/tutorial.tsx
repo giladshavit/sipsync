@@ -1,12 +1,18 @@
 import { View, Text } from 'react-native';
 
-// Tutorial — 5s timed text, auto-advances to game — implemented in M4 (Issue #22)
+// Full implementation in M4 Issue #22
 export default function TutorialScreen() {
   return (
-    <View className="flex-1 items-center justify-center bg-slate-900 px-6">
-      <Text className="text-white text-2xl font-bold mb-4">How to play</Text>
-      <Text className="text-slate-300 text-base text-center">
-        When the screen turns green — tap as fast as you can!
+    <View className="flex-1 justify-center px-6 bg-ink">
+      <Text className="text-amber text-sm font-mono tracking-widest uppercase mb-4">
+        This round
+      </Text>
+      <Text className="text-chalk text-4xl font-bold tracking-tightest leading-tight">
+        Red Light,{'\n'}Green Light
+      </Text>
+      <Text className="text-fog text-base mt-6 leading-relaxed">
+        Screen turns green — tap fast.{'\n'}
+        Slowest player drinks.
       </Text>
     </View>
   );
