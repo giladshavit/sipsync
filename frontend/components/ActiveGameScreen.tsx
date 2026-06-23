@@ -5,6 +5,7 @@ import { ReflexGameUI } from './games/ReflexGameUI';
 export interface MiniGameProps {
   gameState: Record<string, unknown>;
   onAction: (action: string, payload?: Record<string, unknown>) => void;
+  clockOffset: number;
 }
 
 const GAME_REGISTRY: Record<string, React.FC<MiniGameProps>> = {
@@ -16,9 +17,15 @@ interface Props {
   gameId: string | null;
   gameState?: Record<string, unknown>;
   onAction?: MiniGameProps['onAction'];
+  clockOffset?: number;
 }
 
-export function ActiveGameScreen({ gameId, gameState = {}, onAction = () => {} }: Props) {
+export function ActiveGameScreen({
+  gameId,
+  gameState = {},
+  onAction = () => {},
+  clockOffset = 0,
+}: Props) {
   if (!gameId) {
     return (
       <View className="flex-1 items-center justify-center">
@@ -36,5 +43,7 @@ export function ActiveGameScreen({ gameId, gameState = {}, onAction = () => {} }
     );
   }
 
-  return <GameComponent gameState={gameState} onAction={onAction} />;
+  return (
+    <GameComponent gameState={gameState} onAction={onAction} clockOffset={clockOffset} />
+  );
 }
