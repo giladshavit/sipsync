@@ -363,10 +363,17 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
         pass
     finally:
         if player_id:
-            _connections.get(code, {}).pop(player_id, None)
-            # Do NOT delete from Redis — player data (score, display_name) must
-            # survive screen transitions that close and reopen the WebSocket.
-            await broadcast(code, {
-                "type": "PLAYER_LEFT",
-                "player_id": player_id,
-            })
+            room_conns = _connections.get(code, {})
+            # Only remove this websocket if it is still the registered connection for
+            # this player. Screen transitions (router.replace) mount the new screen
+            # before unmounting the old one, so the new screen's HANDSHAKE may have
+            # already replaced this entry in _connections. Removing it blindly would
+            # sever the new connection and drop all subsequent broadcasts.
+            if room_conns.get(player_id) is websocket:
+                room_conns.pop(player_id, None)
+                # Only announce departure when we actually removed the connection;
+                # the new screen's PLAYER_JOINED already covers the screen-transition case.
+                await broadcast(code, {
+                    "type": "PLAYER_LEFT",
+                    "player_id": player_id,
+                })
