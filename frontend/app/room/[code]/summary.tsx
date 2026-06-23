@@ -75,21 +75,26 @@ export default function SummaryScreen() {
     return unsubscribe;
   }, [navigation]);
 
-  // ── Navigate when admin starts next round (FSM → LOBBY) ───────────────────
+  // ── Navigate on FSM transitions ───────────────────────────────────────────
   useEffect(() => {
     if (snapshot?.state === 'LOBBY') {
       router.replace(`/room/${code}/lobby`);
     }
-  }, [snapshot?.state, code]);
+    if (snapshot?.state === 'PODIUM') {
+      router.replace({
+        pathname: `/room/${code}/podium`,
+        params: { outcomeJson: outcomeJson ?? '' },
+      });
+    }
+  }, [snapshot?.state, code, outcomeJson]);
 
-  function handleNextRound() {
-    send({ type: 'NEXT_ROUND' });
-  }
+  function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
+  function handleEndGame()   { send({ type: 'GOTO_PODIUM' }); }
 
   // ── Derived display values ─────────────────────────────────────────────────
   const result = outcome?.result ?? 'SAFE';
   const bgColor =
-    result === 'WIN' ? colors.go :
+    result === 'WIN'  ? colors.go :
     result === 'LOSE' ? colors.stop :
     colors.surface;
 
@@ -105,11 +110,9 @@ export default function SummaryScreen() {
 
   return (
     <>
-      {/* Disable swipe-to-go-back for the lock period */}
       <Stack.Screen options={{ gestureEnabled: false }} />
 
       <View className="flex-1" style={{ backgroundColor: bgColor }}>
-        {/* Flash overlay (LOSE only) */}
         {result === 'LOSE' && (
           <Animated.View
             className="absolute inset-0 bg-white"
@@ -118,7 +121,6 @@ export default function SummaryScreen() {
           />
         )}
 
-        {/* Main content */}
         <View className="flex-1 items-center justify-center px-8">
           <Text className="text-white/70 text-sm font-mono tracking-widest uppercase mb-2">
             {displayName}
@@ -146,7 +148,6 @@ export default function SummaryScreen() {
           </Text>
         </View>
 
-        {/* 6-second countdown bar */}
         <View className="px-6 pb-4">
           <View
             style={{
@@ -164,16 +165,23 @@ export default function SummaryScreen() {
             />
           </View>
 
-          {/* Post-lock action row */}
           <View className="mt-6 min-h-[52px] items-center justify-center">
             {lockExpired ? (
               isAdmin ? (
-                <Pressable
-                  onPress={handleNextRound}
-                  className="bg-white/20 border border-white/40 rounded-2xl px-10 py-4 active:opacity-70"
-                >
-                  <Text className="text-white text-base font-bold">Next Round</Text>
-                </Pressable>
+                <View className="flex-row gap-3">
+                  <Pressable
+                    onPress={handleNextRound}
+                    className="flex-1 bg-white/20 border border-white/40 rounded-2xl py-4 items-center active:opacity-70"
+                  >
+                    <Text className="text-white text-base font-bold">Next Round</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleEndGame}
+                    className="flex-1 bg-white/10 border border-white/20 rounded-2xl py-4 items-center active:opacity-70"
+                  >
+                    <Text className="text-white/70 text-base font-semibold">End Game</Text>
+                  </Pressable>
+                </View>
               ) : (
                 <Text className="text-white/50 text-sm">Waiting for host…</Text>
               )

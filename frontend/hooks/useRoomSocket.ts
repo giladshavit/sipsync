@@ -33,6 +33,7 @@ export interface UseRoomSocket {
   isConnected: boolean;
   send: (msg: object) => void;
   outcomesRef: MutableRefObject<Record<string, PlayerOutcome>>;
+  dissolved: boolean;
 }
 
 export function useRoomSocket(code: string): UseRoomSocket {
@@ -43,6 +44,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
   // Ref so consumers can read outcomes synchronously at FSM-transition time
   // without waiting for a React re-render (avoids a setSnapshot race).
   const outcomesRef = useRef<Record<string, PlayerOutcome>>({});
+  const [dissolved, setDissolved] = useState(false);
 
   useEffect(() => {
     if (!playerId || !displayName) return;
@@ -106,6 +108,10 @@ export function useRoomSocket(code: string): UseRoomSocket {
           outcomesRef.current = msg.outcomes ?? {};
           break;
 
+        case 'ROOM_DISSOLVED':
+          setDissolved(true);
+          break;
+
         case 'GAME_STATE':
           setSnapshot((prev) =>
             prev
@@ -144,5 +150,5 @@ export function useRoomSocket(code: string): UseRoomSocket {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  return { snapshot, isConnected, send, outcomesRef };
+  return { snapshot, isConnected, send, outcomesRef, dissolved };
 }
