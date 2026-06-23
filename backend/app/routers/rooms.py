@@ -4,6 +4,7 @@ import uuid
 
 from fastapi import APIRouter, HTTPException
 
+from app.engine.deck import deck
 from app.models.room import CreateRoomRequest, CreateRoomResponse, RoomInfoResponse
 from app.redis_client import redis
 
@@ -33,6 +34,7 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
                 "state": "LOBBY",
             })
             await redis.expire(key, 86400)  # 24 h TTL
+            await deck.initialize(code, body.game_ids)
             return CreateRoomResponse(
                 code=code,
                 room_id=room_id,

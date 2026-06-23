@@ -1,9 +1,14 @@
 from pydantic import BaseModel, Field
 from app.engine.fsm import RoomState
+from app.engine.game_loader import GAME_REGISTRY
 
 
 class CreateRoomRequest(BaseModel):
     admin_id: str = Field(..., description="Player UUID from SecureStore")
+    game_ids: list[str] = Field(
+        default_factory=lambda: list(GAME_REGISTRY.keys()),
+        description="Ordered list of game IDs to include in this room's deck",
+    )
 
 
 class CreateRoomResponse(BaseModel):
