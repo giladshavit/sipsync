@@ -16,6 +16,8 @@ export interface RoomSnapshot {
   players: Record<string, Player>;
   tutorialType?: string;
   tutorialAsset?: string;
+  activeGameId?: string | null;
+  gameState?: Record<string, unknown>;
 }
 
 export interface UseRoomSocket {
@@ -86,6 +88,14 @@ export function useRoomSocket(code: string): UseRoomSocket {
           });
           break;
         }
+
+        case 'GAME_STATE':
+          setSnapshot((prev) =>
+            prev
+              ? { ...prev, activeGameId: msg.game_id, gameState: msg.state as Record<string, unknown> }
+              : prev,
+          );
+          break;
 
         case 'FSM_TRANSITION':
           setSnapshot((prev) =>

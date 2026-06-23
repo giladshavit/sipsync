@@ -171,6 +171,18 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     "players": players,
                 }))
 
+                # If a game is already running, send its current state so
+                # late-joining or reconnecting clients don't miss the broadcast
+                if state == RoomState.PLAYING:
+                    active_game_id = await redis.hget(f"room:{code}", "active_game")
+                    current_game_state = await _get_game_state(code)
+                    if active_game_id and current_game_state:
+                        await websocket.send_text(json.dumps({
+                            "type": "GAME_STATE",
+                            "game_id": active_game_id,
+                            "state": current_game_state,
+                        }))
+
                 await broadcast(code, {
                     "type": "PLAYER_JOINED",
                     "player_id": player_id,
