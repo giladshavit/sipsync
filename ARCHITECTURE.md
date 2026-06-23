@@ -89,7 +89,18 @@ const GAME_REGISTRY: Record<string, React.FC<MiniGameProps>> = {
 
 ---
 
-## 5. Millisecond Reflex Protocol (Server-as-Judge)
+## 5. Room Join Flows
+
+Two entry paths — both land on the same Lobby screen:
+
+1. **Manual code entry** — player types the 6-char room code on the Home screen. The app calls `GET /rooms/{code}` to validate, then navigates to `/room/{code}/lobby`.
+2. **Deep-link auto-join** — Admin taps "Share Invite" in the Lobby, which triggers the native share sheet with `sipsync://room/{code}`. Any player who taps the link is taken directly to the Lobby with no manual input. Configured via `scheme: "sipsync"` in `app.json`; Expo Router handles `sipsync://room/[code]` → `/room/[code]/lobby` automatically.
+
+`POST /rooms` returns `{ code, room_id, share_url }` where `share_url = "sipsync://room/{code}"`.
+
+---
+
+## 6. Millisecond Reflex Protocol (Server-as-Judge)
 
 Handles sub-second reflex games over volatile mobile networks.
 
@@ -113,14 +124,16 @@ Handles sub-second reflex games over volatile mobile networks.
 
 ## 6. Outcomes Schema & The Drinking Window
 
-### Outcomes Dict (emitted by every mini-game on `is_finished == True`)
+### Outcomes Dict (broadcast by the server on `is_finished == True`)
+
+The server reads each player's cumulative score from Redis, applies `delta_score`, writes the updated value back, and broadcasts `total_score` to all clients:
 
 ```json
 {
   "outcomes": {
-    "uuid_gilad": { "status": "WIN",  "delta_score": 100, "chasers": 0 },
-    "uuid_tomer": { "status": "LOSE", "delta_score": -50, "chasers": 2 },
-    "uuid_dan":   { "status": "SAFE", "delta_score": 0,   "chasers": 0 }
+    "uuid_gilad": { "status": "WIN",  "delta_score": 100, "chasers": 0, "total_score": 350 },
+    "uuid_tomer": { "status": "LOSE", "delta_score": -50, "chasers": 2, "total_score": 150 },
+    "uuid_dan":   { "status": "SAFE", "delta_score": 0,   "chasers": 0, "total_score": 200 }
   }
 }
 ```
@@ -129,9 +142,13 @@ Handles sub-second reflex games over volatile mobile networks.
 
 ### The 6-Second Drinking Window
 
-Upon entering `PERSONAL_SUMMARY`:
-- Each client renders a **personalized, full-screen banner** showing the player's outcome (e.g., "Tomer, you failed! Pour and drink 2 chasers 🥃").
-- The client **must freeze all navigation** and **block Admin overrides** for exactly **6.0 seconds**.
+Upon entering `PERSONAL_SUMMARY`, each client renders a **personalized, full-screen banner**:
+- **WIN** — green: player name, `+{delta_score} pts`, total score
+- **LOSE** — red flash: player name, `{chasers} chasers 🥃`, `-{delta_score} pts`, total score
+- **SAFE** — neutral: player name, total score
+- All statuses display: `Total: {total_score} pts`
+
+The client **must freeze all navigation** and **block Admin overrides** for exactly **6.0 seconds**.
 - This enforces a real-world drinking window that cannot be skipped.
 
 ---
