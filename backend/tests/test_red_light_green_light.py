@@ -2,8 +2,8 @@ import time
 from unittest.mock import patch
 
 
-from app.games.red_light_green_light import (
-    RedLightGreenLight,
+from app.games.reflex import (
+    ReflexGame,
     _compute_outcomes,
     _GREEN_MAX_MS,
     _GREEN_MIN_MS,
@@ -11,7 +11,7 @@ from app.games.red_light_green_light import (
     _TIMEOUT_MS,
 )
 
-GAME = RedLightGreenLight()
+GAME = ReflexGame()
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -51,7 +51,7 @@ def test_initial_state_structure():
         {"player_id": "p1", "clock_offset": 100},
         {"player_id": "p2", "clock_offset": -50},
     ]
-    with patch("app.games.red_light_green_light.time") as mock_time:
+    with patch("app.games.reflex.time") as mock_time:
         mock_time.time.return_value = 1_000.0
         state = GAME.get_initial_state(players)
 

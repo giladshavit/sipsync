@@ -5,7 +5,7 @@ from app.engine.game_loader import GAME_REGISTRY, load_game
 
 
 def test_load_known_game_returns_base_mini_game_instance():
-    game = load_game("red_light_green_light")
+    game = load_game("reflex")
     assert isinstance(game, BaseMiniGame)
 
 
@@ -14,8 +14,8 @@ def test_load_unknown_game_raises_value_error():
         load_game("not_a_real_game")
 
 
-def test_registry_contains_red_light_green_light():
-    assert "red_light_green_light" in GAME_REGISTRY
+def test_registry_contains_reflex():
+    assert "reflex" in GAME_REGISTRY
 
 
 def test_incomplete_subclass_raises_type_error_on_instantiation():

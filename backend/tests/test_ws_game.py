@@ -1,9 +1,9 @@
 """
-Tests for GAME_ACTION routing in ws.py.
+Tests for GAME_ACTION routing.
 
-Strategy: patch module-level `redis` references in ws and fsm to a shared
-fakeredis instance, replace `broadcast` with a list-capturing async stub,
-and inject a concrete test game via `load_game`.
+Strategy: patch module-level `redis` and `load_game` in room_service + fsm,
+replace `room_service.broadcast` with a list-capturing async stub, and reset
+the per-room lock dict between tests.
 """
 import asyncio
 import json
@@ -12,7 +12,7 @@ import fakeredis
 import pytest
 
 import app.engine.fsm as fsm_module
-import app.routers.ws as ws_module
+import app.engine.room_service as rs_module
 from app.engine.base import BaseMiniGame
 from app.engine.fsm import RoomState
 
@@ -46,12 +46,14 @@ CODE = "TSTCD"
 PLAYER = "player-uuid-1"
 ADMIN = "admin-uuid"
 
+_svc = rs_module.room_service
+
 
 @pytest.fixture(autouse=True)
 def patch_redis_and_broadcast(monkeypatch):
-    """Replace redis in ws + fsm with a shared fakeredis; capture broadcasts."""
+    """Replace redis in room_service + fsm with a shared fakeredis; capture broadcasts."""
     r = fakeredis.FakeAsyncRedis(decode_responses=True)
-    monkeypatch.setattr(ws_module, "redis", r)
+    monkeypatch.setattr(rs_module, "redis", r)
     monkeypatch.setattr(fsm_module, "redis", r)
 
     captured: list[dict] = []
@@ -59,9 +61,9 @@ def patch_redis_and_broadcast(monkeypatch):
     async def _mock_broadcast(code: str, message: dict) -> None:
         captured.append(message)
 
-    monkeypatch.setattr(ws_module, "broadcast", _mock_broadcast)
-    monkeypatch.setattr(ws_module, "load_game", lambda _: _CountdownGame())
-    monkeypatch.setattr(ws_module, "_room_locks", {})
+    monkeypatch.setattr(_svc, "broadcast", _mock_broadcast)
+    monkeypatch.setattr(rs_module, "load_game", lambda _: _CountdownGame())
+    monkeypatch.setattr(_svc, "_room_locks", {})
 
     return r, captured
 
@@ -91,7 +93,7 @@ async def playing_room(patch_redis_and_broadcast):
 async def test_game_action_broadcasts_updated_state(playing_room, patch_redis_and_broadcast):
     _, captured = patch_redis_and_broadcast
 
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     game_state_msgs = [m for m in captured if m["type"] == "GAME_STATE"]
     assert len(game_state_msgs) == 1
@@ -102,7 +104,7 @@ async def test_game_action_broadcasts_updated_state(playing_room, patch_redis_an
 async def test_game_action_persists_state_to_redis(playing_room, patch_redis_and_broadcast):
     r, _ = patch_redis_and_broadcast
 
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     raw = await r.get(f"room:{CODE}:game")
     assert json.loads(raw) == {"remaining": 1}
@@ -113,8 +115,8 @@ async def test_finished_game_outcomes_include_total_score(playing_room, patch_re
     r, captured = patch_redis_and_broadcast
 
     # Two actions finish the countdown game
-    await ws_module._handle_game_action(CODE, PLAYER, {})
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     outcomes_msgs = [m for m in captured if m["type"] == "OUTCOMES"]
     assert len(outcomes_msgs) == 1
@@ -127,8 +129,8 @@ async def test_finished_game_outcomes_include_total_score(playing_room, patch_re
 async def test_finished_game_persists_updated_score(playing_room, patch_redis_and_broadcast):
     r, _ = patch_redis_and_broadcast
 
-    await ws_module._handle_game_action(CODE, PLAYER, {})
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     raw = await r.hget(f"room:{CODE}:players", PLAYER)
     assert json.loads(raw)["score"] == 15
@@ -138,8 +140,8 @@ async def test_finished_game_persists_updated_score(playing_room, patch_redis_an
 async def test_finished_game_transitions_fsm_to_personal_summary(playing_room, patch_redis_and_broadcast):
     r, captured = patch_redis_and_broadcast
 
-    await ws_module._handle_game_action(CODE, PLAYER, {})
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     state = await r.hget(f"room:{CODE}", "state")
     assert state == RoomState.PERSONAL_SUMMARY
@@ -156,7 +158,7 @@ async def test_game_action_ignored_when_not_playing(patch_redis_and_broadcast):
         "admin_id": ADMIN,
     })
 
-    await ws_module._handle_game_action(CODE, PLAYER, {})
+    await _svc._handle_game_action(CODE, PLAYER, {})
 
     assert not any(m["type"] == "GAME_STATE" for m in captured)
 
@@ -169,8 +171,8 @@ async def test_concurrent_actions_are_serialised(playing_room, patch_redis_and_b
     # Run two actions concurrently; the countdown starts at 2 so both will
     # process — but only the second (serial) one should see remaining==0.
     await asyncio.gather(
-        ws_module._handle_game_action(CODE, PLAYER, {}),
-        ws_module._handle_game_action(CODE, PLAYER, {}),
+        _svc._handle_game_action(CODE, PLAYER, {}),
+        _svc._handle_game_action(CODE, PLAYER, {}),
     )
 
     raw = await r.get(f"room:{CODE}:game")

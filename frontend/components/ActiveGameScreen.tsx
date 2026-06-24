@@ -9,7 +9,7 @@ export interface MiniGameProps {
 }
 
 const GAME_REGISTRY: Record<string, React.FC<MiniGameProps>> = {
-  red_light_green_light: ReflexGameUI,
+  reflex: ReflexGameUI,
   // Drop future games here — no other file changes needed.
 };
 

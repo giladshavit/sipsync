@@ -11,8 +11,8 @@ _TIMEOUT_MS = 5_000
 _RED_TAP_CHASERS = 5
 
 
-class RedLightGreenLight(BaseMiniGame):
-    game_id = "red_light_green_light"
+class ReflexGame(BaseMiniGame):
+    game_id = "reflex"
     tutorial_type = "timed_text"
     tutorial_asset = "tutorial.red_light_green_light"
 

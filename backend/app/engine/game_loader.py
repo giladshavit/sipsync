@@ -1,8 +1,8 @@
 from app.engine.base import BaseMiniGame
-from app.games.red_light_green_light import RedLightGreenLight
+from app.games.reflex import ReflexGame
 
 GAME_REGISTRY: dict[str, type[BaseMiniGame]] = {
-    RedLightGreenLight.game_id: RedLightGreenLight,
+    ReflexGame.game_id: ReflexGame,
 }
 
 
