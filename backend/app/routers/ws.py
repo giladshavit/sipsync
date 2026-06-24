@@ -82,6 +82,32 @@ async def _enrich_scores_and_broadcast(code: str, outcomes: dict) -> None:
     })
 
 
+async def _trigger_next_game_tutorial(code: str) -> bool:
+    """Pop the next game, persist it, transition FSM to TUTORIAL, and broadcast."""
+    game_id = await deck.pop_next_game(code)
+    if game_id is None:
+        return False
+    await redis.hset(f"room:{code}", "active_game", game_id)
+    try:
+        await fsm.transition(code, RoomState.TUTORIAL)
+    except ValueError:
+        return False
+    game_cls = GAME_REGISTRY.get(game_id)
+    await broadcast(code, {
+        "type": "FSM_TRANSITION",
+        "new_state": RoomState.TUTORIAL.value,
+        **(
+            {
+                "tutorial_type": game_cls.tutorial_type,
+                "tutorial_asset": game_cls.tutorial_asset,
+            }
+            if game_cls
+            else {}
+        ),
+    })
+    return True
+
+
 async def _game_timeout(code: str, timeout_at: int) -> None:
     """Auto-resolve the game once the tap window closes for any non-tapping players."""
     delay_s = max(0.0, (timeout_at - int(time.time() * 1000)) / 1000)
@@ -238,31 +264,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
                 if player_id != admin_id:
                     continue
-
-                # Select the next game now so tutorial info can be broadcast
-                game_id = await deck.pop_next_game(code)
-                if game_id is None:
+                if not await _trigger_next_game_tutorial(code):
                     continue
-                await redis.hset(f"room:{code}", "active_game", game_id)
-
-                try:
-                    await fsm.transition(code, RoomState.TUTORIAL)
-                except ValueError:
-                    continue
-
-                game_cls = GAME_REGISTRY.get(game_id)
-                await broadcast(code, {
-                    "type": "FSM_TRANSITION",
-                    "new_state": RoomState.TUTORIAL.value,
-                    **(
-                        {
-                            "tutorial_type": game_cls.tutorial_type,
-                            "tutorial_asset": game_cls.tutorial_asset,
-                        }
-                        if game_cls
-                        else {}
-                    ),
-                })
 
             elif msg_type == "TUTORIAL_DONE":
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
@@ -306,14 +309,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
                 if player_id != admin_id:
                     continue
-                try:
-                    await fsm.transition(code, RoomState.LOBBY)
-                except ValueError:
+                if not await _trigger_next_game_tutorial(code):
                     continue
-                await broadcast(code, {
-                    "type": "FSM_TRANSITION",
-                    "new_state": RoomState.LOBBY.value,
-                })
 
             elif msg_type == "GOTO_PODIUM":
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
@@ -332,14 +329,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 admin_id = await redis.hget(f"room:{code}", "admin_id")
                 if player_id != admin_id:
                     continue
-                try:
-                    await fsm.transition(code, RoomState.LOBBY)
-                except ValueError:
+                if not await _trigger_next_game_tutorial(code):
                     continue
-                await broadcast(code, {
-                    "type": "FSM_TRANSITION",
-                    "new_state": RoomState.LOBBY.value,
-                })
 
             elif msg_type == "END_NIGHT":
                 admin_id = await redis.hget(f"room:{code}", "admin_id")

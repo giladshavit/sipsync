@@ -1,8 +1,6 @@
-import math
 import time
 from unittest.mock import patch
 
-import pytest
 
 from app.games.red_light_green_light import (
     RedLightGreenLight,

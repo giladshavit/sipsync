@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { Stack, useLocalSearchParams, useNavigation, router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -88,8 +88,10 @@ export default function SummaryScreen() {
     }
   }, [snapshot?.state, code, outcomeJson]);
 
-  function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
-  function handleEndGame()   { send({ type: 'GOTO_PODIUM' }); }
+  // ── Auto-advance to podium once lock expires ──────────────────────────────
+  useEffect(() => {
+    if (lockExpired && isAdmin) send({ type: 'GOTO_PODIUM' });
+  }, [lockExpired, isAdmin]);
 
   // ── Derived display values ─────────────────────────────────────────────────
   const result = outcome?.result ?? 'SAFE';
@@ -167,24 +169,7 @@ export default function SummaryScreen() {
 
           <View className="mt-6 min-h-[52px] items-center justify-center">
             {lockExpired ? (
-              isAdmin ? (
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={handleNextRound}
-                    className="flex-1 bg-white/20 border border-white/40 rounded-2xl py-4 items-center active:opacity-70"
-                  >
-                    <Text className="text-white text-base font-bold">Next Round</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleEndGame}
-                    className="flex-1 bg-white/10 border border-white/20 rounded-2xl py-4 items-center active:opacity-70"
-                  >
-                    <Text className="text-white/70 text-base font-semibold">End Game</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Text className="text-white/50 text-sm">Waiting for host…</Text>
-              )
+              <Text className="text-white/70 text-sm">Moving to Leaderboard…</Text>
             ) : (
               <Text className="text-white/40 text-xs font-mono tracking-widest">
                 MANDATORY WINDOW

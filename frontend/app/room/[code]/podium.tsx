@@ -32,14 +32,27 @@ export default function PodiumScreen() {
     if (dissolved) router.replace('/');
   }, [dissolved]);
 
-  // Navigate when admin starts another session (Play Again → LOBBY)
+  // Navigate when FSM transitions to next tutorial
+  useEffect(() => {
+    if (snapshot?.state !== 'TUTORIAL') return;
+    router.replace({
+      pathname: '/room/[code]/tutorial',
+      params: {
+        code,
+        tutorialType: snapshot.tutorialType ?? '',
+        tutorialAsset: snapshot.tutorialAsset ?? '',
+      },
+    });
+  }, [snapshot?.state, snapshot?.tutorialType, snapshot?.tutorialAsset, code]);
+
+  // Fallback: navigate back to lobby if state resets there
   useEffect(() => {
     if (snapshot?.state === 'LOBBY') {
       router.replace({ pathname: '/room/[code]/lobby', params: { code } });
     }
   }, [snapshot?.state, code]);
 
-  function handlePlayAgain() { send({ type: 'ADMIN_NEXT' }); }
+  function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
   function handleEndNight()  { send({ type: 'END_NIGHT' }); }
 
   return (
@@ -133,7 +146,7 @@ export default function PodiumScreen() {
           {isAdmin ? (
             <View style={{ gap: 12 }}>
               <Pressable
-                onPress={handlePlayAgain}
+                onPress={handleNextRound}
                 style={{
                   backgroundColor: colors.amber,
                   borderRadius: 16,
@@ -143,7 +156,7 @@ export default function PodiumScreen() {
                 className="active:opacity-80"
               >
                 <Text style={{ color: colors.ink, fontSize: 16, fontWeight: '700' }}>
-                  Play Again
+                  Next Round
                 </Text>
               </Pressable>
 

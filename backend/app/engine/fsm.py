@@ -16,7 +16,7 @@ _ALLOWED: dict[RoomState, set[RoomState]] = {
     RoomState.TUTORIAL:         {RoomState.PLAYING},
     RoomState.PLAYING:          {RoomState.PERSONAL_SUMMARY},
     RoomState.PERSONAL_SUMMARY: {RoomState.PODIUM, RoomState.LOBBY},
-    RoomState.PODIUM:           {RoomState.LOBBY},
+    RoomState.PODIUM:           {RoomState.LOBBY, RoomState.TUTORIAL},
 }
 
 
