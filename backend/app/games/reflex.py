@@ -1,4 +1,3 @@
-import math
 import random
 import time
 from typing import Any
@@ -8,13 +7,12 @@ from app.engine.base import BaseMiniGame
 _GREEN_MIN_MS = 3_000
 _GREEN_MAX_MS = 8_000
 _TIMEOUT_MS = 5_000
-_RED_TAP_CHASERS = 5
 
 
 class ReflexGame(BaseMiniGame):
     game_id = "reflex"
     tutorial_type = "timed_text"
-    tutorial_asset = "tutorial.red_light_green_light"
+    tutorial_asset = "tutorial.reflex"
 
     def get_initial_state(self, players: list[dict[str, Any]]) -> dict[str, Any]:
         now_ms = int(time.time() * 1000)
@@ -76,38 +74,66 @@ def _compute_outcomes(
     clock_offsets: dict[str, int],
 ) -> dict[str, dict[str, Any]]:
     outcomes: dict[str, dict[str, Any]] = {}
-    valid_deltas: dict[str, int] = {}
+    green_deltas: dict[str, int] = {}
 
-    for pid, value in taps.items():
-        if value == "red":
+    for pid in clock_offsets.keys():
+        tap_val = taps.get(pid)
+
+        # 1. AFK / Never Tapped (Timeout)
+        if tap_val is None:
             outcomes[pid] = {
                 "result": "LOSE",
-                "chasers": _RED_TAP_CHASERS,
-                "reason": "early_tap",
-                "score_delta": _RED_TAP_CHASERS,
+                "chasers": 1,
+                "reason": "timed_out",
+                "score_delta": -1,
             }
-        else:
-            valid_deltas[pid] = value - execute_at
+            continue
 
-    # Players who never tapped (timed out) get the max possible penalty
-    for pid in clock_offsets:
-        if pid not in taps:
-            valid_deltas[pid] = _TIMEOUT_MS + 1
+        # 2. False Start (Tapped on Red)
+        if tap_val == "red":
+            outcomes[pid] = {
+                "result": "LOSE",
+                "chasers": 1,
+                "reason": "early_tap",
+                "score_delta": -1,
+            }
+            continue
 
-    if not valid_deltas:
+        # 3. Valid Green Tap
+        green_deltas[pid] = tap_val - execute_at
+
+    # If nobody made a valid green tap (all early or AFK)
+    if not green_deltas:
         return outcomes
 
-    slowest_pid = max(valid_deltas, key=lambda p: valid_deltas[p])
-    for pid, delta_ms in valid_deltas.items():
-        if pid == slowest_pid:
-            chasers = max(1, math.ceil(delta_ms / 500))
+    # If exactly one person made a valid green tap, they win automatically
+    if len(green_deltas) == 1:
+        pid = list(green_deltas.keys())[0]
+        outcomes[pid] = {
+            "result": "WIN",
+            "chasers": 0,
+            "score_delta": 1,
+            "reason": "only_valid",
+        }
+        return outcomes
+
+    # If multiple valid taps, find the slowest
+    slowest_delta = max(green_deltas.values())
+
+    for pid, delta in green_deltas.items():
+        if delta == slowest_delta:
             outcomes[pid] = {
                 "result": "LOSE",
-                "chasers": chasers,
+                "chasers": 1,
                 "reason": "slowest",
-                "score_delta": chasers,
+                "score_delta": -1,
             }
         else:
-            outcomes[pid] = {"result": "WIN", "chasers": 0, "score_delta": 0}
+            outcomes[pid] = {
+                "result": "WIN",
+                "chasers": 0,
+                "score_delta": 1,
+                "reason": "fast_enough",
+            }
 
     return outcomes
