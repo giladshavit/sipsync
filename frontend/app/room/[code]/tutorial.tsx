@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
@@ -9,12 +9,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { colors } from '@/constants/design';
+import { ReflexTutorial } from '@/components/tutorials/ReflexTutorial';
 
 const DURATION_MS = 5_000;
 
-const TUTORIAL_TEXT: Record<string, string> = {
-  'tutorial.red_light_green_light':
-    'When the screen turns GREEN — tap as fast as you can.\nTap during RED and you drink immediately.',
+const TUTORIAL_COMPONENTS: Record<string, React.FC> = {
+  'tutorial.reflex': ReflexTutorial,
 };
 
 export default function TutorialScreen() {
@@ -56,19 +56,23 @@ export default function TutorialScreen() {
     }
   }, [snapshot?.state, code]);
 
-  const text =
-    TUTORIAL_TEXT[tutorialAsset] ??
-    'Get ready for the next round!';
+  const TutorialComponent = tutorialAsset ? (TUTORIAL_COMPONENTS[tutorialAsset] ?? null) : null;
 
   return (
-    <View className="flex-1 bg-ink px-6 pt-20">
+    <View className="flex-1 bg-ink px-6 pt-20 pb-6">
       <Text className="text-fog text-xs font-mono tracking-widest uppercase mb-4">
         How to play
       </Text>
 
-      <Text className="text-chalk text-2xl font-bold leading-snug mb-12">
-        {text}
-      </Text>
+      {TutorialComponent ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <TutorialComponent />
+        </View>
+      ) : (
+        <Text className="text-chalk text-2xl font-bold leading-snug mb-12">
+          Get ready for the next round!
+        </Text>
+      )}
 
       {/* Countdown bar — mandatory, no skip */}
       <View
