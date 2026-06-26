@@ -14,7 +14,7 @@ export default function HomeScreen() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 items-center justify-center bg-ink">
+      <View className="flex-1 items-center justify-center bg-[#FFF8E1]">
         <ActivityIndicator color="#F59E0B" />
       </View>
     );
@@ -72,46 +72,60 @@ export default function HomeScreen() {
   }
 
   return (
-    <View className="flex-1 justify-center px-6 bg-ink">
+    <View className="flex-1 bg-[#FFF8E1] px-6 pt-20">
+      {/* Title block */}
       <View className="mb-14">
-        <Text className="text-amber text-sm font-mono tracking-widest uppercase mb-2">
+        <Text className="font-mono text-[11px] tracking-[0.28em] uppercase text-amber mb-6">
           Real-time party game
         </Text>
-        <Text className="text-chalk text-5xl font-bold tracking-tightest leading-none">
-          SipSync
+
+        {/* Signature: two-line split — thin dark / heavy amber */}
+        <Text style={{ fontWeight: '200', color: '#0A0A0F', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
+          Sip
         </Text>
+        <Text style={{ fontWeight: '900', color: '#F59E0B', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
+          Sync
+        </Text>
+
         {displayName && (
-          <Text className="text-fog text-sm mt-3">Playing as {displayName}</Text>
+          <Text className="text-[#A8977A] text-sm mt-5 tracking-wide">
+            Playing as {displayName}
+          </Text>
         )}
       </View>
 
+      {/* Buttons */}
       <View className="gap-3">
         <Pressable
           onPress={handleCreateRoom}
           disabled={creating}
-          className="bg-amber rounded-xl py-4 items-center active:opacity-80 disabled:opacity-50"
+          className="bg-amber py-5 items-center rounded-none active:opacity-75 disabled:opacity-50"
         >
           {creating ? (
             <ActivityIndicator color="#0A0A0F" />
           ) : (
-            <Text className="text-ink text-base font-bold tracking-wide">Create Room</Text>
+            <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
+              Create Room
+            </Text>
           )}
         </Pressable>
 
         {!joinExpanded ? (
           <Pressable
             onPress={() => { setJoinExpanded(true); setError(null); }}
-            className="border border-rim rounded-xl py-4 items-center active:opacity-60"
+            className="border-2 border-[#0A0A0F] py-5 items-center rounded-none active:opacity-60"
           >
-            <Text className="text-chalk text-base font-semibold">Join with code</Text>
+            <Text className="text-[#0A0A0F] text-sm font-bold tracking-[0.18em] uppercase">
+              Join with code
+            </Text>
           </Pressable>
         ) : (
           <View className="gap-2">
             <View className="flex-row gap-2">
               <TextInput
-                className="flex-1 border border-rim rounded-xl py-4 px-4 text-chalk text-center text-xl font-mono tracking-widest bg-surface"
+                className="flex-1 border-2 border-[#0A0A0F] py-4 px-4 text-[#0A0A0F] text-center text-xl font-mono tracking-widest bg-white rounded-none"
                 placeholder="XXXXXX"
-                placeholderTextColor="#64748B"
+                placeholderTextColor="#C4B49A"
                 autoCapitalize="characters"
                 autoFocus
                 maxLength={6}
@@ -122,12 +136,14 @@ export default function HomeScreen() {
               <Pressable
                 onPress={handleJoinRoom}
                 disabled={codeInput.trim().length !== 6 || joining}
-                className="border border-amber rounded-xl px-5 items-center justify-center active:opacity-80 disabled:opacity-40"
+                className="bg-amber px-6 items-center justify-center rounded-none active:opacity-80 disabled:opacity-40"
               >
                 {joining ? (
-                  <ActivityIndicator color="#F59E0B" />
+                  <ActivityIndicator color="#0A0A0F" />
                 ) : (
-                  <Text className="text-amber font-bold text-base">Join</Text>
+                  <Text className="text-ink font-bold text-sm tracking-[0.15em] uppercase">
+                    Join
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -135,7 +151,7 @@ export default function HomeScreen() {
               onPress={() => { setJoinExpanded(false); setCodeInput(''); setError(null); }}
               className="items-center py-2"
             >
-              <Text className="text-fog text-sm">Cancel</Text>
+              <Text className="text-[#A8977A] text-sm">Cancel</Text>
             </Pressable>
           </View>
         )}
