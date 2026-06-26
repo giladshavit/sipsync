@@ -38,6 +38,10 @@ SipSync is a real-time BYOD party drinking game. See [ARCHITECTURE.md](ARCHITECT
 ### Animations
 - Use `react-native-reanimated` for all animations. Run logic on the **native UI thread** (worklets). Never block the JS thread for visual work.
 
+### Icons
+- Use `@expo/vector-icons` (already bundled with Expo) for all icons. Prefer the **Feather** set for its clean, minimal style.
+- Never use raw emoji as icon substitutes in UI components.
+
 ### Authentication
 - Player identity is a `UUID` from `SecureStore`. Treat it as a first-class auth token.
 - Do not add login gates. The guest-first model is intentional.
