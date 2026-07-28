@@ -502,7 +502,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Black Box',
     tagline: 'Choose a card - then convince them what’s inside',
     Icon: Package,
-    categories: ['strategy'],
+    categories: ['luck', 'strategy'], // sealed pick is chance; the bluff is strategy
     accentColor: '#475569',
     rules: [
       'Two players are picked at random.',
