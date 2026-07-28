@@ -17,18 +17,32 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
 }) => {
   const [tapped, setTapped] = useState(false);
   const [phase, setPhase] = useState<'red' | 'green'>('red');
+  const [reactionMs, setReactionMs] = useState<number | null>(null);
   // Ref so the tap handler always reads the latest phase without stale closure
   const isGreenRef = useRef(false);
+  // Local device timestamp of the moment the screen actually turned green,
+  // used to measure reaction time independent of the color animation duration
+  const greenStartRef = useRef<number | null>(null);
 
   // Drives the RED → GREEN background transition on the native UI thread
   const progress = useSharedValue(0);
-  const bgStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
+  // Drives the transition to blue once tapped, as a clearer confirmation than
+  // staying green
+  const tapProgress = useSharedValue(0);
+  const bgStyle = useAnimatedStyle(() => {
+    const baseColor = interpolateColor(
       progress.value,
       [0, 1],
       [colors.stop, colors.go],
-    ),
-  }));
+    );
+    return {
+      backgroundColor: interpolateColor(
+        tapProgress.value,
+        [0, 1],
+        [baseColor, colors.tapped],
+      ),
+    };
+  });
 
   const executeAt =
     typeof gameState.execute_at === 'number' ? gameState.execute_at : 0;
@@ -42,6 +56,7 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
 
     const timer = setTimeout(() => {
       isGreenRef.current = true;
+      greenStartRef.current = Date.now();
       setPhase('green');
       // Color transition on native UI thread — no JS jank
       progress.value = withTiming(1, {
@@ -56,8 +71,16 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
 
   function handleTap() {
     if (tapped) return; // block re-tapping
+    const now = Date.now();
     setTapped(true);
-    onAction('tap', { local_ts: Date.now() });
+    if (isGreenRef.current && greenStartRef.current !== null) {
+      setReactionMs(now - greenStartRef.current);
+    }
+    tapProgress.value = withTiming(1, {
+      duration: 150,
+      easing: Easing.out(Easing.quad),
+    });
+    onAction('tap', { local_ts: now });
   }
 
   const isEarlyTap = tapped && !isGreenRef.current;
@@ -69,6 +92,9 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
     : phase === 'green'
       ? 'TAP!'
       : 'Wait…';
+
+  const reactionLabel =
+    reactionMs !== null ? `${(reactionMs / 1000).toFixed(2)}s` : null;
 
   return (
     <Pressable className="flex-1" onPress={handleTap}>
@@ -82,6 +108,11 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
         {isEarlyTap && (
           <Text className="text-white text-base mt-6 opacity-80">
             You drank during RED
+          </Text>
+        )}
+        {reactionLabel && (
+          <Text className="text-white text-2xl mt-6 opacity-90">
+            {reactionLabel}
           </Text>
         )}
       </Animated.View>

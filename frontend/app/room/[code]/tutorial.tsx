@@ -8,13 +8,36 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
-import { colors } from '@/constants/design';
-import { ReflexTutorial } from '@/components/tutorials/ReflexTutorial';
+import { colors, typography } from '@/constants/design';
+import { TUTORIAL_COMPONENTS } from '@/constants/tutorials';
+import { getGameById } from '@/constants/games';
+import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
 
-const DURATION_MS = 5_000;
+// Sacrifice's two-phone story needs the longest hold of any default-length
+// tutorial (~5.1s of story + a beat to land on "room safe"); every other
+// default-length tutorial finishes well within this and just holds its
+// final frame the extra second.
+const DEFAULT_DURATION_MS = 6_000;
 
-const TUTORIAL_COMPONENTS: Record<string, React.FC> = {
-  'tutorial.reflex': ReflexTutorial,
+// Per-tutorial overrides for stories that need more room than the default
+// window — Dilemma's two-phone, two-scenario-beat story runs long enough
+// that it would get cut off mid-reveal on the last scenario otherwise.
+const DURATION_MS_OVERRIDES: Record<string, number> = {
+  'tutorial.auction': 7_500,
+  'tutorial.dilemma': 8_000,
+  'tutorial.majority': 7_000,
+  'tutorial.minority': 7_000,
+  // Runs its own real 10s countdown to an actual reveal (not just a
+  // freeze-frame mid-story) — needs the full 10s plus a beat to see it.
+  'tutorial.flying_bomb': 10_800,
+  // Six-beat round-trip story (three other players' turns, the viewer's
+  // own tap, one more turn, then the bust), each beat 2s apart to actually
+  // read, runs ~9.4s before the loss banner even starts its own reveal.
+  'tutorial.twenty_one': 11_000,
+  // Full round replay across two phones — pick, the Holder's 2s private
+  // peek, LEAVE IT press, synced dim-and-flip reveal, skull plaque at
+  // ~8.7s — plus a beat to actually read the verdict.
+  'tutorial.black_box': 11_500,
 };
 
 export default function TutorialScreen() {
@@ -26,11 +49,13 @@ export default function TutorialScreen() {
 
   const { snapshot, send } = useRoomSocket(code);
 
+  const durationMs = tutorialAsset ? (DURATION_MS_OVERRIDES[tutorialAsset] ?? DEFAULT_DURATION_MS) : DEFAULT_DURATION_MS;
+
   // Stable ref so the setTimeout closure always calls the latest send
   const sendRef = useRef(send);
   sendRef.current = send;
 
-  // Animated countdown bar: 1 → 0 over DURATION_MS on the native UI thread
+  // Animated countdown bar: 1 → 0 over durationMs on the native UI thread
   const progress = useSharedValue(1);
   const barStyle = useAnimatedStyle(() => ({
     width: `${progress.value * 100}%` as `${number}%`,
@@ -38,16 +63,16 @@ export default function TutorialScreen() {
 
   // Start countdown on mount — no skip possible
   useEffect(() => {
-    progress.value = withTiming(0, { duration: DURATION_MS, easing: Easing.linear });
+    progress.value = withTiming(0, { duration: durationMs, easing: Easing.linear });
 
     const timer = setTimeout(() => {
       // Everyone sends; server silently ignores non-admin senders
       sendRef.current({ type: 'TUTORIAL_DONE' });
-    }, DURATION_MS);
+    }, durationMs);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [durationMs]);
 
   // Navigate when server confirms PLAYING
   useEffect(() => {
@@ -57,22 +82,58 @@ export default function TutorialScreen() {
   }, [snapshot?.state, code]);
 
   const TutorialComponent = tutorialAsset ? (TUTORIAL_COMPONENTS[tutorialAsset] ?? null) : null;
+  // tutorialAsset is always `tutorial.<game_id>` (see constants/tutorials.ts)
+  const game = getGameById(tutorialAsset?.replace(/^tutorial\./, '') ?? '');
+  const accent = game?.accentColor ?? colors.amber;
+  const cue = game?.tutorialCue ?? game?.tagline;
 
   return (
-    <View className="flex-1 bg-ink px-6 pt-20 pb-6">
-      <Text className="text-fog text-xs font-mono tracking-widest uppercase mb-4">
-        How to play
-      </Text>
+    <View className="flex-1 bg-ink px-6 pt-16 pb-6">
+      {/* Same "how to play" chrome as the standalone preview reached from
+          the rules screen — minus the back/replay buttons, since this
+          screen can't be left early or replayed: it runs once for a fixed
+          duration and then the round starts. */}
+      <View
+        style={{
+          alignSelf: 'center',
+          borderWidth: 2,
+          borderColor: accent,
+          paddingHorizontal: 10,
+          paddingVertical: 5,
+          marginBottom: 14,
+        }}
+      >
+        <Text style={{ color: accent, fontSize: 11, ...typography.label }}>How to play</Text>
+      </View>
 
-      {TutorialComponent ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <TutorialComponent />
-        </View>
-      ) : (
-        <Text className="text-chalk text-2xl font-bold leading-snug mb-12">
-          Get ready for the next round!
-        </Text>
+      {game && (
+        <>
+          <Text style={[typography.title, { color: colors.chalk, fontSize: 22, lineHeight: 24, textAlign: 'center' }]}>
+            {game.title}
+          </Text>
+          <View style={{ width: 40, height: 3, backgroundColor: accent, marginTop: 8, alignSelf: 'center' }} />
+        </>
       )}
+
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+        {cue && (
+          <View style={{ maxWidth: 300 }}>
+            <CueText line={cue} />
+          </View>
+        )}
+        {TutorialComponent ? (
+          <TutorialComponent />
+        ) : (
+          <Text className="text-chalk text-2xl font-bold leading-snug text-center">
+            Get ready for the next round!
+          </Text>
+        )}
+        {game && (
+          <View style={{ marginTop: 20 }}>
+            <DrinkRow rules={game.drinkingRules} />
+          </View>
+        )}
+      </View>
 
       {/* Countdown bar — mandatory, no skip */}
       <View
@@ -92,7 +153,7 @@ export default function TutorialScreen() {
       </View>
 
       <Text className="text-fog text-xs mt-3 text-center">
-        Starting in 5 seconds…
+        Starting in {durationMs / 1000} seconds…
       </Text>
     </View>
   );

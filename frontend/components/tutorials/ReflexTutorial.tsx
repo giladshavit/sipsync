@@ -12,10 +12,18 @@ import Animated, {
 import { colors } from '@/constants/design';
 
 const RED_MS = 2_000;
-const TAP_OFFSET_MS = 500;
+// The finger only shows up once the screen is unambiguously green — appearing
+// any earlier reads as "the hand already knew," which undersells the reflex
+// premise the whole game is built on.
+const GREEN_TO_FINGER_MS = 150;
+const FINGER_GLIDE_MS = 400;
+const FINGER_TO_TAP_MS = 150;
 
 export function ReflexTutorial(): React.ReactElement {
   const bgProgress = useSharedValue(0); // 0 = RED, 1 = GREEN
+  // Mirrors ReflexGameUI's post-tap color confirmation — the real screen
+  // doesn't stay green after a tap, it transitions to colors.tapped
+  const tapProgress = useSharedValue(0);
   const fingerScale = useSharedValue(1);
   const fingerOpacity = useSharedValue(0);
   const fingerTranslateY = useSharedValue(160);
@@ -29,22 +37,12 @@ export function ReflexTutorial(): React.ReactElement {
       setIsGreen(false);
       setIsTapped(false);
       bgProgress.value = withTiming(0, { duration: 120 });
+      tapProgress.value = 0;
       fingerOpacity.value = 0;
       fingerScale.value = 1;
       fingerTranslateY.value = 160;
 
-      // t = 1.6 s → finger glides up into hover position 400 ms before green
-      timers.push(
-        setTimeout(() => {
-          fingerOpacity.value = withTiming(1, { duration: 300 });
-          fingerTranslateY.value = withTiming(80, {
-            duration: 400,
-            easing: Easing.out(Easing.quad),
-          });
-        }, RED_MS - 400),
-      );
-
-      // t = 2 s → go GREEN (finger already arriving at hover position)
+      // t = 2 s → go GREEN first, hand nowhere in sight yet
       timers.push(
         setTimeout(() => {
           setIsGreen(true);
@@ -55,7 +53,18 @@ export function ReflexTutorial(): React.ReactElement {
         }, RED_MS),
       );
 
-      // t = 2.5 s → press animation + update label
+      // t = 2.15 s → only once GREEN has registered does the finger glide in
+      timers.push(
+        setTimeout(() => {
+          fingerOpacity.value = withTiming(1, { duration: 300 });
+          fingerTranslateY.value = withTiming(80, {
+            duration: FINGER_GLIDE_MS,
+            easing: Easing.out(Easing.quad),
+          });
+        }, RED_MS + GREEN_TO_FINGER_MS),
+      );
+
+      // t = 2.7 s → finger's in place, press animation + update label
       timers.push(
         setTimeout(() => {
           setIsTapped(true);
@@ -63,7 +72,9 @@ export function ReflexTutorial(): React.ReactElement {
             withTiming(0.78, { duration: 120, easing: Easing.in(Easing.quad) }),
             withTiming(1.0, { duration: 220, easing: Easing.out(Easing.quad) }),
           );
-        }, RED_MS + TAP_OFFSET_MS),
+          // Same 150ms duration as ReflexGameUI's post-tap color transition
+          tapProgress.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.quad) });
+        }, RED_MS + GREEN_TO_FINGER_MS + FINGER_GLIDE_MS + FINGER_TO_TAP_MS),
       );
 
     }
@@ -73,6 +84,7 @@ export function ReflexTutorial(): React.ReactElement {
     return () => {
       timers.forEach(clearTimeout);
       cancelAnimation(bgProgress);
+      cancelAnimation(tapProgress);
       cancelAnimation(fingerScale);
       cancelAnimation(fingerOpacity);
       cancelAnimation(fingerTranslateY);
@@ -80,13 +92,12 @@ export function ReflexTutorial(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const screenBgStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(
-      bgProgress.value,
-      [0, 1],
-      [colors.stop, colors.go],
-    ),
-  }));
+  const screenBgStyle = useAnimatedStyle(() => {
+    const baseColor = interpolateColor(bgProgress.value, [0, 1], [colors.stop, colors.go]);
+    return {
+      backgroundColor: interpolateColor(tapProgress.value, [0, 1], [baseColor, colors.tapped]),
+    };
+  });
 
   const fingerStyle = useAnimatedStyle(() => ({
     opacity: fingerOpacity.value,
@@ -100,16 +111,6 @@ export function ReflexTutorial(): React.ReactElement {
 
   return (
     <View className="items-center">
-      {/* Instructional text */}
-      <Text
-        className="text-chalk text-base font-bold text-center mb-5"
-        style={{ maxWidth: 280 }}
-      >
-        {'When the screen turns '}
-        <Text className="text-go">GREEN</Text>
-        {' — tap as fast as you can!'}
-      </Text>
-
       {/* Phone-in-phone container — w-72 × 450 px */}
       <View
         className="items-center overflow-hidden"

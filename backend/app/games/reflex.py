@@ -3,6 +3,7 @@ import time
 from typing import Any
 
 from app.engine.base import BaseMiniGame
+from app.games.scoring import rank_groups, uniform_scores
 
 _GREEN_MIN_MS = 3_000
 _GREEN_MAX_MS = 8_000
@@ -73,34 +74,30 @@ def _compute_outcomes(
     execute_at: int,
     clock_offsets: dict[str, int],
 ) -> dict[str, dict[str, Any]]:
-    outcomes: dict[str, dict[str, Any]] = {}
     green_deltas: dict[str, int] = {}
+    dq_reasons: dict[str, str] = {}
 
     for pid in clock_offsets.keys():
         tap_val = taps.get(pid)
-
-        # 1. AFK / Never Tapped (Timeout)
         if tap_val is None:
-            outcomes[pid] = {
-                "result": "LOSE",
-                "chasers": 1,
-                "reason": "timed_out",
-                "score_delta": -1,
-            }
-            continue
+            dq_reasons[pid] = "timed_out"  # AFK / never tapped
+        elif tap_val == "red":
+            dq_reasons[pid] = "early_tap"  # false start
+        else:
+            green_deltas[pid] = tap_val - execute_at
 
-        # 2. False Start (Tapped on Red)
-        if tap_val == "red":
-            outcomes[pid] = {
-                "result": "LOSE",
-                "chasers": 1,
-                "reason": "early_tap",
-                "score_delta": -1,
-            }
-            continue
+    # Fastest valid tap ranks first; early taps and AFKs share last place
+    scores = uniform_scores(rank_groups(green_deltas), list(dq_reasons.keys()))
 
-        # 3. Valid Green Tap
-        green_deltas[pid] = tap_val - execute_at
+    outcomes: dict[str, dict[str, Any]] = {
+        pid: {
+            "result": "LOSE",
+            "chasers": 1,
+            "reason": reason,
+            "score_delta": scores[pid],
+        }
+        for pid, reason in dq_reasons.items()
+    }
 
     # If nobody made a valid green tap (all early or AFK)
     if not green_deltas:
@@ -112,12 +109,13 @@ def _compute_outcomes(
         outcomes[pid] = {
             "result": "WIN",
             "chasers": 0,
-            "score_delta": 1,
+            "score_delta": scores[pid],
             "reason": "only_valid",
+            "reaction_ms": green_deltas[pid],
         }
         return outcomes
 
-    # If multiple valid taps, find the slowest
+    # With multiple valid taps, only the slowest drinks
     slowest_delta = max(green_deltas.values())
 
     for pid, delta in green_deltas.items():
@@ -126,14 +124,16 @@ def _compute_outcomes(
                 "result": "LOSE",
                 "chasers": 1,
                 "reason": "slowest",
-                "score_delta": -1,
+                "score_delta": scores[pid],
+                "reaction_ms": delta,
             }
         else:
             outcomes[pid] = {
                 "result": "WIN",
                 "chasers": 0,
-                "score_delta": 1,
+                "score_delta": scores[pid],
                 "reason": "fast_enough",
+                "reaction_ms": delta,
             }
 
     return outcomes

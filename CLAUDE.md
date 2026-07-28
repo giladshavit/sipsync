@@ -39,8 +39,17 @@ SipSync is a real-time BYOD party drinking game. See [ARCHITECTURE.md](ARCHITECT
 - Use `react-native-reanimated` for all animations. Run logic on the **native UI thread** (worklets). Never block the JS thread for visual work.
 
 ### Icons
-- Use `@expo/vector-icons` (already bundled with Expo) for all icons. Prefer the **Feather** set for its clean, minimal style.
-- Never use raw emoji as icon substitutes in UI components.
+- Use **`lucide-react-native`** (SVG-based, built on `react-native-svg`) for all icons — it is the maintained successor of Feather with the same clean line style and a much larger set.
+- Import icons as named components: `import { Beer, Skull } from 'lucide-react-native'` → `<Beer size={20} color={...} strokeWidth={2} />`.
+- Never use raw emoji as icon substitutes in UI components — no system emoji anywhere in the UI; every glyph comes from Lucide.
+- Do not add `@expo/vector-icons` imports in new code; migrate old Feather usages to Lucide when touching a file.
+
+### Typography
+- Never use `fontFamily: 'Courier New'` (or any monospace font) for UI text. It was the app's de facto default for small tracked-caps labels for a long time and reads too thin at those sizes — swept out app-wide; don't reintroduce it.
+- Use the two shared treatments from `frontend/constants/design.ts`'s `typography` export instead, spread into the `Text` style alongside `color`/`fontSize`/etc.:
+  - `typography.title` — a standalone screen/section heading with no bigger heading following it (e.g. a mini-game's own name shown as its in-round eyebrow, like "Prisoner's Dilemma" or "The Sacrifice"). Bold (900), tracked, uppercase.
+  - `typography.label` — everything else: supporting stat readouts, kickers above a *different* larger heading, inline data, section sub-headers. Semibold (700), tracked, uppercase.
+- Exceptions (deliberate, functional, not oversights): a shared room **code** (`frontend/app/room/[code]/lobby.tsx`) stays monospace — fixed character widths and 1/I/l disambiguation are real wins for a code someone has to read aloud or retype. A live-ticking countdown digit display (`frontend/components/games/CountdownRing.tsx`) uses `fontVariant: ['tabular-nums']` instead of a monospace font — same fixed-digit-width benefit (no jitter as it counts down) without the thin monospace look.
 
 ### Authentication
 - Player identity is a `UUID` from `SecureStore`. Treat it as a first-class auth token.

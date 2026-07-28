@@ -1,9 +1,11 @@
+import json
 import secrets
 import string
 import uuid
 
 from fastapi import APIRouter, HTTPException
 
+from app.engine import bot_engine
 from app.engine.deck import deck
 from app.models.room import CreateRoomRequest, CreateRoomResponse, RoomInfoResponse
 from app.redis_client import redis
@@ -13,6 +15,8 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 _CODE_ALPHABET = string.ascii_uppercase.replace("O", "").replace("I", "") + string.digits.replace("0", "").replace("1", "")
 _CODE_LENGTH = 6
 _MAX_RETRIES = 10
+_ROOM_TTL_SECONDS = 86_400
+_PRACTICE_TTL_SECONDS = 1_800
 
 
 def _generate_code() -> str:
@@ -28,13 +32,28 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
 
         created = await redis.hsetnx(key, "state", "LOBBY")
         if created:
-            await redis.hset(key, mapping={
+            room_fields = {
                 "room_id": room_id,
                 "admin_id": body.admin_id,
                 "state": "LOBBY",
-            })
-            await redis.expire(key, 86400)  # 24 h TTL
+                "practice": "1" if body.practice else "0",
+            }
+            if body.practice and body.practice_role:
+                room_fields["practice_role_hint"] = body.practice_role
+            await redis.hset(key, mapping=room_fields)
+            await redis.expire(key, _PRACTICE_TTL_SECONDS if body.practice else _ROOM_TTL_SECONDS)
             await deck.initialize(code, body.game_ids)
+
+            if body.practice:
+                bot_records = bot_engine.build_bot_player_records(
+                    bot_engine.bot_headcount(body.game_ids[0]), used_avatars=set()
+                )
+                if bot_records:
+                    await redis.hset(
+                        f"room:{code}:players",
+                        mapping={bid: json.dumps(rec) for bid, rec in bot_records.items()},
+                    )
+
             return CreateRoomResponse(
                 code=code,
                 room_id=room_id,

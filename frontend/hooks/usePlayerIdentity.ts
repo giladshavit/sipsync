@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../lib/secureStorage';
 
 function uuidv4(): string {
   const hex = '0123456789abcdef';
@@ -20,18 +20,22 @@ function uuidv4(): string {
 
 const KEY_PLAYER_ID = 'sipsync.player_id';
 const KEY_DISPLAY_NAME = 'sipsync.display_name';
+const KEY_VIBE = 'sipsync.vibe';
 
 interface PlayerIdentity {
   playerId: string | null;
   displayName: string | null;
+  /** Key into VIBE_ICONS — the player's chosen icon, picked at onboarding. */
+  vibe: string | null;
   isOnboarded: boolean;
-  setDisplayName: (name: string) => Promise<void>;
+  setIdentity: (name: string, vibe: string | null) => Promise<void>;
   isLoading: boolean;
 }
 
 export function usePlayerIdentity(): PlayerIdentity {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [displayName, setDisplayNameState] = useState<string | null>(null);
+  const [vibe, setVibeState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -43,8 +47,10 @@ export function usePlayerIdentity(): PlayerIdentity {
           await SecureStore.setItemAsync(KEY_PLAYER_ID, id);
         }
         const name = await SecureStore.getItemAsync(KEY_DISPLAY_NAME);
+        const storedVibe = await SecureStore.getItemAsync(KEY_VIBE);
         setPlayerId(id);
         setDisplayNameState(name);
+        setVibeState(storedVibe);
       } catch (e) {
         // Fallback: generate an ephemeral ID so the app still works
         setPlayerId(uuidv4());
@@ -55,16 +61,21 @@ export function usePlayerIdentity(): PlayerIdentity {
     init();
   }, []);
 
-  const setDisplayName = useCallback(async (name: string) => {
+  const setIdentity = useCallback(async (name: string, newVibe: string | null) => {
     await SecureStore.setItemAsync(KEY_DISPLAY_NAME, name);
+    if (newVibe) {
+      await SecureStore.setItemAsync(KEY_VIBE, newVibe);
+    }
     setDisplayNameState(name);
+    setVibeState(newVibe);
   }, []);
 
   return {
     playerId,
     displayName,
+    vibe,
     isOnboarded: displayName !== null,
-    setDisplayName,
+    setIdentity,
     isLoading,
   };
 }

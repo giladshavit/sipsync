@@ -1,45 +1,41 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, Share, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, Share, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Feather } from '@expo/vector-icons';
+import { ArrowLeft, Check, Copy, Eye, Pencil, Share2 } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { VIBE_ICONS } from '@/constants/vibes';
+import { colors, typography } from '@/constants/design';
+import { GAME_CATALOG, getGameById } from '@/constants/games';
+import { AVATAR_IMAGES, AVATAR_COLORS, avatarFallbackColor } from '@/constants/avatars';
+import { GamesSheet } from '@/components/GamesSheet';
+import { AvatarPickerSheet } from '@/components/AvatarPickerSheet';
 
-const AVATAR_COLORS = [
-  '#C4852A', '#8A4A2A', '#7A6A3A', '#A05C2A', '#6A4A1A',
-  '#4A8A6F', '#3D6A5A', '#5A8888', '#3D7A6A', '#5A7A4A',
-  '#3D7FA5', '#2D5A8A', '#4A6A9A', '#3D5A7A', '#5A7A9A',
-  '#C4577A', '#A04A6A', '#8A3A5A', '#C46A5A', '#A05A5A',
-  '#7A5A9A', '#6A4A8A', '#8A6A9A', '#5A7A5A', '#7A5A3A',
-  '#6A7A9A', '#9A6A4A', '#5A6A7A',
-];
-
-const COLS = 6;
-
-function avatarColor(playerId: string): string {
-  let hash = 0;
-  for (let i = 0; i < playerId.length; i++) {
-    hash = (hash * 31 + playerId.charCodeAt(i)) & 0xffffffff;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function chunkArray<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
-  return chunks;
-}
+// ~1.4x the original 56px slot — big enough that flex-wrap (not a fixed
+// column count) decides how many fit per row on any given screen width.
+const AVATAR_SIZE = 78;
 
 export default function LobbyScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { playerId } = usePlayerIdentity();
   const { snapshot, send } = useRoomSocket(code);
   const [copied, setCopied] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [gamesSheetMode, setGamesSheetMode] = useState<'edit' | 'view' | null>(null);
+  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
 
   const isRoomAdmin = !!snapshot && snapshot.admin_id === playerId;
   const players = Object.entries(snapshot?.players ?? {});
-  const playerRows = chunkArray(players, COLS);
+  const gameIds = snapshot?.gameIds ?? [];
+  const selectedGames = gameIds
+    .map((id) => getGameById(id))
+    .filter((g): g is NonNullable<typeof g> => g != null);
+  const myAvatar = playerId ? snapshot?.players[playerId]?.avatar : null;
+  const takenAvatars = new Set(
+    players.filter(([pid]) => pid !== playerId).map(([, p]) => p.avatar).filter((a): a is string => !!a),
+  );
 
   useEffect(() => {
     if (snapshot?.state === 'TUTORIAL') {
@@ -68,93 +64,325 @@ export default function LobbyScreen() {
     send({ type: 'ADMIN_START' });
   }
 
-  const lobbyTitle = players.length < 2
-    ? 'Waiting for friends…'
+  function handleLeave() {
+    send({ type: 'LEAVE_ROOM' });
+    router.replace('/');
+  }
+
+  function handleToggleGame(id: string) {
+    const isSelected = gameIds.includes(id);
+    if (isSelected && gameIds.length === 1) return; // keep at least one
+    const next = isSelected ? gameIds.filter((g) => g !== id) : [...gameIds, id];
+    // Preserve catalog order regardless of toggle order
+    const ordered = GAME_CATALOG.filter((g) => next.includes(g.id)).map((g) => g.id);
+    send({ type: 'SET_GAMES', game_ids: ordered });
+  }
+
+  // Split-weight titles — thin ink line over heavy amber line, like the
+  // home screen's Sip / Sync signature.
+  const [titleThin, titleHeavy] = players.length < 2
+    ? ['Waiting for', 'friends…']
     : players.length < 5
-    ? 'Almost there!'
-    : 'Ready to play!';
+    ? ['Almost', 'there!']
+    : ['Ready to', 'play!'];
 
   return (
-    <View className="flex-1 bg-ink px-6 pt-20 pb-14">
+    <View style={{ flex: 1, backgroundColor: colors.cream }} className="px-6 pt-16 pb-14">
+
+      {/* Back to home */}
+      <Pressable
+        onPress={() => setConfirmingLeave(true)}
+        style={{
+          width: 42,
+          height: 42,
+          borderWidth: 2,
+          borderColor: colors.ink,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 18,
+        }}
+        className="active:opacity-60"
+      >
+        <ArrowLeft size={20} color={colors.ink} />
+      </Pressable>
 
       {/* Header */}
-      <View className="mb-8">
-        <Text style={{ fontWeight: '800', color: '#F0F0E8', fontSize: 32, letterSpacing: -1 }}>
-          {lobbyTitle}
-        </Text>
-        <Text className="font-mono text-[11px] tracking-[0.28em] uppercase text-amber mt-2">
+      <View className="mb-6">
+        <Text
+          style={{
+            color: colors.amber,
+            ...typography.label,
+            fontSize: 11,
+            letterSpacing: 4,
+            textTransform: 'uppercase',
+            marginBottom: 6,
+          }}
+        >
           {players.length} {players.length === 1 ? 'player' : 'players'} joined
         </Text>
+        <Text style={{ fontWeight: '200', color: colors.ink, fontSize: 40, lineHeight: 44, letterSpacing: -2 }}>
+          {titleThin}
+        </Text>
+        <Text style={{ fontWeight: '900', color: colors.amber, fontSize: 40, lineHeight: 44, letterSpacing: -2 }}>
+          {titleHeavy}
+        </Text>
       </View>
+
+      {/* Tonight's games — horizontal strip, live for every player */}
+      {selectedGames.length > 0 && (
+        <View className="mb-5">
+          <View className="flex-row items-center justify-between mb-2.5">
+            <Text
+              style={{
+                color: colors.dune,
+                ...typography.label,
+                fontSize: 10,
+                letterSpacing: 2.5,
+                textTransform: 'uppercase',
+              }}
+            >
+              {selectedGames.length} game{selectedGames.length === 1 ? '' : 's'} tonight
+            </Text>
+            {isRoomAdmin ? (
+              <Pressable
+                onPress={() => setGamesSheetMode('edit')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  borderWidth: 1.5,
+                  borderColor: colors.ink,
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                }}
+                className="active:opacity-60"
+              >
+                <Pencil size={11} color={colors.ink} strokeWidth={2} />
+                <Text style={{ color: colors.ink, fontSize: 11, fontWeight: '700' }}>
+                  Edit games
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                onPress={() => setGamesSheetMode('view')}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 5,
+                  borderWidth: 1.5,
+                  borderColor: colors.ink,
+                  paddingHorizontal: 9,
+                  paddingVertical: 5,
+                }}
+                className="active:opacity-60"
+              >
+                <Eye size={11} color={colors.ink} strokeWidth={2} />
+                <Text style={{ color: colors.ink, fontSize: 11, fontWeight: '700' }}>
+                  View games
+                </Text>
+              </Pressable>
+            )}
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 10 }}
+          >
+            {selectedGames.map((game) => (
+              <Pressable
+                key={game.id}
+                onPress={() => router.push(`/games/${game.id}`)}
+                style={{ width: 68, alignItems: 'center' }}
+                className="active:opacity-70"
+              >
+                <View
+                  style={{
+                    width: 56,
+                    height: 56,
+                    backgroundColor: game.accentColor,
+                    borderWidth: 2,
+                    borderColor: colors.ink,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <game.Icon size={26} color={colors.parchment} strokeWidth={2} />
+                </View>
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    color: colors.ink,
+                    fontSize: 10,
+                    fontWeight: '700',
+                    marginTop: 5,
+                    textAlign: 'center',
+                    width: 68,
+                  }}
+                >
+                  {game.title}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Avatar grid — vertically centered in available space */}
       {!snapshot ? (
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#F59E0B" />
+          <ActivityIndicator color={colors.amber} />
         </View>
       ) : (
         <ScrollView
           className="flex-1"
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', gap: 14 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
         >
-          {playerRows.map((row, rowIdx) => (
-            <View key={rowIdx} className="flex-row justify-center" style={{ gap: 10 }}>
-              {row.map(([pid, player]) => {
-                const color = avatarColor(pid);
-                const initial = (player.display_name?.match(/[A-Za-zא-ת؀-ۿ]/)?.[0] ?? '?').toUpperCase();
-                const isAdmin = pid === snapshot.admin_id;
-                const shortName = (player.display_name ?? '').substring(0, 8);
+          <View
+            style={{
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 14,
+            }}
+          >
+            {players.map(([pid, player]) => {
+              const initial = (player.display_name?.match(/[A-Za-zא-ת؀-ۿ]/)?.[0] ?? '?').toUpperCase();
+              const isAdmin = pid === snapshot.admin_id;
+              const isSelf = pid === playerId;
+              const shortName = (player.display_name ?? '').substring(0, 8);
+              const VibeIcon = player.vibe ? VIBE_ICONS[player.vibe] : undefined;
+              const AvatarBox = isSelf ? Pressable : View;
+              // Force a circular clip + colored ring in code rather than
+              // trusting the source image's own baked-in circle — don't
+              // depend on the asset alone to look round.
+              const avatarSource = player.avatar ? AVATAR_IMAGES[player.avatar] : undefined;
+              // The border matches this specific avatar's own accent color
+              // when there's an image; otherwise falls back to the per-player
+              // hash color used for the vibe/initial placeholder.
+              const ringColor = player.avatar ? AVATAR_COLORS[player.avatar] : undefined;
+              const fallbackColor = avatarFallbackColor(pid);
 
-                return (
-                  <View key={pid} style={{ width: 48, alignItems: 'center' }}>
-                    <View
+              return (
+                <Animated.View
+                  key={pid}
+                  entering={FadeInDown.duration(300)}
+                  style={{ width: AVATAR_SIZE, alignItems: 'center' }}
+                >
+                  {/* Plain wrapper (no overflow clipping) so the edit badge
+                      below can sit half outside the circle without being
+                      cut off by the circle's own clip — and, since it's
+                      absolutely positioned, it takes no layout space, so
+                      every avatar in the row stays the same height whether
+                      or not it's yours. */}
+                  <View style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}>
+                    <AvatarBox
+                      {...(isSelf ? { onPress: () => setAvatarPickerOpen(true) } : {})}
                       style={{
-                        width: 48,
-                        height: 48,
-                        backgroundColor: color,
-                        borderWidth: isAdmin ? 2 : 1,
-                        borderColor: isAdmin ? '#F59E0B' : '#252538',
+                        width: AVATAR_SIZE,
+                        height: AVATAR_SIZE,
+                        borderRadius: AVATAR_SIZE / 2,
+                        overflow: 'hidden',
+                        borderWidth: 3,
+                        borderColor: ringColor ?? colors.ink,
+                        backgroundColor: avatarSource ? colors.parchment : fallbackColor,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
+                      className={isSelf ? 'active:opacity-70' : undefined}
                     >
-                      <Text style={{ color: '#F0F0E8', fontSize: 20, fontWeight: '700' }}>
-                        {initial}
-                      </Text>
-                    </View>
+                      {avatarSource ? (
+                        <Image
+                          source={avatarSource}
+                          style={{ width: AVATAR_SIZE, height: AVATAR_SIZE }}
+                          resizeMode="cover"
+                        />
+                      ) : VibeIcon ? (
+                        <VibeIcon size={32} strokeWidth={2} color={colors.parchment} />
+                      ) : (
+                        <Text style={{ color: colors.parchment, fontSize: 30, fontWeight: '700' }}>
+                          {initial}
+                        </Text>
+                      )}
+                    </AvatarBox>
+                    {isSelf && (
+                      <Pressable
+                        onPress={() => setAvatarPickerOpen(true)}
+                        hitSlop={6}
+                        style={{
+                          position: 'absolute',
+                          bottom: -3,
+                          right: -3,
+                          width: 24,
+                          height: 24,
+                          borderRadius: 12,
+                          backgroundColor: colors.amber,
+                          borderWidth: 2,
+                          borderColor: colors.ink,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        className="active:opacity-70"
+                      >
+                        <Pencil size={12} color={colors.ink} strokeWidth={2.5} />
+                      </Pressable>
+                    )}
+                  </View>
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      color: isAdmin ? colors.amber : colors.dune,
+                      fontSize: 11,
+                      marginTop: 6,
+                      fontWeight: isAdmin ? '800' : '600',
+                      textAlign: 'center',
+                      width: AVATAR_SIZE,
+                    }}
+                  >
+                    {shortName}
+                  </Text>
+                  {isAdmin && (
                     <Text
-                      numberOfLines={1}
                       style={{
-                        color: '#64748B',
-                        fontSize: 9,
-                        marginTop: 3,
-                        fontWeight: '500',
-                        textAlign: 'center',
-                        width: 48,
+                        color: colors.amber,
+                        ...typography.label,
+                        fontSize: 8,
+                        letterSpacing: 1.5,
+                        fontWeight: '700',
+                        marginTop: 1,
                       }}
                     >
-                      {shortName}
+                      HOST
                     </Text>
-                  </View>
-                );
-              })}
-            </View>
-          ))}
+                  )}
+                </Animated.View>
+              );
+            })}
+          </View>
         </ScrollView>
       )}
 
       {/* Bottom section */}
       <View className="gap-3 mt-4">
-        {/* Code box — centered code, icon absolute right */}
+        {/* Code box — centered code, icon absolute right. Deliberately kept
+            monospace (unlike the rest of the app's former Courier New
+            usage) — this is an actual shared alphanumeric code, where fixed
+            character widths and 1/I/l disambiguation are real functional
+            wins, not just a leftover default. */}
         <Pressable
           onPress={handleCopy}
-          className="bg-surface border border-amber py-4 items-center rounded-none active:opacity-70"
-          style={{ position: 'relative' }}
+          style={{
+            backgroundColor: colors.parchment,
+            borderWidth: 2,
+            borderColor: colors.ink,
+            paddingVertical: 16,
+            alignItems: 'center',
+          }}
+          className="active:opacity-70"
         >
           <Text
             style={{
-              color: '#F0F0E8',
+              color: colors.ink,
               fontSize: 26,
               fontFamily: 'Courier New',
               fontWeight: '700',
@@ -165,23 +393,24 @@ export default function LobbyScreen() {
             {code}
           </Text>
           <View style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}>
-            <Feather
-              name={copied ? 'check' : 'copy'}
-              size={20}
-              color={copied ? '#16A34A' : '#F0F0E8'}
-            />
+            {copied ? (
+              <Check size={20} color={colors.go} />
+            ) : (
+              <Copy size={20} color={colors.ink} />
+            )}
           </View>
         </Pressable>
 
         {/* Admin actions */}
-        {isRoomAdmin && (
+        {isRoomAdmin ? (
           <>
             <Pressable
               onPress={handleShare}
-              className="bg-surface border border-rim py-4 flex-row items-center justify-center gap-2 rounded-none active:opacity-60"
+              style={{ borderWidth: 2, borderColor: colors.ink }}
+              className="py-4 flex-row items-center justify-center gap-2 rounded-none active:opacity-60"
             >
-              <Feather name="share" size={16} color="#F0F0E8" />
-              <Text className="text-chalk text-sm font-bold tracking-[0.18em] uppercase">
+              <Share2 size={16} color={colors.ink} />
+              <Text style={{ color: colors.ink }} className="text-sm font-bold tracking-[0.18em] uppercase">
                 Share Invite
               </Text>
             </Pressable>
@@ -196,8 +425,104 @@ export default function LobbyScreen() {
               </Text>
             </Pressable>
           </>
+        ) : (
+          <Text
+            style={{
+              color: colors.dune,
+              ...typography.label,
+              fontSize: 11,
+              letterSpacing: 3,
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              paddingVertical: 12,
+            }}
+          >
+            Waiting for host to start
+          </Text>
         )}
       </View>
+
+      {/* Leave confirmation overlay */}
+      {confirmingLeave && (
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          style={{
+            position: 'absolute',
+            top: 0, bottom: 0, left: 0, right: 0,
+            backgroundColor: 'rgba(10,10,15,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          }}
+        >
+          <View
+            style={{
+              alignSelf: 'stretch',
+              backgroundColor: colors.cream,
+              borderWidth: 2,
+              borderColor: colors.ink,
+              padding: 24,
+            }}
+          >
+            <Text style={{ fontWeight: '900', color: colors.ink, fontSize: 24, letterSpacing: -0.5, marginBottom: 8 }}>
+              Leave the room?
+            </Text>
+            <Text style={{ color: colors.dune, fontSize: 14, lineHeight: 20, marginBottom: 20 }}>
+              {isRoomAdmin
+                ? 'Hosting passes to a random player. You can rejoin with the code.'
+                : 'You can rejoin anytime with the code.'}
+            </Text>
+
+            <View style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => setConfirmingLeave(false)}
+                className="bg-amber py-4 items-center rounded-none active:opacity-80"
+              >
+                <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
+                  Stay
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleLeave}
+                style={{ borderWidth: 2, borderColor: colors.stop }}
+                className="py-4 items-center rounded-none active:opacity-60"
+              >
+                <Text style={{ color: colors.stop }} className="text-sm font-bold tracking-[0.18em] uppercase">
+                  Leave room
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* Games sheet — edit (admin) or view (everyone else), rendered inline
+          so it reuses this screen's own socket connection (see GamesSheet) */}
+      {gamesSheetMode && (
+        <GamesSheet
+          mode={gamesSheetMode}
+          selectedIds={gameIds}
+          onToggle={gamesSheetMode === 'edit' ? handleToggleGame : undefined}
+          onClose={() => setGamesSheetMode(null)}
+          playerCount={players.length}
+        />
+      )}
+
+      {/* Avatar picker — same inline-overlay reasoning as GamesSheet */}
+      {avatarPickerOpen && (
+        <AvatarPickerSheet
+          currentAvatar={myAvatar}
+          takenAvatars={takenAvatars}
+          onSelect={(avatar) => {
+            // Deliberately doesn't close the sheet — the square frame moves
+            // to the newly picked avatar once the server confirms it (see
+            // currentAvatar), which is the confirmation the user actually
+            // wants to see before they back out on their own.
+            send({ type: 'SET_AVATAR', avatar });
+          }}
+          onClose={() => setAvatarPickerOpen(false)}
+        />
+      )}
     </View>
   );
 }

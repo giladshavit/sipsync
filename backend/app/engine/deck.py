@@ -31,6 +31,10 @@ class Deck:
         random.shuffle(shuffled)
         await self._redis.rpush(deck_key, *shuffled)
 
+    async def get_game_ids(self, room_code: str) -> list[str]:
+        """Read the room's stored game catalogue (selection order), no mutation."""
+        return await self._redis.lrange(self._game_ids_key(room_code), 0, -1)
+
     async def pop_next_game(self, room_code: str) -> str | None:
         """
         Pop the next game from the deck.

@@ -7,7 +7,6 @@ from app.games.reflex import (
     _compute_outcomes,
     _GREEN_MAX_MS,
     _GREEN_MIN_MS,
-    _RED_TAP_CHASERS,
     _TIMEOUT_MS,
 )
 
@@ -78,7 +77,7 @@ def test_red_tap_gives_lose():
     assert not finished
 
 
-def test_red_tap_outcome_is_lose_with_large_penalty():
+def test_red_tap_outcome_is_lose_with_flat_penalty():
     # Both players tap; p1 taps red, p2 taps valid → game ends after p2
     state = _state(execute_at=EXECUTE_AT, clock_offsets={"p1": 0, "p2": 0})
     state_after_p1, _, _ = GAME.handle_ws_event(
@@ -90,7 +89,8 @@ def test_red_tap_outcome_is_lose_with_large_penalty():
 
     assert finished
     assert outcomes["p1"]["result"] == "LOSE"
-    assert outcomes["p1"]["chasers"] == _RED_TAP_CHASERS
+    assert outcomes["p1"]["chasers"] == 1
+    assert outcomes["p1"]["score_delta"] == -10
     assert outcomes["p1"]["reason"] == "early_tap"
 
 
@@ -111,13 +111,14 @@ def test_slowest_valid_tapper_loses():
     assert outcomes["p2"]["reason"] == "slowest"
 
 
-def test_slowest_chasers_formula():
-    # 1_500 ms delta → ceil(1500 / 500) = 3 chasers
+def test_slowest_gets_flat_one_chaser_and_minus_ten():
+    # Chasers are flat — margin of defeat doesn't matter
     state = _state(clock_offsets={"p1": 0, "p2": 0})
     s1, _, _ = GAME.handle_ws_event("p1", _tap("p1", EXECUTE_AT + 200), state)
     _, _, outcomes = GAME.handle_ws_event("p2", _tap("p2", EXECUTE_AT + 1_500), s1)
 
-    assert outcomes["p2"]["chasers"] == 3
+    assert outcomes["p2"]["chasers"] == 1
+    assert outcomes["p2"]["score_delta"] == -10
 
 
 def test_fastest_valid_tapper_wins():
@@ -127,6 +128,7 @@ def test_fastest_valid_tapper_wins():
 
     assert outcomes["p1"]["result"] == "WIN"
     assert outcomes["p1"]["chasers"] == 0
+    assert outcomes["p1"]["score_delta"] == 10
 
 
 def test_clock_offset_applied_to_true_ts():
@@ -175,8 +177,14 @@ def test_timeout_finishes_game_on_next_tap():
         "p1", _tap("p1", EXECUTE_AT + 300), state
     )
     assert finished
-    # p2 never tapped → gets max penalty
+    # p2 never tapped → flat timeout penalty
     assert outcomes["p2"]["result"] == "LOSE"
+    assert outcomes["p2"]["reason"] == "timed_out"
+    assert outcomes["p2"]["score_delta"] == -10
+    # p1 made the only valid green tap → automatic win
+    assert outcomes["p1"]["result"] == "WIN"
+    assert outcomes["p1"]["reason"] == "only_valid"
+    assert outcomes["p1"]["score_delta"] == 10
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +195,41 @@ def test_compute_outcomes_all_red():
     taps = {"p1": "red", "p2": "red"}
     outcomes = _compute_outcomes(taps, EXECUTE_AT, {"p1": 0, "p2": 0})
     assert all(o["result"] == "LOSE" for o in outcomes.values())
+    assert all(o["score_delta"] == -10 for o in outcomes.values())
 
 
-def test_compute_outcomes_score_delta_matches_chasers():
-    taps = {"p1": EXECUTE_AT + 1_000, "p2": EXECUTE_AT + 2_000}
-    outcomes = _compute_outcomes(taps, EXECUTE_AT, {"p1": 0, "p2": 0})
-    for pid, o in outcomes.items():
-        assert o["score_delta"] == o["chasers"]
+def test_compute_outcomes_uniform_score_distribution():
+    taps = {
+        "p1": EXECUTE_AT + 1_000,
+        "p2": EXECUTE_AT + 2_000,
+        "p3": EXECUTE_AT + 1_500,
+    }
+    outcomes = _compute_outcomes(taps, EXECUTE_AT, {"p1": 0, "p2": 0, "p3": 0})
+    # Scores spread evenly by reaction time: fastest +10, middle 0, slowest -10
+    assert outcomes["p1"]["score_delta"] == 10
+    assert outcomes["p3"]["score_delta"] == 0
+    assert outcomes["p2"]["score_delta"] == -10
+    # Only the slowest tapper loses and drinks
+    assert outcomes["p2"]["result"] == "LOSE"
+    assert outcomes["p2"]["chasers"] == 1
+    assert outcomes["p1"]["result"] == "WIN"
+    assert outcomes["p3"]["result"] == "WIN"
+
+
+def test_compute_outcomes_disqualified_share_last_place():
+    # p4 taps red, p5 never taps — both take last place (-10) while the
+    # slowest valid tapper keeps their mid-table rank score
+    taps = {
+        "p1": EXECUTE_AT + 1_000,
+        "p2": EXECUTE_AT + 2_000,
+        "p3": EXECUTE_AT + 1_500,
+        "p4": "red",
+    }
+    offsets = {"p1": 0, "p2": 0, "p3": 0, "p4": 0, "p5": 0}
+    outcomes = _compute_outcomes(taps, EXECUTE_AT, offsets)
+    assert outcomes["p4"]["score_delta"] == -10
+    assert outcomes["p5"]["score_delta"] == -10
+    # 5 players → interval 5: valid taps rank 1st/2nd/3rd → 10, 5, 0
+    assert outcomes["p1"]["score_delta"] == 10
+    assert outcomes["p3"]["score_delta"] == 5
+    assert outcomes["p2"]["score_delta"] == 0
