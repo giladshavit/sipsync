@@ -6,6 +6,7 @@ import json
 import fakeredis
 import pytest
 
+import app.engine.bot_engine as bot_engine_module
 import app.engine.fsm as fsm_module
 import app.engine.room_service as rs_module
 from app.engine.avatar_pool import AVATAR_POOL
@@ -112,3 +113,16 @@ async def test_handshake_broadcasts_total_chasers_in_player_joined(patch_redis_a
 
     joined_msgs = [m for m in captured if m["type"] == "PLAYER_JOINED"]
     assert joined_msgs[-1]["total_chasers"] == 7
+
+
+# ── bot_engine ───────────────────────────────────────────────────────────
+
+def test_bot_records_include_total_chasers():
+    """Verify bot records built by build_bot_player_records include
+    total_chasers=0 for parity with real players."""
+    records = bot_engine_module.build_bot_player_records(2, set())
+    assert len(records) == 2
+    for bot_id, record in records.items():
+        assert record["total_chasers"] == 0
+        assert record["score"] == 0
+        assert record["is_bot"] is True

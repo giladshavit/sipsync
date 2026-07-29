@@ -54,6 +54,7 @@ def build_bot_player_records(count: int, used_avatars: set[str]) -> dict[str, di
         records[f"bot:{uuid.uuid4()}"] = {
             "display_name": f"{name} (Bot)",
             "score": 0,
+            "total_chasers": 0,
             "clock_offset": 0,
             "vibe": None,
             "avatar": avatar,
