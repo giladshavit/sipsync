@@ -128,7 +128,7 @@ class RoomService:
         await redis.publish(f"pubsub:room:{code}", json.dumps(message))
 
     async def _enrich_scores_and_broadcast(self, code: str, outcomes: dict) -> None:
-        """Update cumulative player scores and broadcast OUTCOMES + FSM_TRANSITION."""
+        """Update cumulative player scores and total chasers, broadcast OUTCOMES + FSM_TRANSITION."""
         players_raw = await redis.hgetall(f"room:{code}:players")
         players = {pid: json.loads(d) for pid, d in players_raw.items()}
         enriched: dict[str, dict] = {}
@@ -137,6 +137,8 @@ class RoomService:
             delta = outcome.get("score_delta", 0)
             new_score = int(player_data.get("score", 0)) + delta
             player_data["score"] = new_score
+            new_total_chasers = int(player_data.get("total_chasers", 0)) + int(outcome.get("chasers", 0))
+            player_data["total_chasers"] = new_total_chasers
             await redis.hset(f"room:{code}:players", pid, json.dumps(player_data))
             enriched[pid] = {**outcome, "total_score": new_score}
         await self.broadcast(code, {"type": "OUTCOMES", "outcomes": enriched})

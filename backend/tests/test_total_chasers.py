@@ -126,3 +126,45 @@ def test_bot_records_include_total_chasers():
         assert record["total_chasers"] == 0
         assert record["score"] == 0
         assert record["is_bot"] is True
+
+
+# ── _enrich_scores_and_broadcast (via _handle_game_action) ──────────────
+
+@pytest.fixture
+async def playing_room(patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={
+        "state": RoomState.PLAYING,
+        "admin_id": PLAYER_A,
+        "active_game": "test_chaser_game",
+    })
+    await r.hset(f"room:{CODE}:players", PLAYER_A, json.dumps({
+        "display_name": "Alice", "score": 10, "total_chasers": 4, "clock_offset": 0,
+    }))
+    await r.set(f"room:{CODE}:game", json.dumps({"done": False}))
+    return r
+
+
+@pytest.mark.asyncio
+async def test_finished_round_accumulates_total_chasers(playing_room, patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+
+    await _svc._handle_game_action(CODE, PLAYER_A, {})
+
+    stored = json.loads(await r.hget(f"room:{CODE}:players", PLAYER_A))
+    assert stored["total_chasers"] == 7  # 4 base + 3 this round
+    assert stored["score"] == 15  # 10 base + 5 delta — unaffected by the new field
+
+
+@pytest.mark.asyncio
+async def test_outcomes_broadcast_does_not_expose_total_chasers(playing_room, patch_redis_and_broadcast):
+    """total_chasers accumulates silently server-side — the OUTCOMES payload
+    (per-round data only) must keep its existing shape."""
+    _, captured = patch_redis_and_broadcast
+
+    await _svc._handle_game_action(CODE, PLAYER_A, {})
+
+    outcomes_msgs = [m for m in captured if m["type"] == "OUTCOMES"]
+    player_outcome = outcomes_msgs[0]["outcomes"][PLAYER_A]
+    assert "total_chasers" not in player_outcome
+    assert player_outcome["total_score"] == 15
