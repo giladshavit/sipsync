@@ -4,7 +4,7 @@ import { CATEGORY_LABELS, type GameCategory } from '@/constants/games';
 
 export type CategoryFilter = GameCategory | 'all';
 
-export const CATEGORY_FILTERS: CategoryFilter[] = ['all', 'reflex', 'luck', 'strategy'];
+export const CATEGORY_FILTERS: CategoryFilter[] = ['all', 'speed', 'luck', 'strategy'];
 
 interface CategoryFilterChipsProps {
   value: CategoryFilter;

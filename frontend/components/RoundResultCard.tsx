@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView } from 'react-native';
-import { Award, Crown, GlassWater } from 'lucide-react-native';
+import { Crown, GlassWater } from 'lucide-react-native';
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -431,11 +431,19 @@ export function RoundResultCard({
                       {row.name}
                       {isMe ? ' (you)' : ''}
                     </Text>
-                    {o.result === 'WIN' && (
-                      <Award size={13} color="rgba(255,255,255,0.85)" style={{ marginRight: 6 }} />
-                    )}
+                    {/* Only losers get an icon — a solid (filled, not
+                        outline) glass, so "you're drinking" reads instantly
+                        without a winner-side medal that read as another
+                        glass at this size. No icon at all is itself the
+                        winner's signal. */}
                     {o.result === 'LOSE' && (
-                      <GlassWater size={13} color="rgba(255,255,255,0.85)" style={{ marginRight: 6 }} />
+                      <GlassWater
+                        size={14}
+                        color="rgba(255,255,255,0.9)"
+                        fill="rgba(255,255,255,0.9)"
+                        strokeWidth={2}
+                        style={{ marginRight: 6 }}
+                      />
                     )}
                     <Text
                       style={{
