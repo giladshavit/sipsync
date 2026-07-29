@@ -169,10 +169,14 @@ function PodiumColumn({
 let lastChasersPopupKey: string | null = null;
 
 interface ChaserRow { pid: string; name: string; avatar: string | null; chasers: number }
+interface TotalDrinkRow { pid: string; name: string; avatar: string | null; total: number }
 
-function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () => void }) {
+function ChasersPopup({
+  rows, totalRows, onDismiss,
+}: { rows: ChaserRow[]; totalRows: TotalDrinkRow[]; onDismiss: () => void }) {
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
+  const [tab, setTab] = useState<'ROUND' | 'TOTAL'>('ROUND');
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 200 });
@@ -237,7 +241,7 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
             textAlign: 'center',
           }}
         >
-          This round
+          {tab === 'ROUND' ? 'This round' : 'All night'}
         </Text>
         <Text
           style={{
@@ -252,35 +256,116 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
           Who&apos;s Drinking
         </Text>
 
-        <View style={{ gap: 10 }}>
-          {rows.map((row) => (
-            <View
-              key={row.pid}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                backgroundColor: BG,
-                borderWidth: 1,
-                borderColor: HAIRLINE,
-                gap: 10,
-              }}
-            >
-              <AvatarCircle
-                name={row.name}
-                avatar={row.avatar}
-                size={30}
-                ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
-              />
-              <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
-                {row.name}
-              </Text>
-              <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
-              <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
-            </View>
-          ))}
+        {/* Tab bar — switches the list below between this round's chasers
+            and the room-lifetime total, without closing the popup. */}
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+          {(['ROUND', 'TOTAL'] as const).map((key) => {
+            const selected = tab === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setTab(key)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 9,
+                  alignItems: 'center',
+                  backgroundColor: selected ? AMBER : BG,
+                  borderWidth: 1.5,
+                  borderColor: selected ? AMBER : HAIRLINE,
+                }}
+              >
+                <Text
+                  style={{
+                    ...typography.label,
+                    fontSize: 10,
+                    color: selected ? INK : MUTED,
+                  }}
+                >
+                  {key === 'ROUND' ? 'Current Round' : 'Total Drinks'}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
+
+        {/* layout={LinearTransition} makes the card resize smoothly when the
+            two tabs' row counts differ, instead of snapping to the new
+            height. */}
+        <Animated.View layout={LinearTransition.duration(260)} style={{ gap: 10 }}>
+          {tab === 'ROUND' &&
+            rows.map((row) => (
+              <View
+                key={row.pid}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingVertical: 8,
+                  paddingHorizontal: 12,
+                  backgroundColor: BG,
+                  borderWidth: 1,
+                  borderColor: HAIRLINE,
+                  gap: 10,
+                }}
+              >
+                <AvatarCircle
+                  name={row.name}
+                  avatar={row.avatar}
+                  size={30}
+                  ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+                />
+                <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
+                  {row.name}
+                </Text>
+                <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
+              </View>
+            ))}
+
+          {tab === 'TOTAL' && totalRows.length === 0 && (
+            <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>
+              Nobody&apos;s had a drink yet.
+            </Text>
+          )}
+
+          {tab === 'TOTAL' &&
+            totalRows.map((row, index) => {
+              const isTop = index === 0;
+              return (
+                <View
+                  key={row.pid}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    backgroundColor: BG,
+                    borderWidth: isTop ? 2 : 1,
+                    borderColor: isTop ? AMBER : HAIRLINE,
+                    shadowColor: isTop ? AMBER : 'transparent',
+                    shadowOpacity: isTop ? 0.45 : 0,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 0 },
+                    elevation: isTop ? 4 : 0,
+                    gap: 10,
+                  }}
+                >
+                  <AvatarCircle
+                    name={row.name}
+                    avatar={row.avatar}
+                    size={30}
+                    ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+                  />
+                  <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
+                    {row.name}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>x{row.total}</Text>
+                    <GlassWater size={16} color={STOP} strokeWidth={2.5} />
+                  </View>
+                </View>
+              );
+            })}
+        </Animated.View>
 
         <Pressable
           onPress={onDismiss}
@@ -319,6 +404,18 @@ export default function PodiumScreen() {
       avatar: snapshot?.players[pid]?.avatar ?? null,
       chasers: o.chasers,
     }));
+  // Room-lifetime total, sorted descending — the "Total Drinks" tab of the
+  // same popup. Ties keep Object.entries' insertion order, so the first
+  // row after sorting is unambiguous (that's who gets the top-of-list accent).
+  const totalDrinkRows: TotalDrinkRow[] = Object.entries(snapshot?.players ?? {})
+    .map(([pid, p]) => ({
+      pid,
+      name: p.display_name,
+      avatar: p.avatar ?? null,
+      total: p.total_chasers ?? 0,
+    }))
+    .filter((row) => row.total > 0)
+    .sort((a, b) => b.total - a.total);
   // Let the podium's own reveal play out first — the before→after standings
   // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
   // the moment's payoff; popping the popup over them immediately steals that
@@ -451,7 +548,7 @@ export default function PodiumScreen() {
           {/* Reopens the "who's drinking" popup on demand — it also pops up
               once automatically, but people arrive at this screen at
               different times and may want to check it again later. */}
-          {chasersRows.length > 0 && (
+          {(chasersRows.length > 0 || totalDrinkRows.length > 0) && (
             <Pressable
               onPress={() => setShowChasers(true)}
               style={{ borderWidth: 1.5, borderColor: INK, padding: 8 }}
@@ -650,7 +747,7 @@ export default function PodiumScreen() {
       </ScrollView>
 
       {showChasers && (
-        <ChasersPopup rows={chasersRows} onDismiss={() => setShowChasers(false)} />
+        <ChasersPopup rows={chasersRows} totalRows={totalDrinkRows} onDismiss={() => setShowChasers(false)} />
       )}
     </View>
   );
