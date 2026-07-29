@@ -352,6 +352,7 @@ class RoomService:
                 json.dumps({
                     "display_name": display_name,
                     "score": existing.get("score", 0),
+                    "total_chasers": existing.get("total_chasers", 0),
                     "clock_offset": clock_offset,
                     "vibe": vibe if vibe is not None else existing.get("vibe"),
                     "avatar": avatar,
@@ -423,6 +424,7 @@ class RoomService:
             "player_id": player_id,
             "display_name": display_name,
             "score": rejoined.get("score", 0),
+            "total_chasers": rejoined.get("total_chasers", 0),
             "clock_offset": rejoined.get("clock_offset", 0),
             "vibe": rejoined.get("vibe"),
             "avatar": rejoined.get("avatar"),
