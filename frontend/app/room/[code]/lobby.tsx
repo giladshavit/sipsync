@@ -69,13 +69,24 @@ export default function LobbyScreen() {
     router.replace('/');
   }
 
-  function handleToggleGame(id: string) {
-    const isSelected = gameIds.includes(id);
-    if (isSelected && gameIds.length === 1) return; // keep at least one
-    const next = isSelected ? gameIds.filter((g) => g !== id) : [...gameIds, id];
-    // Preserve catalog order regardless of toggle order
+  // Shared by every path that can change the room's game selection — always
+  // reorders to catalog order and never lets the list go empty (the server's
+  // own normalize_game_ids rejects an empty list, silently no-oping the
+  // SET_GAMES message, so this guard keeps the UI truthful about what will
+  // actually apply).
+  function commitGameIds(next: string[]) {
     const ordered = GAME_CATALOG.filter((g) => next.includes(g.id)).map((g) => g.id);
+    if (ordered.length === 0) return;
     send({ type: 'SET_GAMES', game_ids: ordered });
+  }
+
+  // Every selection change in GamesSheet's edit mode — one card tap, Select
+  // All, or Deselect All — goes through this single bulk path, so GamesSheet
+  // can own its own local "what's checked right now" state (including a
+  // transient all-deselected state the server itself will never accept) and
+  // just hand us the resulting full list each time.
+  function handleSetGames(ids: string[]) {
+    commitGameIds(Array.from(new Set(ids)));
   }
 
   // Split-weight titles — thin ink line over heavy amber line, like the
@@ -502,7 +513,7 @@ export default function LobbyScreen() {
         <GamesSheet
           mode={gamesSheetMode}
           selectedIds={gameIds}
-          onToggle={gamesSheetMode === 'edit' ? handleToggleGame : undefined}
+          onSetSelected={gamesSheetMode === 'edit' ? handleSetGames : undefined}
           onClose={() => setGamesSheetMode(null)}
           playerCount={players.length}
         />
