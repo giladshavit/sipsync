@@ -104,25 +104,28 @@ export default function AllGamesScreen() {
                 <game.Icon size={cellSize * 0.34} color={colors.parchment} strokeWidth={1.75} />
               </View>
 
-              <View style={{ paddingHorizontal: 7, paddingVertical: 8 }}>
+              <View
+                style={{
+                  paddingHorizontal: 10,
+                  paddingVertical: 14,
+                  minHeight: 60,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
                 <Text
                   numberOfLines={2}
                   style={{
                     color: colors.ink,
-                    fontSize: 11,
-                    fontWeight: '800',
-                    letterSpacing: 0.2,
-                    lineHeight: 13,
+                    fontSize: 13,
+                    fontWeight: '900',
+                    letterSpacing: 0.3,
+                    lineHeight: 16,
+                    textAlign: 'center',
                     textTransform: 'uppercase',
                   }}
                 >
                   {game.title}
-                </Text>
-                <Text
-                  numberOfLines={2}
-                  style={{ color: colors.dune, fontSize: 9.5, marginTop: 3, lineHeight: 12 }}
-                >
-                  {game.tagline}
                 </Text>
               </View>
             </Pressable>

@@ -5,10 +5,10 @@ import { BlackBoxCardStrip } from '@/components/rules/BlackBoxCardStrip';
 // Frontend mirror of the backend GAME_REGISTRY — REST is limited to room
 // create/join, so the catalog lives here. Keep in sync when adding a game.
 
-export type GameCategory = 'reflex' | 'luck' | 'strategy';
+export type GameCategory = 'speed' | 'luck' | 'strategy';
 
 export const CATEGORY_LABELS: Record<GameCategory, string> = {
-  reflex: 'Reflex',
+  speed: 'Speed',
   luck: 'Luck',
   strategy: 'Strategy',
 };
@@ -135,7 +135,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Green Light',
     tagline: 'Tap the instant it flips green',
     Icon: Zap,
-    categories: ['reflex'],
+    categories: ['speed'],
     accentColor: '#16A34A',
     rules: [
       [{ text: 'A light on screen starts ' }, { text: 'red', color: 'red' }, { text: '. Wait for it.' }],
@@ -155,7 +155,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Tap Race',
     tagline: 'Most taps in 10 seconds wins',
     Icon: Hand,
-    categories: ['reflex'],
+    categories: ['speed'],
     accentColor: '#2563EB',
     rules: [
       'A 10-second window opens.',
@@ -173,7 +173,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Human Timer',
     tagline: 'Count the seconds in your head',
     Icon: Timer,
-    categories: ['reflex'],
+    categories: ['speed'],
     accentColor: '#F59E0B',
     rules: [
       'A target number of seconds appears on screen.',
@@ -408,7 +408,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Strong Point',
     tagline: 'Hit the zone the instant it appears',
     Icon: Crosshair,
-    categories: ['reflex'],
+    categories: ['speed'],
     accentColor: '#00D4FF',
     rules: [
       'A random point is chosen on the screen.',
@@ -432,7 +432,7 @@ export const GAME_CATALOG: GameMeta[] = [
     title: 'Flying Bomb',
     tagline: 'Swipe it away before the clock runs out',
     Icon: Bomb,
-    categories: ['reflex'],
+    categories: ['speed'],
     accentColor: '#B91C1C',
     minPlayers: 3,
     rules: [
