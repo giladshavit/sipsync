@@ -5,34 +5,75 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  withSequence,
   Easing,
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
-import { colors } from '@/constants/design';
+import { RoundResultCard, roundResultBgColor } from '@/components/RoundResultCard';
+import { typography } from '@/constants/design';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
 
 const LOCK_MS = 6_000;
 
 export default function SummaryScreen() {
-  const { code, outcomeJson } = useLocalSearchParams<{
+  const { code, outcomeJson, allOutcomesJson } = useLocalSearchParams<{
     code: string;
     outcomeJson: string;
+    allOutcomesJson: string;
   }>();
 
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send } = useRoomSocket(code);
+  const { snapshot, isConnected, send, reconnect } = useRoomSocket(code);
   const navigation = useNavigation();
+  // Set the moment any room-progression branch below actually fires — lets
+  // the self-heal timer (further down) tell "still legitimately waiting"
+  // apart from "stuck: nothing has arrived since the lock expired."
+  const movedOnRef = useRef(false);
 
   const outcome: PlayerOutcome | null = (() => {
     try { return outcomeJson ? JSON.parse(outcomeJson) : null; } catch { return null; }
   })();
 
+  const allOutcomes: Record<string, PlayerOutcome> = (() => {
+    try { return allOutcomesJson ? JSON.parse(allOutcomesJson) : {}; } catch { return {}; }
+  })();
+
   const [lockExpired, setLockExpired] = useState(false);
   const lockExpiredRef = useRef(false);
 
-  const isAdmin = !!snapshot && snapshot.admin_id === playerId;
+  // Client-local move to the podium — used both by the automatic PODIUM
+  // branch below and by the manual escape-hatch button. Purely this-client:
+  // it never signals the server, so it can't move anyone else's screen.
+  // The room-level PERSONAL_SUMMARY -> PODIUM signal has its own paths
+  // (every client's automatic GOTO_PODIUM + the server's safety-net timer).
+  function goToPodiumNow() {
+    movedOnRef.current = true;
+    router.replace({
+      pathname: '/room/[code]/podium',
+      params: {
+        code,
+        outcomeJson: outcomeJson ?? '',
+        allOutcomesJson: allOutcomesJson ?? '',
+      },
+    });
+  }
+
+  const isPractice = !!snapshot?.isPractice;
+
+  // Practice-room equivalent of goToPodiumNow — tells the server to tear the
+  // room down (we're always admin_id in a practice room, so END_NIGHT is
+  // always authorized) and sends this client back to the rules screen it
+  // started from instead of the multiplayer podium.
+  function exitToRulesNow() {
+    movedOnRef.current = true;
+    send({ type: 'END_NIGHT' });
+    if (snapshot?.activeGameId) {
+      router.replace({ pathname: '/games/[id]', params: { id: snapshot.activeGameId } });
+    } else {
+      router.replace('/');
+    }
+  }
+
   const displayName =
     (playerId && snapshot?.players[playerId]?.display_name) ?? 'You';
 
@@ -42,21 +83,16 @@ export default function SummaryScreen() {
     width: `${progress.value * 100}%` as `${number}%`,
   }));
 
-  // ── LOSE flash: brief white-overlay pulse on mount ─────────────────────────
-  const flashOpacity = useSharedValue(0);
-  const flashStyle = useAnimatedStyle(() => ({ opacity: flashOpacity.value }));
-
+  // Own local mandatory-window timer — each client runs this the moment it
+  // reaches this screen. It deliberately doesn't try to sync to a shared
+  // server deadline: different mini-games hold players on their own
+  // end-of-round reveal for very different lengths of time before anyone
+  // even gets here (0-8s), so there's no single "round-finish" instant every
+  // client's 6s should be measured from — each client's own 6s here is the
+  // only thing that actually needs to be consistent. Once it expires, this
+  // client tells the server it's ready to move on (see the effect below).
   useEffect(() => {
     progress.value = withTiming(0, { duration: LOCK_MS, easing: Easing.linear });
-
-    if (outcome?.result === 'LOSE') {
-      flashOpacity.value = withSequence(
-        withTiming(0.35, { duration: 80 }),
-        withTiming(0, { duration: 200 }),
-        withTiming(0.25, { duration: 80 }),
-        withTiming(0, { duration: 300 }),
-      );
-    }
 
     const timer = setTimeout(() => {
       lockExpiredRef.current = true;
@@ -67,6 +103,28 @@ export default function SummaryScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Tell the server this client is ready to move on, once its own lock
+  // expires. Deliberately not admin-gated — any player's signal is enough,
+  // so a single stalled/backgrounded client (even the admin's) can't block
+  // the whole room. Every client sends this; the first one to arrive wins,
+  // the rest are harmless no-ops.
+  //
+  // Also re-sends on every reconnect (isConnected flipping back to true),
+  // not just once when the lock first expires. The very first send can go
+  // out over a connection that looks open from here but is actually already
+  // dead (stale socket, no clean close) — in that case it never reaches the
+  // server at all, and sending it again later on the SAME dead socket
+  // wouldn't help either. Re-sending whenever a fresh connection actually
+  // lands (including the one reconnect() below forces after the self-heal
+  // timeout, or from the manual "GO TO LEADERBOARD" button) is what
+  // actually gets it through. ────────────────────────────────────────────
+  useEffect(() => {
+    if (!lockExpired || !isConnected) return;
+    if (isPractice) exitToRulesNow();
+    else send({ type: 'GOTO_PODIUM' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockExpired, isConnected, isPractice, send]);
+
   // ── Block all back navigation for the full 6 s ────────────────────────────
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
@@ -76,118 +134,133 @@ export default function SummaryScreen() {
   }, [navigation]);
 
   // ── Navigate on FSM transitions ───────────────────────────────────────────
+  // Handles every state the room could actually be in when this client's
+  // snapshot updates — not just PODIUM. A client stuck here can miss the
+  // PODIUM broadcast specifically (dropped packet, momentarily stale socket)
+  // while everyone else moves on; if the admin then starts the next round
+  // before this client catches up, the next update this client sees is
+  // TUTORIAL or PLAYING, never PODIUM. Only handling PODIUM meant that
+  // client stayed stuck on this screen for an entire extra round, unable to
+  // play, until the round-after's own PODIUM transition finally arrived.
+  // Following whatever state actually shows up gets it there directly.
   useEffect(() => {
-    if (snapshot?.state === 'LOBBY') {
-      router.replace(`/room/${code}/lobby`);
-    }
-    if (snapshot?.state === 'PODIUM') {
+    const state = snapshot?.state;
+    if (!state) return;
+    // Practice rooms only ever exit via exitToRulesNow (which tears the room
+    // down with END_NIGHT) — they never get a fresh LOBBY/PODIUM/TUTORIAL/
+    // PLAYING transition to follow here.
+    if (isPractice) return;
+
+    if (state === 'LOBBY') {
+      movedOnRef.current = true;
+      router.replace({ pathname: '/room/[code]/lobby', params: { code } });
+    } else if (state === 'PODIUM') {
+      // Clients reach this screen at different times (each mini-game holds
+      // players on its own end-of-round reveal for 0-8s first), so the
+      // room-wide PODIUM broadcast — fired by whichever client's window
+      // expires first — can land while THIS client's own 6s window is still
+      // running. The window is un-skippable by design: hold here until it
+      // expires (`lockExpired` is in the deps, so this re-fires then).
+      if (!lockExpired) return;
+      goToPodiumNow();
+    } else if (state === 'TUTORIAL') {
+      movedOnRef.current = true;
       router.replace({
-        pathname: `/room/${code}/podium`,
-        params: { outcomeJson: outcomeJson ?? '' },
+        pathname: '/room/[code]/tutorial',
+        params: {
+          code,
+          tutorialType: snapshot.tutorialType ?? '',
+          tutorialAsset: snapshot.tutorialAsset ?? '',
+        },
       });
+    } else if (state === 'PLAYING') {
+      movedOnRef.current = true;
+      router.replace({ pathname: '/room/[code]/game', params: { code } });
     }
-  }, [snapshot?.state, code, outcomeJson]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshot?.state, snapshot?.tutorialType, snapshot?.tutorialAsset, code, outcomeJson, allOutcomesJson, lockExpired, isPractice]);
 
-  function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
-  function handleEndGame()   { send({ type: 'GOTO_PODIUM' }); }
-
-  // ── Derived display values ─────────────────────────────────────────────────
-  const result = outcome?.result ?? 'SAFE';
-  const bgColor =
-    result === 'WIN'  ? colors.go :
-    result === 'LOSE' ? colors.stop :
-    colors.surface;
-
-  const headlineText =
-    result === 'WIN'  ? 'WIN' :
-    result === 'LOSE' ? 'DRINK' :
-    'SAFE';
-
-  const deltaLine =
-    result === 'WIN'  ? `+${outcome?.score_delta ?? 0} pts` :
-    result === 'LOSE' ? `−${outcome?.score_delta ?? 0} pts` :
-    null;
+  // ── Self-heal: if the lock has expired and GOTO_PODIUM was sent, but
+  // nothing has moved this client on after a few seconds, the socket is
+  // most likely stale (a clean drop already self-heals via the hook's own
+  // reconnect timer — this covers the case where it goes quiet without ever
+  // firing `onclose`). Forcing a fresh connection re-fetches ROOM_STATE,
+  // which carries whatever the room's real current state already is.
+  // An interval, not a one-shot: the forced reconnect can itself land on a
+  // still-dead network path, so keep retrying until something moves us on
+  // (each successful fresh connection also re-sends GOTO_PODIUM via the
+  // effect above). ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!lockExpired) return;
+    const timer = setInterval(() => {
+      if (!movedOnRef.current) reconnect();
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [lockExpired, reconnect]);
 
   return (
     <>
       <Stack.Screen options={{ gestureEnabled: false }} />
 
-      <View className="flex-1" style={{ backgroundColor: bgColor }}>
-        {result === 'LOSE' && (
-          <Animated.View
-            className="absolute inset-0 bg-white"
-            style={flashStyle}
-            pointerEvents="none"
-          />
-        )}
+      <View className="flex-1" style={{ backgroundColor: roundResultBgColor(outcome?.result) }}>
+        <RoundResultCard
+          outcome={outcome}
+          allOutcomes={allOutcomes}
+          players={snapshot?.players ?? {}}
+          playerId={playerId}
+          displayName={displayName}
+        />
 
-        <View className="flex-1 items-center justify-center px-8">
-          <Text className="text-white/70 text-sm font-mono tracking-widest uppercase mb-2">
-            {displayName}
-          </Text>
-
-          <Text
-            className="text-white font-bold text-center"
-            style={{ fontSize: 72, lineHeight: 80, letterSpacing: -2 }}
-          >
-            {headlineText}
-          </Text>
-
-          {result === 'LOSE' && outcome && (
-            <Text className="text-white text-3xl font-semibold mt-3">
-              {outcome.chasers} {outcome.chasers === 1 ? 'chaser' : 'chasers'} 🥃
-            </Text>
-          )}
-
-          {deltaLine && (
-            <Text className="text-white/80 text-xl mt-2">{deltaLine}</Text>
-          )}
-
-          <Text className="text-white/50 text-base mt-3">
-            Total: {outcome?.total_score ?? '—'} pts
-          </Text>
-        </View>
-
-        <View className="px-6 pb-4">
+        {/* Un-skippable window — bordered track keeps it deliberate, not decorative */}
+        <View className="px-6 pb-4" style={{ paddingTop: 14 }}>
           <View
             style={{
-              height: 4,
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              borderRadius: 2,
-              overflow: 'hidden',
+              height: 10,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.45)',
+              padding: 2,
             }}
           >
             <Animated.View
-              style={[
-                { height: '100%', backgroundColor: 'rgba(255,255,255,0.8)', borderRadius: 2 },
-                barStyle,
-              ]}
+              style={[{ height: '100%', backgroundColor: '#FFFFFF' }, barStyle]}
             />
           </View>
 
-          <View className="mt-6 min-h-[52px] items-center justify-center">
+          <View className="mt-5 min-h-[52px] items-center justify-center">
             {lockExpired ? (
-              isAdmin ? (
-                <View className="flex-row gap-3">
-                  <Pressable
-                    onPress={handleNextRound}
-                    className="flex-1 bg-white/20 border border-white/40 rounded-2xl py-4 items-center active:opacity-70"
-                  >
-                    <Text className="text-white text-base font-bold">Next Round</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleEndGame}
-                    className="flex-1 bg-white/10 border border-white/20 rounded-2xl py-4 items-center active:opacity-70"
-                  >
-                    <Text className="text-white/70 text-base font-semibold">End Game</Text>
-                  </Pressable>
-                </View>
-              ) : (
-                <Text className="text-white/50 text-sm">Waiting for host…</Text>
-              )
+              <View style={{ alignItems: 'center', gap: 10 }}>
+                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                  {isPractice ? 'Returning to rules…' : 'Moving to Leaderboard…'}
+                </Text>
+                {/* Visible only once the mandatory window is already over —
+                    a manual escape hatch for the rare case the automatic
+                    transition doesn't arrive on its own. Navigates THIS
+                    client straight to the podium with the outcome data it
+                    already holds — no server round-trip, no room-wide
+                    broadcast, so it can never move anyone else's screen.
+                    The podium screen opens its own fresh socket on mount,
+                    which doubles as the reconnect this client needed. */}
+                <Pressable
+                  onPress={isPractice ? exitToRulesNow : goToPodiumNow}
+                  style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 10, paddingHorizontal: 18 }}
+                  className="active:opacity-70"
+                >
+                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12, letterSpacing: 1 }}>
+                    {isPractice ? 'BACK TO RULES' : 'GO TO LEADERBOARD'}
+                  </Text>
+                </Pressable>
+              </View>
             ) : (
-              <Text className="text-white/40 text-xs font-mono tracking-widest">
-                MANDATORY WINDOW
+              <Text
+                style={{
+                  color: 'rgba(255,255,255,0.45)',
+                  ...typography.label,
+                  fontSize: 10,
+                  letterSpacing: 3,
+                  textTransform: 'uppercase',
+                }}
+              >
+                Mandatory window · 6s
               </Text>
             )}
           </View>

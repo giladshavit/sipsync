@@ -8,6 +8,12 @@ export interface Player {
   display_name: string;
   score: number;
   clock_offset: number;
+  /** Key into VIBE_ICONS — the icon the player picked at onboarding. */
+  vibe?: string | null;
+  /** This room's visual identifier for the player — a key into
+   * AVATAR_IMAGES, server-assigned, unique per room, swappable by the
+   * player themself. */
+  avatar?: string | null;
 }
 
 export interface RoomSnapshot {
@@ -18,6 +24,12 @@ export interface RoomSnapshot {
   tutorialAsset?: string;
   activeGameId?: string | null;
   gameState?: Record<string, unknown>;
+  /** Ordered selection of game ids this room's deck is drawing from. */
+  gameIds: string[];
+  /** Solo practice-vs-bots room (see games/[id]/index.tsx's Simulate button) —
+   * changes summary.tsx's post-round destination from the podium back to the
+   * rules screen this room was started from. */
+  isPractice: boolean;
 }
 
 export interface PlayerOutcome {
@@ -26,6 +38,32 @@ export interface PlayerOutcome {
   score_delta: number;
   total_score: number;
   reason?: string;
+  /** Reflex: server-judged reaction time (ms) for valid green taps. */
+  reaction_ms?: number;
+  /** Tap race: final tap count. */
+  taps?: number;
+  /** Human timer: when the player tapped and how far off the target (ms). */
+  elapsed_ms?: number;
+  error_ms?: number;
+  target_ms?: number;
+  /** Closest Average: the player's pick and its distance from the room average. */
+  number?: number;
+  distance?: number;
+  /** Sacrifice: how many chasers this player pledged, and the room's tally. */
+  pledges?: number;
+  pledged_total?: number;
+  target_chasers?: number;
+  /** Dilemma: this player's own pick and their paired opponent's. Null for
+   * the round's immune player (no pairing, no pick). */
+  choice?: 'HELP' | 'BETRAY' | 'A' | 'B' | null;
+  opponent_id?: string | null;
+  opponent_choice?: 'HELP' | 'BETRAY' | null;
+  /** Majority: the round's mode/tie state and whether this player's pick was
+   * auto-assigned by an EXPIRE default rather than chosen. */
+  mode?: 'FLOW' | 'AGAINST';
+  tie?: boolean;
+  coin_flip?: boolean | null;
+  auto_voted?: boolean;
 }
 
 export interface UseRoomSocket {
@@ -34,11 +72,36 @@ export interface UseRoomSocket {
   send: (msg: object) => void;
   outcomesRef: MutableRefObject<Record<string, PlayerOutcome>>;
   dissolved: boolean;
+  /**
+   * Forces a fresh socket + a fresh ROOM_STATE snapshot right now, instead of
+   * waiting on whatever this connection does next. Ordinary drops already
+   * self-heal via `onclose` -> the reconnect timer, but a connection can go
+   * quietly stale (esp. on mobile: backgrounding, network handoff) without
+   * ever firing `onclose` — nothing arrives, but nothing tells us to stop
+   * waiting either. Screens that gate a room-wide transition on a message
+   * that might never come (see summary.tsx) call this as a self-heal.
+   */
+  reconnect: () => void;
 }
 
+const RECONNECT_DELAY_MS = 1500;
+
 export function useRoomSocket(code: string): UseRoomSocket {
-  const { playerId, displayName } = usePlayerIdentity();
+  const { playerId, displayName, vibe, preferredAvatar } = usePlayerIdentity();
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+  const connectRef = useRef<() => void>(() => {});
+  // Bumped on every connect() call; each socket's callbacks capture the
+  // generation they were opened under and no-op if a newer one has since
+  // taken over. A stale/half-dead socket (dead network path, no clean
+  // disconnect — common on mobile) can go quiet for a long time without ever
+  // firing onclose, so reconnect() below can't afford to wait for it: it
+  // opens a fresh socket immediately and this token stops the old one's
+  // eventual (possibly very late) onclose from stomping the new connection's
+  // state or scheduling a redundant reconnect on top of it.
+  const generationRef = useRef(0);
+
   const [isConnected, setIsConnected] = useState(false);
   const [snapshot, setSnapshot] = useState<RoomSnapshot | null>(null);
   // Ref so consumers can read outcomes synchronously at FSM-transition time
@@ -46,102 +109,168 @@ export function useRoomSocket(code: string): UseRoomSocket {
   const outcomesRef = useRef<Record<string, PlayerOutcome>>({});
   const [dissolved, setDissolved] = useState(false);
 
+  // Keep stable refs to identity so the connect function always uses latest values
+  const playerIdRef = useRef(playerId);
+  const displayNameRef = useRef(displayName);
+  const vibeRef = useRef(vibe);
+  const preferredAvatarRef = useRef(preferredAvatar);
+  playerIdRef.current = playerId;
+  displayNameRef.current = displayName;
+  vibeRef.current = vibe;
+  preferredAvatarRef.current = preferredAvatar;
+
   useEffect(() => {
     if (!playerId || !displayName) return;
+    unmountedRef.current = false;
 
-    const ws = new WebSocket(`${WS_BASE}/ws/${code}`);
-    wsRef.current = ws;
+    function connect() {
+      if (unmountedRef.current) return;
 
-    ws.onopen = () => {
-      setIsConnected(true);
-      ws.send(
-        JSON.stringify({
-          type: 'HANDSHAKE',
-          player_id: playerId,
-          display_name: displayName,
-          local_ts: Date.now(),
-        }),
-      );
-    };
+      const myGeneration = ++generationRef.current;
+      const ws = new WebSocket(`${WS_BASE}/ws/${code}`);
+      wsRef.current = ws;
 
-    ws.onmessage = (event: MessageEvent<string>) => {
-      const msg = JSON.parse(event.data);
+      ws.onopen = () => {
+        if (unmountedRef.current || generationRef.current !== myGeneration) { ws.close(); return; }
+        setIsConnected(true);
+        ws.send(
+          JSON.stringify({
+            type: 'HANDSHAKE',
+            player_id: playerIdRef.current,
+            display_name: displayNameRef.current,
+            vibe: vibeRef.current,
+            preferred_avatar: preferredAvatarRef.current,
+            local_ts: Date.now(),
+          }),
+        );
+      };
 
-      switch (msg.type) {
-        case 'ROOM_STATE':
-          setSnapshot({
-            state: msg.state,
-            admin_id: msg.admin_id,
-            players: msg.players ?? {},
-          });
-          break;
+      ws.onmessage = (event: MessageEvent<string>) => {
+        if (generationRef.current !== myGeneration) return; // superseded socket — ignore
+        const msg = JSON.parse(event.data);
 
-        case 'PLAYER_JOINED':
-          setSnapshot((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  players: {
-                    ...prev.players,
-                    [msg.player_id]: {
-                      display_name: msg.display_name,
-                      score: 0,
-                      clock_offset: 0,
+        switch (msg.type) {
+          case 'ROOM_STATE':
+            setSnapshot({
+              state: msg.state,
+              admin_id: msg.admin_id,
+              players: msg.players ?? {},
+              gameIds: msg.game_ids ?? [],
+              isPractice: !!msg.practice,
+              // Present whenever a game has been picked for this room, even
+              // outside PLAYING (e.g. reconnecting during PERSONAL_SUMMARY) —
+              // practice mode's exit-to-rules-screen needs this regardless of
+              // whether a GAME_STATE broadcast happened to land on this
+              // particular connection.
+              activeGameId: msg.active_game ?? undefined,
+              // Present when reconnecting into a room that's mid-TUTORIAL —
+              // the transition broadcast that normally carries these was
+              // missed, so the handshake snapshot supplies them instead.
+              ...(msg.tutorial_type
+                ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
+                : {}),
+            });
+            break;
+
+          case 'GAME_IDS_UPDATED':
+            setSnapshot((prev) =>
+              prev ? { ...prev, gameIds: msg.game_ids ?? [] } : prev,
+            );
+            break;
+
+          case 'PLAYER_JOINED':
+            setSnapshot((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    players: {
+                      ...prev.players,
+                      [msg.player_id]: {
+                        display_name: msg.display_name,
+                        score: msg.score ?? 0,
+                        clock_offset: msg.clock_offset ?? 0,
+                        vibe: msg.vibe ?? null,
+                        avatar: msg.avatar ?? null,
+                      },
                     },
-                  },
-                }
-              : prev,
-          );
-          break;
+                  }
+                : prev,
+            );
+            break;
 
-        case 'PLAYER_LEFT': {
-          setSnapshot((prev) => {
-            if (!prev) return prev;
-            const { [msg.player_id]: _removed, ...rest } = prev.players;
-            return { ...prev, players: rest };
-          });
-          break;
+          case 'PLAYER_AVATAR_CHANGED':
+            setSnapshot((prev) => {
+              if (!prev || !prev.players[msg.player_id]) return prev;
+              return {
+                ...prev,
+                players: {
+                  ...prev.players,
+                  [msg.player_id]: { ...prev.players[msg.player_id], avatar: msg.avatar },
+                },
+              };
+            });
+            break;
+
+          case 'PLAYER_LEFT': {
+            setSnapshot((prev) => {
+              if (!prev) return prev;
+              const { [msg.player_id]: _removed, ...rest } = prev.players;
+              return { ...prev, players: rest };
+            });
+            break;
+          }
+
+          case 'OUTCOMES':
+            // Store in ref only — game.tsx reads it synchronously on FSM transition
+            outcomesRef.current = msg.outcomes ?? {};
+            break;
+
+          case 'ROOM_DISSOLVED':
+            setDissolved(true);
+            break;
+
+          case 'GAME_STATE':
+            setSnapshot((prev) =>
+              prev
+                ? { ...prev, activeGameId: msg.game_id, gameState: msg.state as Record<string, unknown> }
+                : prev,
+            );
+            break;
+
+          case 'FSM_TRANSITION':
+            setSnapshot((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    state: msg.new_state,
+                    ...(msg.tutorial_type
+                      ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
+                      : {}),
+                  }
+                : prev,
+            );
+            break;
         }
+      };
 
-        case 'OUTCOMES':
-          // Store in ref only — game.tsx reads it synchronously on FSM transition
-          outcomesRef.current = msg.outcomes ?? {};
-          break;
+      ws.onclose = () => {
+        if (generationRef.current !== myGeneration) return; // superseded socket — a newer connect() already owns wsRef/reconnectTimer
+        setIsConnected(false);
+        wsRef.current = null;
+        // Auto-reconnect unless the component unmounted intentionally
+        if (!unmountedRef.current) {
+          reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
+        }
+      };
+    }
 
-        case 'ROOM_DISSOLVED':
-          setDissolved(true);
-          break;
-
-        case 'GAME_STATE':
-          setSnapshot((prev) =>
-            prev
-              ? { ...prev, activeGameId: msg.game_id, gameState: msg.state as Record<string, unknown> }
-              : prev,
-          );
-          break;
-
-        case 'FSM_TRANSITION':
-          setSnapshot((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  state: msg.new_state,
-                  ...(msg.tutorial_type
-                    ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
-                    : {}),
-                }
-              : prev,
-          );
-          break;
-      }
-    };
-
-    ws.onclose = () => {
-      setIsConnected(false);
-    };
+    connectRef.current = connect;
+    connect();
 
     return () => {
-      ws.close();
+      unmountedRef.current = true;
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
       wsRef.current = null;
     };
   }, [code, playerId, displayName]);
@@ -150,5 +279,32 @@ export function useRoomSocket(code: string): UseRoomSocket {
     wsRef.current?.send(JSON.stringify(msg));
   }, []);
 
-  return { snapshot, isConnected, send, outcomesRef, dissolved };
+  const reconnect = useCallback(() => {
+    if (reconnectTimer.current) {
+      clearTimeout(reconnectTimer.current);
+      reconnectTimer.current = null;
+    }
+    // Detach the current socket's handlers before dropping it — a stale
+    // connection may never fire onclose (or may fire it long after we've
+    // moved on), and without this its generation check alone wouldn't stop
+    // a straggling onmessage from a socket we've already abandoned. Then
+    // open a fresh connection right away instead of waiting on the old
+    // one's close event, which is the whole point of this escape hatch.
+    const stale = wsRef.current;
+    if (stale) {
+      stale.onopen = null;
+      stale.onmessage = null;
+      stale.onclose = null;
+      try { stale.close(); } catch { /* already dead — nothing to clean up */ }
+    }
+    // Explicit false->true round trip (a stale socket's own onclose is
+    // detached above, so it can no longer do this itself) — callers that
+    // resend a message once `isConnected` becomes true again (e.g.
+    // summary.tsx's GOTO_PODIUM) depend on seeing it actually flip, not
+    // just stay true the whole time a hung socket looked fine from here.
+    setIsConnected(false);
+    connectRef.current();
+  }, []);
+
+  return { snapshot, isConnected, send, outcomesRef, dissolved, reconnect };
 }

@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { View, Text, TextInput, Pressable } from 'react-native';
 import { router } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
-
-const EMOJIS = ['🍺', '🥃', '🍹', '🎯', '🔥', '💀', '🥂', '🎲'];
+import { VIBE_KEYS, VIBE_ICONS } from '@/constants/vibes';
+import { colors } from '@/constants/design';
 
 export default function OnboardingScreen() {
-  const { setDisplayName } = usePlayerIdentity();
+  const { setIdentity } = usePlayerIdentity();
   const [name, setName] = useState('');
-  const [emoji, setEmoji] = useState<string | null>(null);
+  const [vibe, setVibe] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   const canContinue = name.trim().length >= 2;
@@ -16,8 +16,7 @@ export default function OnboardingScreen() {
   async function handleContinue() {
     if (!canContinue || saving) return;
     setSaving(true);
-    const displayName = emoji ? `${emoji} ${name.trim()}` : name.trim();
-    await setDisplayName(displayName);
+    await setIdentity(name.trim(), vibe);
     router.replace('/');
   }
 
@@ -48,17 +47,25 @@ export default function OnboardingScreen() {
           Pick a vibe (optional)
         </Text>
         <View className="flex-row flex-wrap gap-3">
-          {EMOJIS.map((e) => (
-            <Pressable
-              key={e}
-              onPress={() => setEmoji(emoji === e ? null : e)}
-              className={`w-14 h-14 rounded-xl items-center justify-center ${
-                emoji === e ? 'bg-amber' : 'bg-surface'
-              }`}
-            >
-              <Text className="text-2xl">{e}</Text>
-            </Pressable>
-          ))}
+          {VIBE_KEYS.map((key) => {
+            const Icon = VIBE_ICONS[key];
+            const selected = vibe === key;
+            return (
+              <Pressable
+                key={key}
+                onPress={() => setVibe(selected ? null : key)}
+                className={`w-14 h-14 rounded-xl items-center justify-center ${
+                  selected ? 'bg-amber' : 'bg-surface'
+                }`}
+              >
+                <Icon
+                  size={24}
+                  strokeWidth={2}
+                  color={selected ? colors.ink : colors.chalk}
+                />
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 

@@ -24,3 +24,14 @@ class BaseMiniGame(ABC):
         When is_finished is True, FSM strips outcomes_dict and
         transitions the room to PERSONAL_SUMMARY.
         """
+
+    def on_timeout(
+        self, current_state: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+        """
+        Called by the engine when the server-side tap window expires and the
+        game hasn't already finished via handle_ws_event.
+        Returns: (updated_game_state, outcomes_dict)
+        Default: no-op — games without a timeout concept return empty outcomes.
+        """
+        return current_state, {}
