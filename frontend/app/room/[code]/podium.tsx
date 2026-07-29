@@ -19,6 +19,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { typography } from '@/constants/design';
+import { AVATAR_COLORS } from '@/constants/avatars';
+import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
 
 // Same light/cream/amber register as the home screen — this is a results
@@ -76,20 +78,46 @@ const TIER_HEIGHT: Record<number, number> = { 1: 172, 2: 134, 3: 104 };
 const TIER_FILL:   Record<number, string> = { 1: AMBER, 2: SILVER, 3: BRONZE };
 
 function PodiumColumn({
-  name, score, tier, isMe, delayMs,
-}: { name: string; score: number; tier: number; isMe: boolean; delayMs: number }) {
+  name, avatar, score, tier, isMe, delayMs,
+}: { name: string; avatar: string | null | undefined; score: number; tier: number; isMe: boolean; delayMs: number }) {
   const height = useSharedValue(0);
+  const avatarScale = useSharedValue(0);
   useEffect(() => {
     height.value = withDelay(
       delayMs,
       withTiming(TIER_HEIGHT[tier], { duration: 520, easing: Easing.out(Easing.cubic) }),
     );
+    avatarScale.value = withDelay(
+      delayMs,
+      withSequence(
+        withTiming(1.12, { duration: 260, easing: Easing.out(Easing.back(2)) }),
+        withTiming(1, { duration: 160 }),
+      ),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const barStyle = useAnimatedStyle(() => ({ height: height.value }));
+  const avatarStyle = useAnimatedStyle(() => ({ transform: [{ scale: avatarScale.value }] }));
+
+  const avatarSize = tier === 1 ? 60 : 48;
+  const ringColor = TIER_FILL[tier];
 
   return (
     <View style={{ alignItems: 'center', flex: 1, maxWidth: 104 }}>
+      <Animated.View
+        style={[
+          {
+            marginBottom: 8,
+            shadowColor: ringColor,
+            shadowOpacity: tier === 1 ? 0.5 : 0,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 0 },
+          },
+          avatarStyle,
+        ]}
+      >
+        <AvatarCircle name={name} avatar={avatar} size={avatarSize} ringColor={ringColor} />
+      </Animated.View>
       <Text
         numberOfLines={1}
         style={{
@@ -140,7 +168,7 @@ function PodiumColumn({
 // the popup again for a round already seen.
 let lastChasersPopupKey: string | null = null;
 
-interface ChaserRow { pid: string; name: string; chasers: number }
+interface ChaserRow { pid: string; name: string; avatar: string | null; chasers: number }
 
 function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () => void }) {
   const opacity = useSharedValue(0);
@@ -236,8 +264,15 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
                 backgroundColor: BG,
                 borderWidth: 1,
                 borderColor: HAIRLINE,
+                gap: 10,
               }}
             >
+              <AvatarCircle
+                name={row.name}
+                avatar={row.avatar}
+                size={30}
+                ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+              />
               <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
                 {row.name}
               </Text>
@@ -281,6 +316,7 @@ export default function PodiumScreen() {
     .map(([pid, o]) => ({
       pid,
       name: snapshot?.players[pid]?.display_name ?? 'Player',
+      avatar: snapshot?.players[pid]?.avatar ?? null,
       chasers: o.chasers,
     }));
   // Let the podium's own reveal play out first — the before→after standings
@@ -317,6 +353,7 @@ export default function PodiumScreen() {
     return {
       pid,
       display_name: p.display_name,
+      avatar: p.avatar ?? null,
       afterScore: p.score,
       beforeScore: delta != null ? p.score - delta : p.score,
       delta,
@@ -440,6 +477,7 @@ export default function PodiumScreen() {
               <PodiumColumn
                 key={p.pid}
                 name={p.display_name}
+                avatar={p.avatar}
                 // Ticks before → after in sync with the list below; column
                 // heights stay final so the podium shape never lies.
                 score={phase === 'before' ? p.beforeScore : p.afterScore}
@@ -520,6 +558,15 @@ export default function PodiumScreen() {
                 >
                   {row.rank}
                 </Text>
+              </View>
+
+              <View style={{ marginRight: 10 }}>
+                <AvatarCircle
+                  name={row.display_name}
+                  avatar={row.avatar}
+                  size={32}
+                  ringColor={isMe ? AMBER : row.avatar ? AVATAR_COLORS[row.avatar] : HAIRLINE}
+                />
               </View>
 
               <Text

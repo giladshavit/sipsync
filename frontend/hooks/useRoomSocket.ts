@@ -87,7 +87,7 @@ export interface UseRoomSocket {
 const RECONNECT_DELAY_MS = 1500;
 
 export function useRoomSocket(code: string): UseRoomSocket {
-  const { playerId, displayName, vibe } = usePlayerIdentity();
+  const { playerId, displayName, vibe, preferredAvatar } = usePlayerIdentity();
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
@@ -113,9 +113,11 @@ export function useRoomSocket(code: string): UseRoomSocket {
   const playerIdRef = useRef(playerId);
   const displayNameRef = useRef(displayName);
   const vibeRef = useRef(vibe);
+  const preferredAvatarRef = useRef(preferredAvatar);
   playerIdRef.current = playerId;
   displayNameRef.current = displayName;
   vibeRef.current = vibe;
+  preferredAvatarRef.current = preferredAvatar;
 
   useEffect(() => {
     if (!playerId || !displayName) return;
@@ -137,6 +139,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
             player_id: playerIdRef.current,
             display_name: displayNameRef.current,
             vibe: vibeRef.current,
+            preferred_avatar: preferredAvatarRef.current,
             local_ts: Date.now(),
           }),
         );

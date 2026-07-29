@@ -15,13 +15,20 @@ AVATAR_POOL: list[str] = [
 ]
 
 
-def pick_avatar(used: set[str]) -> str:
-    """Pick a random avatar id not already in use in the room.
+def pick_avatar(used: set[str], preferred: str | None = None) -> str:
+    """Pick an avatar id not already in use in the room.
+
+    A player's own saved "preferred avatar" (set on the Profile screen) wins
+    whenever it's still free in this room; only falls back to a random
+    available avatar once that preference is unavailable (already taken by
+    someone else who joined first).
 
     Falls back to the full pool (allowing a rare duplicate) if every avatar
     is somehow already taken — the pool comfortably covers any realistic
     party-room headcount, so this only guards against a pathological edge
     case rather than something expected to fire in practice.
     """
+    if preferred and preferred in AVATAR_POOL and preferred not in used:
+        return preferred
     available = [a for a in AVATAR_POOL if a not in used]
     return random.choice(available) if available else random.choice(AVATAR_POOL)

@@ -21,14 +21,21 @@ function uuidv4(): string {
 const KEY_PLAYER_ID = 'sipsync.player_id';
 const KEY_DISPLAY_NAME = 'sipsync.display_name';
 const KEY_VIBE = 'sipsync.vibe';
+const KEY_PREFERRED_AVATAR = 'sipsync.preferred_avatar';
 
 interface PlayerIdentity {
   playerId: string | null;
   displayName: string | null;
   /** Key into VIBE_ICONS — the player's chosen icon, picked at onboarding. */
   vibe: string | null;
+  /** Key into AVATAR_POOL — the player's saved avatar choice from the
+   * Profile screen. Requested first when joining a room; the room only
+   * falls back to a random available avatar if this one is already taken
+   * by someone else there (see useRoomSocket's HANDSHAKE). */
+  preferredAvatar: string | null;
   isOnboarded: boolean;
   setIdentity: (name: string, vibe: string | null) => Promise<void>;
+  setPreferredAvatar: (avatar: string) => Promise<void>;
   isLoading: boolean;
 }
 
@@ -36,6 +43,7 @@ export function usePlayerIdentity(): PlayerIdentity {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [displayName, setDisplayNameState] = useState<string | null>(null);
   const [vibe, setVibeState] = useState<string | null>(null);
+  const [preferredAvatar, setPreferredAvatarState] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -48,9 +56,11 @@ export function usePlayerIdentity(): PlayerIdentity {
         }
         const name = await SecureStore.getItemAsync(KEY_DISPLAY_NAME);
         const storedVibe = await SecureStore.getItemAsync(KEY_VIBE);
+        const storedAvatar = await SecureStore.getItemAsync(KEY_PREFERRED_AVATAR);
         setPlayerId(id);
         setDisplayNameState(name);
         setVibeState(storedVibe);
+        setPreferredAvatarState(storedAvatar);
       } catch (e) {
         // Fallback: generate an ephemeral ID so the app still works
         setPlayerId(uuidv4());
@@ -70,12 +80,19 @@ export function usePlayerIdentity(): PlayerIdentity {
     setVibeState(newVibe);
   }, []);
 
+  const setPreferredAvatar = useCallback(async (avatar: string) => {
+    await SecureStore.setItemAsync(KEY_PREFERRED_AVATAR, avatar);
+    setPreferredAvatarState(avatar);
+  }, []);
+
   return {
     playerId,
     displayName,
     vibe,
+    preferredAvatar,
     isOnboarded: displayName !== null,
     setIdentity,
+    setPreferredAvatar,
     isLoading,
   };
 }
