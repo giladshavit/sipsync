@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextStyle } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextStyle, useWindowDimensions } from 'react-native';
 import { Award, GlassWater } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
@@ -177,6 +177,11 @@ function ChasersPopup({
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
   const [tab, setTab] = useState<'ROUND' | 'TOTAL'>('ROUND');
+  const { height } = useWindowDimensions();
+  // Cap the row list so it can never push the "Got it" button off-screen —
+  // the TOTAL tab only grows over the night with no player cap. Scrolls
+  // instead of overflowing once a room has enough players.
+  const listMaxHeight = Math.min(360, height * 0.5);
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 200 });
@@ -290,7 +295,10 @@ function ChasersPopup({
 
         {/* layout={LinearTransition} makes the card resize smoothly when the
             two tabs' row counts differ, instead of snapping to the new
-            height. */}
+            height. Wrapped in a height-capped ScrollView so a long list
+            (the TOTAL tab has no player cap) scrolls instead of pushing
+            the "Got it" button off-screen. */}
+        <ScrollView style={{ maxHeight: listMaxHeight }} showsVerticalScrollIndicator={false}>
         <Animated.View layout={LinearTransition.duration(260)} style={{ gap: 10 }}>
           {tab === 'ROUND' &&
             rows.map((row) => (
@@ -366,6 +374,7 @@ function ChasersPopup({
               );
             })}
         </Animated.View>
+        </ScrollView>
 
         <Pressable
           onPress={onDismiss}
@@ -405,8 +414,10 @@ export default function PodiumScreen() {
       chasers: o.chasers,
     }));
   // Room-lifetime total, sorted descending — the "Total Drinks" tab of the
-  // same popup. Ties keep Object.entries' insertion order, so the first
-  // row after sorting is unambiguous (that's who gets the top-of-list accent).
+  // same popup. Ties break on player id (not insertion order) so the
+  // top-of-list amber accent lands on the same player for every client,
+  // regardless of the order each client's Object.entries(players) happens
+  // to be in.
   const totalDrinkRows: TotalDrinkRow[] = Object.entries(snapshot?.players ?? {})
     .map(([pid, p]) => ({
       pid,
@@ -415,7 +426,7 @@ export default function PodiumScreen() {
       total: p.total_chasers ?? 0,
     }))
     .filter((row) => row.total > 0)
-    .sort((a, b) => b.total - a.total);
+    .sort((a, b) => b.total - a.total || a.pid.localeCompare(b.pid));
   // Let the podium's own reveal play out first — the before→after standings
   // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
   // the moment's payoff; popping the popup over them immediately steals that

@@ -328,7 +328,7 @@ class RoomService:
 
         clock_offset = int(time.time() * 1000) - local_ts
 
-        # Preserve existing score/avatar across reconnects (screen
+        # Preserve existing score/total_chasers/avatar across reconnects (screen
         # transitions close and reopen the WebSocket, so both must survive).
         # The avatar-assignment read-then-write needs the room lock: two
         # players handshaking at once must never both land on the same
