@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, Image, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -12,12 +11,13 @@ import { AVATAR_POOL, AVATAR_IMAGES, AVATAR_COLORS } from '@/constants/avatars';
 const COLS = 4;
 const GAP = 10;
 const H_PADDING = 16;
-// Square frame drawn around whichever avatar is currently selected.
+// Square frame drawn around the avatar the sheet opened with — fixed for
+// the sheet's lifetime, not a moving selection marker (see `isMine` below).
 const FRAME_PADDING = 6;
 const FRAME_BORDER = 3;
-// How long the square frame sits on the new pick before the sheet closes
-// itself — long enough to register as confirmation, short enough not to feel
-// like a stall.
+// How long a tap sits (as a plain pressed-opacity dim, plus the haptic)
+// before the sheet closes itself — long enough to register as confirmation,
+// short enough not to feel like a stall.
 const CONFIRM_DELAY_MS = 450;
 
 interface AvatarPickerSheetProps {
@@ -36,15 +36,8 @@ export function AvatarPickerSheet({ currentAvatar, takenAvatars, onSelect, onClo
   const slotSize = (width - H_PADDING * 2 - GAP * (COLS - 1)) / COLS;
   const cellSize = slotSize - (FRAME_PADDING + FRAME_BORDER) * 2;
 
-  // Optimistic: the frame jumps to the tap immediately rather than waiting
-  // on the SET_AVATAR round trip, since the whole point is instant
-  // confirmation before auto-closing.
-  const [selectedPreview, setSelectedPreview] = useState<string | null | undefined>(currentAvatar);
-  const displayedSelection = selectedPreview ?? currentAvatar;
-
   function handleSelect(avatar: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setSelectedPreview(avatar);
     onSelect(avatar);
     setTimeout(onClose, CONFIRM_DELAY_MS);
   }
@@ -99,7 +92,12 @@ export function AvatarPickerSheet({ currentAvatar, takenAvatars, onSelect, onClo
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GAP }}>
             {AVATAR_POOL.map((avatar) => {
-              const isMine = avatar === displayedSelection;
+              // Reflects only the avatar you had when the sheet opened —
+              // tapping a different one doesn't drag the frame along with
+              // it; the tap itself just gets the same plain press-dim
+              // feedback as any other button (see profile.tsx's own avatar
+              // button), and the sheet closes on its own right after.
+              const isMine = avatar === currentAvatar;
               const isTaken = takenAvatars.has(avatar) && !isMine;
               return (
                 <View

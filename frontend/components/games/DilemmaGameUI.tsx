@@ -15,6 +15,7 @@ import type { MiniGameProps } from '../ActiveGameScreen';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { colors, typography } from '@/constants/design';
 import { AVATAR_IMAGES, AVATAR_COLORS, avatarFallbackColor } from '@/constants/avatars';
+
 import { CountdownRing } from './CountdownRing';
 
 // Send EXPIRE a beat after the corrected deadline so the server (whose clock
@@ -266,8 +267,11 @@ function halfAppearance(choice: Choice, result: 'WIN' | 'LOSE', perspective: 'yo
   return { bg, Icon: Swords, headline: 'MUTUAL BETRAYAL', ink };
 }
 
+const REVEAL_AVATAR_SIZE = 64;
+
 function RevealHalf({
   label,
+  avatar,
   choice,
   scoreDelta,
   chasers,
@@ -276,6 +280,7 @@ function RevealHalf({
   insetBottom = 0,
 }: {
   label: string;
+  avatar: string | null | undefined;
   choice: Choice;
   scoreDelta: number;
   chasers: number;
@@ -285,6 +290,8 @@ function RevealHalf({
 }): React.ReactElement {
   const result: 'WIN' | 'LOSE' = scoreDelta >= 0 ? 'WIN' : 'LOSE';
   const { bg, Icon, headline, ink } = halfAppearance(choice, result, perspective);
+  const ringColor = avatar ? AVATAR_COLORS[avatar] : ink;
+  const fallbackBg = avatarFallbackColor(label);
 
   return (
     <View
@@ -298,6 +305,37 @@ function RevealHalf({
         paddingBottom: insetBottom,
       }}
     >
+      <View
+        style={{
+          width: REVEAL_AVATAR_SIZE,
+          height: REVEAL_AVATAR_SIZE,
+          borderRadius: REVEAL_AVATAR_SIZE / 2,
+          overflow: 'hidden',
+          borderWidth: 3,
+          backgroundColor: avatar ? colors.parchment : fallbackBg,
+          borderColor: ringColor,
+          shadowColor: colors.ink,
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 5,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 10,
+        }}
+      >
+        {avatar ? (
+          <Image
+            source={AVATAR_IMAGES[avatar]}
+            style={{ width: REVEAL_AVATAR_SIZE, height: REVEAL_AVATAR_SIZE }}
+            resizeMode="cover"
+          />
+        ) : (
+          <Text style={{ color: '#FFFFFF', fontSize: 22, fontWeight: '900' }}>
+            {(label.match(/[A-Za-zא-ת؀-ۿ]/)?.[0] ?? '?').toUpperCase()}
+          </Text>
+        )}
+      </View>
       <Text style={{ ...MONO, color: ink, fontSize: 11, opacity: 0.7 }}>{label}</Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 }}>
         <Icon size={30} color={ink} strokeWidth={2.5} />
@@ -482,6 +520,7 @@ export const DilemmaGameUI: React.FC<MiniGameProps> = ({ gameState, onAction, cl
   const opponentId = playerId ? (partnerOf[playerId] ?? null) : null;
   const opponentName = opponentId ? (displayNames[opponentId] ?? '?') : '?';
   const opponentAvatar = opponentId ? avatars[opponentId] : undefined;
+  const myAvatar = playerId ? avatars[playerId] : undefined;
   const myChoice = playerId ? (choices[playerId] ?? null) : null;
 
   // Latest onAction without retriggering timer effects (game.tsx recreates it
@@ -569,6 +608,7 @@ export const DilemmaGameUI: React.FC<MiniGameProps> = ({ gameState, onAction, cl
         <Animated.View style={[revealStyle, { flex: 1 }]}>
           <RevealHalf
             label={opponentName.toUpperCase()}
+            avatar={opponentAvatar}
             choice={finalOpponentChoice}
             scoreDelta={theirs.scoreDelta}
             chasers={theirs.chasers}
@@ -577,6 +617,7 @@ export const DilemmaGameUI: React.FC<MiniGameProps> = ({ gameState, onAction, cl
           />
           <RevealHalf
             label="YOU"
+            avatar={myAvatar}
             choice={finalMyChoice}
             scoreDelta={mine.scoreDelta}
             chasers={mine.chasers}

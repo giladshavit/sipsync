@@ -7,6 +7,7 @@ import pytest
 
 import app.engine.room_service as rs_module
 from app.engine.avatar_pool import AVATAR_POOL, pick_avatar
+from app.engine.deck import deck as deck_singleton
 
 CODE = "AVATARCD"
 PLAYER_A = "player-a"
@@ -19,6 +20,7 @@ _svc = rs_module.room_service
 def patch_redis_and_broadcast(monkeypatch):
     r = fakeredis.FakeAsyncRedis(decode_responses=True)
     monkeypatch.setattr(rs_module, "redis", r)
+    monkeypatch.setattr(deck_singleton, "_redis", r)
 
     captured: list[dict] = []
 
@@ -58,6 +60,86 @@ def test_pick_avatar_returns_pool_member_when_nothing_used():
 def test_pick_avatar_falls_back_when_pool_exhausted():
     used = set(AVATAR_POOL)  # every slot taken
     assert pick_avatar(used) in AVATAR_POOL  # duplicate allowed rather than crashing
+
+
+def test_pick_avatar_prefers_saved_choice_when_free():
+    assert pick_avatar(set(), preferred=AVATAR_POOL[5]) == AVATAR_POOL[5]
+
+
+def test_pick_avatar_falls_back_when_preferred_is_taken():
+    used = {AVATAR_POOL[5]}
+    result = pick_avatar(used, preferred=AVATAR_POOL[5])
+    assert result != AVATAR_POOL[5]
+    assert result in AVATAR_POOL
+
+
+def test_pick_avatar_falls_back_when_preferred_is_unknown():
+    result = pick_avatar(set(), preferred="not-a-real-avatar")
+    assert result in AVATAR_POOL
+
+
+# ---------------------------------------------------------------------------
+# handle_handshake — preferred_avatar wired through the join message
+# ---------------------------------------------------------------------------
+
+class _FakeWebSocket:
+    def __init__(self):
+        self.sent: list[dict] = []
+
+    async def send_text(self, raw: str) -> None:
+        self.sent.append(json.loads(raw))
+
+
+@pytest.mark.asyncio
+async def test_handshake_assigns_preferred_avatar_when_free(patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", "state", "LOBBY")
+
+    await _svc.handle_handshake(CODE, _FakeWebSocket(), {
+        "player_id": PLAYER_A,
+        "display_name": "Alice",
+        "local_ts": 0,
+        "preferred_avatar": AVATAR_POOL[7],
+    })
+
+    stored = json.loads(await r.hget(f"room:{CODE}:players", PLAYER_A))
+    assert stored["avatar"] == AVATAR_POOL[7]
+
+
+@pytest.mark.asyncio
+async def test_handshake_falls_back_when_preferred_avatar_taken(two_players, patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", "state", "LOBBY")
+
+    await _svc.handle_handshake(CODE, _FakeWebSocket(), {
+        "player_id": "player-c",
+        "display_name": "Cara",
+        "local_ts": 0,
+        "preferred_avatar": AVATAR_POOL[0],  # already Alice's
+    })
+
+    stored = json.loads(await r.hget(f"room:{CODE}:players", "player-c"))
+    assert stored["avatar"] != AVATAR_POOL[0]
+    assert stored["avatar"] in AVATAR_POOL
+
+
+@pytest.mark.asyncio
+async def test_handshake_reconnect_preserves_existing_avatar_over_preferred(two_players, patch_redis_and_broadcast):
+    """A player who already has an avatar in this room (reconnect) keeps it,
+    even if their saved preference now points somewhere else — the room
+    avatar, once assigned, is stable for the room's lifetime."""
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", "state", "LOBBY")
+
+    await _svc.handle_handshake(CODE, _FakeWebSocket(), {
+        "player_id": PLAYER_A,
+        "display_name": "Alice",
+        "local_ts": 0,
+        "preferred_avatar": AVATAR_POOL[9],
+    })
+
+    stored = json.loads(await r.hget(f"room:{CODE}:players", PLAYER_A))
+    assert stored["avatar"] == AVATAR_POOL[0]  # unchanged from two_players fixture
 
 
 # ---------------------------------------------------------------------------

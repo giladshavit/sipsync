@@ -321,6 +321,7 @@ class RoomService:
         player_id: str = msg["player_id"]
         display_name: str = msg["display_name"]
         vibe: str | None = msg.get("vibe")
+        preferred_avatar: str | None = msg.get("preferred_avatar")
         local_ts: int = msg.get("local_ts", 0)
 
         clock_offset = int(time.time() * 1000) - local_ts
@@ -343,7 +344,7 @@ class RoomService:
                     if pid != player_id
                 }
                 used.discard(None)
-                avatar = pick_avatar(used)
+                avatar = pick_avatar(used, preferred_avatar)
 
             await redis.hset(
                 f"room:{code}:players",
