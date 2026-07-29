@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
-import { GAME_CATALOG } from '@/constants/games';
+import { GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
 const GRID_GAP = 10;
@@ -16,12 +16,32 @@ export default function AllGamesScreen() {
   const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<CategoryFilter>('all');
 
-  const cellSize = (width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS;
+  // Floored, not just divided — Yoga snaps each child's float width to the
+  // device's pixel grid independently, and on screen widths where this
+  // division isn't a whole number, three independently-rounded-UP cards can
+  // sum to a hair more than the row's actual available width, which is
+  // exactly what tips flexWrap into bumping the 3rd card to its own line
+  // (the bug this fixes). Flooring means 3 cards can only ever round DOWN
+  // from here, never past the budget, so the row can never overflow.
+  const cellSize = Math.floor((width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   const games = useMemo(
     () => (filter === 'all' ? GAME_CATALOG : GAME_CATALOG.filter((g) => g.categories.includes(filter))),
     [filter],
   );
+
+  // Chunked into fixed rows of exactly COLUMNS, rather than a flexWrap flow
+  // of same-width children — belt and suspenders on top of the floor above:
+  // the column count is then a structural guarantee (each row IS 3 cards),
+  // never a byproduct of whether floating-point card widths happen to sum
+  // under the container's width on a given device.
+  const rows = useMemo(() => {
+    const chunks: GameMeta[][] = [];
+    for (let i = 0; i < games.length; i += COLUMNS) {
+      chunks.push(games.slice(i, i + COLUMNS));
+    }
+    return chunks;
+  }, [games]);
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
@@ -75,60 +95,71 @@ export default function AllGamesScreen() {
         {/* Category filter chips */}
         <CategoryFilterChips value={filter} onChange={setFilter} style={{ marginBottom: 20 }} />
 
-        {/* Game grid */}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
-          {games.map((game) => (
-            <Pressable
-              key={game.id}
-              onPress={() => router.push(`/games/${game.id}`)}
-              style={{
-                width: cellSize,
-                borderWidth: 2,
-                borderColor: colors.ink,
-                backgroundColor: colors.parchment,
-              }}
-              className="active:opacity-75"
-            >
-              {/* Image placeholder — swaps for real artwork later */}
-              <View
-                style={{
-                  width: '100%',
-                  aspectRatio: 1,
-                  backgroundColor: game.accentColor,
-                  borderBottomWidth: 2,
-                  borderBottomColor: colors.ink,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <game.Icon size={cellSize * 0.34} color={colors.parchment} strokeWidth={1.75} />
-              </View>
-
-              <View
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 14,
-                  minHeight: 60,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text
-                  numberOfLines={2}
+        {/* Game grid — fixed rows of exactly 3, not a flexWrap flow (see
+            `rows` above for why). */}
+        <View style={{ gap: GRID_GAP }}>
+          {rows.map((row, rowIndex) => (
+            <View key={rowIndex} style={{ flexDirection: 'row', gap: GRID_GAP }}>
+              {row.map((game) => (
+                <Pressable
+                  key={game.id}
+                  onPress={() => router.push(`/games/${game.id}`)}
                   style={{
-                    color: colors.ink,
-                    fontSize: 13,
-                    fontWeight: '900',
-                    letterSpacing: 0.3,
-                    lineHeight: 16,
-                    textAlign: 'center',
-                    textTransform: 'uppercase',
+                    width: cellSize,
+                    borderWidth: 2,
+                    borderColor: colors.ink,
+                    backgroundColor: colors.parchment,
                   }}
+                  className="active:opacity-75"
                 >
-                  {game.title}
-                </Text>
-              </View>
-            </Pressable>
+                  {/* Image placeholder — swaps for real artwork later */}
+                  <View
+                    style={{
+                      width: '100%',
+                      aspectRatio: 1,
+                      backgroundColor: game.accentColor,
+                      borderBottomWidth: 2,
+                      borderBottomColor: colors.ink,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <game.Icon size={cellSize * 0.34} color={colors.parchment} strokeWidth={1.75} />
+                  </View>
+
+                  <View
+                    style={{
+                      paddingHorizontal: cellSize * 0.09,
+                      paddingVertical: 14,
+                      minHeight: 60,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                      style={{
+                        color: colors.ink,
+                        // Scales with the card itself so a cramped narrow
+                        // device shrinks the title instead of clipping or
+                        // overflowing it — clamped so it never gets either
+                        // illegibly small or oversized on a wide tablet.
+                        fontSize: Math.max(11, Math.min(13, cellSize * 0.12)),
+                        fontWeight: '900',
+                        letterSpacing: 0.3,
+                        lineHeight: Math.max(13, Math.min(16, cellSize * 0.15)),
+                        textAlign: 'center',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {game.title}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </View>
           ))}
         </View>
       </ScrollView>
