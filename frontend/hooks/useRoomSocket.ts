@@ -7,6 +7,8 @@ const WS_BASE = API_BASE.replace(/^http/, 'ws');
 export interface Player {
   display_name: string;
   score: number;
+  /** Cumulative chasers this player has drunk across the whole room session. */
+  total_chasers: number;
   clock_offset: number;
   /** Key into VIBE_ICONS — the icon the player picked at onboarding. */
   vibe?: string | null;
@@ -188,6 +190,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
                       [msg.player_id]: {
                         display_name: msg.display_name,
                         score: msg.score ?? 0,
+                        total_chasers: msg.total_chasers ?? 0,
                         clock_offset: msg.clock_offset ?? 0,
                         vibe: msg.vibe ?? null,
                         avatar: msg.avatar ?? null,
