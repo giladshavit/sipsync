@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -57,6 +59,7 @@ export default function TutorialScreen() {
 
   const { playerId } = usePlayerIdentity();
   const { snapshot, send } = useRoomSocket(code);
+  const insets = useSafeAreaInsets();
   const isAdmin = !!snapshot && snapshot.admin_id === playerId;
   const isCustomQuestionGame = !!tutorialAsset && CUSTOM_QUESTION_ASSETS.includes(tutorialAsset);
   // Custom Question games hold here once the mandatory viewing window ends
@@ -125,99 +128,184 @@ export default function TutorialScreen() {
   const cue = game?.tutorialCue ?? game?.tagline;
 
   return (
-    <View className="flex-1 bg-ink px-6 pt-16 pb-6">
-      {/* Same "how to play" chrome as the standalone preview reached from
-          the rules screen — minus the back/replay buttons, since this
-          screen can't be left early or replayed: it runs once for a fixed
-          duration and then the round starts. */}
+    <View style={{ flex: 1, backgroundColor: colors.ink }}>
+      {/* Same layered depth wash as the standalone preview (see
+          games/[id]/tutorial.tsx) — a subtle vertical gradient plus this
+          game's own accent bleeding faintly from the top, instead of a flat
+          fill. */}
+      <LinearGradient
+        colors={[colors.surface, colors.ink]}
+        locations={[0, 0.65]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          top: -220,
+          left: '50%',
+          width: 460,
+          height: 460,
+          marginLeft: -230,
+          borderRadius: 230,
+          backgroundColor: accent,
+          opacity: 0.08,
+        }}
+      />
+
       <View
         style={{
-          alignSelf: 'center',
-          borderWidth: 2,
-          borderColor: accent,
-          paddingHorizontal: 10,
-          paddingVertical: 5,
-          marginBottom: 14,
+          flex: 1,
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 16,
+          paddingHorizontal: 24,
         }}
       >
-        <Text style={{ color: accent, fontSize: 11, ...typography.label }}>How to play</Text>
-      </View>
-
-      {game && (
-        <>
-          <Text style={[typography.title, { color: colors.chalk, fontSize: 22, lineHeight: 24, textAlign: 'center' }]}>
-            {game.title}
-          </Text>
-          <View style={{ width: 40, height: 3, backgroundColor: accent, marginTop: 8, alignSelf: 'center' }} />
-        </>
-      )}
-
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 28 }}>
-        {cue && (
-          <View style={{ maxWidth: 300 }}>
-            <CueText line={cue} />
-          </View>
-        )}
-        {TutorialComponent ? (
-          <TutorialComponent />
-        ) : (
-          <Text className="text-chalk text-2xl font-bold leading-snug text-center">
-            Get ready for the next round!
-          </Text>
-        )}
-        {game && (
-          <View style={{ marginTop: 20 }}>
-            <DrinkRow rules={game.drinkingRules} />
-          </View>
-        )}
-      </View>
-
-      {!countdownDone ? (
-        <>
-          {/* Countdown bar — mandatory, no skip */}
-          <View
+        {/* Same "how to play" chrome as the standalone preview reached from
+            the rules screen — minus the back/replay buttons, since this
+            screen can't be left early or replayed: it runs once for a fixed
+            duration and then the round starts. No subtitle here: the game's
+            own instruction line already renders as CueText right above the
+            mockup below, so a second copy up here was pure redundancy, not
+            real information. Pinned to a fixed footprint with an explicit
+            bottom buffer (flexShrink: 0 is RN's default for a non-flex
+            child, set here for clarity) so it never gets squeezed or
+            crowded by the mockup below it. */}
+        <View style={{ flexShrink: 0, marginBottom: 20 }}>
+          <Text
             style={{
-              height: 6,
-              backgroundColor: colors.surface,
-              borderRadius: 3,
-              overflow: 'hidden',
+              color: colors.amber,
+              ...typography.label,
+              fontSize: 11,
+              letterSpacing: 4,
+              textAlign: 'center',
+              marginBottom: 4,
             }}
           >
-            <Animated.View
-              style={[
-                { height: '100%', backgroundColor: colors.amber, borderRadius: 3 },
-                barStyle,
-              ]}
-            />
-          </View>
+            How to play
+          </Text>
 
-          <Text className="text-fog text-xs mt-3 text-center">
-            Starting in {durationMs / 1000} seconds…
-          </Text>
-        </>
-      ) : isAdmin ? (
-        <Pressable
-          onPress={() => setChooserOpen(true)}
-          className="bg-amber py-5 items-center rounded-none active:opacity-80"
+          {game && (
+            <>
+              <Text style={[typography.title, { color: colors.chalk, fontSize: 24, lineHeight: 26, textAlign: 'center' }]}>
+                {game.title}
+              </Text>
+              <View style={{ width: 40, height: 3, backgroundColor: accent, marginTop: 10, alignSelf: 'center' }} />
+            </>
+          )}
+        </View>
+
+        {/* Cue line, the simulated phone screen, and the who-drinks chips —
+            scrollable rather than forced into a fixed centered box: on
+            shorter screens the mockup's own fixed height plus the cue line
+            and drink chips can add up to more than the space left under the
+            header (and, here, above the countdown bar / Start Game button),
+            and a rigid flex:1 + overflow:hidden box was clipping the cue
+            text and chip labels instead of just gracefully yielding scroll.
+            flexGrow + centered contentContainerStyle keeps content
+            vertically centered exactly like before whenever it *does* fit,
+            and only turns into a scroll on the screens where it doesn't. */}
+        <ScrollView
+          style={{ flex: 1, width: '100%' }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 16, paddingBottom: 20 }}
+          showsVerticalScrollIndicator={false}
         >
-          <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
-            Start Game
+          <View style={{ alignItems: 'center', gap: 22 }}>
+            {cue && (
+              <View style={{ maxWidth: 300 }}>
+                <CueText line={cue} />
+              </View>
+            )}
+            {TutorialComponent ? (
+              <TutorialComponent />
+            ) : (
+              <Text className="text-chalk text-2xl font-bold leading-snug text-center">
+                Get ready for the next round!
+              </Text>
+            )}
+            {game && (
+              <View style={{ marginTop: 14 }}>
+                <DrinkRow rules={game.drinkingRules} />
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        {!countdownDone ? (
+          <>
+            {/* Countdown bar — mandatory, no skip */}
+            <View
+              style={{
+                height: 6,
+                backgroundColor: colors.surface,
+                borderRadius: 3,
+                overflow: 'hidden',
+              }}
+            >
+              <Animated.View
+                style={[
+                  {
+                    height: '100%',
+                    backgroundColor: colors.amber,
+                    borderRadius: 3,
+                    shadowColor: colors.amberGlow,
+                    shadowOpacity: 0.8,
+                    shadowRadius: 6,
+                    shadowOffset: { width: 0, height: 0 },
+                  },
+                  barStyle,
+                ]}
+              />
+            </View>
+
+            <Text
+              style={{
+                color: colors.fog,
+                fontSize: 11,
+                letterSpacing: 1,
+                textAlign: 'center',
+                marginTop: 12,
+              }}
+            >
+              Starting in {durationMs / 1000} seconds…
+            </Text>
+          </>
+        ) : isAdmin ? (
+          <Pressable
+            onPress={() => setChooserOpen(true)}
+            style={{
+              backgroundColor: colors.amber,
+              borderWidth: 2,
+              borderColor: colors.amberGlow,
+              paddingVertical: 18,
+              alignItems: 'center',
+              shadowColor: colors.amber,
+              shadowOpacity: 0.45,
+              shadowRadius: 18,
+              shadowOffset: { width: 0, height: 8 },
+              elevation: 10,
+            }}
+            className="active:opacity-80"
+          >
+            <Text style={{ color: colors.ink, fontWeight: '900', fontSize: 14, letterSpacing: 2 }} className="uppercase">
+              Start Game
+            </Text>
+          </Pressable>
+        ) : (
+          <Text
+            style={{
+              color: colors.fog,
+              ...typography.label,
+              fontSize: 11,
+              letterSpacing: 3,
+              textAlign: 'center',
+              paddingVertical: 12,
+            }}
+          >
+            Waiting for host to start
           </Text>
-        </Pressable>
-      ) : (
-        <Text
-          style={{
-            color: colors.amber,
-            ...typography.label,
-            fontSize: 11,
-            letterSpacing: 3,
-            textAlign: 'center',
-            paddingVertical: 12,
-          }}
-        >
-          Waiting for host to start
-        </Text>
-      )}
+        )}
+      </View>
 
       {chooserOpen && (
         <CustomQuestionSourceSheet

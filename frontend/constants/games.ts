@@ -145,7 +145,7 @@ export const GAME_CATALOG: GameMeta[] = [
     tutorialCue: [{ text: 'When it turns ' }, { text: 'green', color: 'green' }, { text: ' - tap fast!' }],
     drinkingRules: [
       { description: 'Slowest', chasers: 1 },
-      { description: 'Tapped during the red light', chasers: 1, shortLabel: 'Tapped too early' },
+      { description: 'Tapped during the red light', chasers: 1, shortLabel: 'Too early' },
       { description: 'Didn’t tap at all', chasers: 1, shortLabel: 'Didn’t tap' },
     ],
     scoring: rankedScoring('Fastest valid tap', 'Slowest tap, tapped early, or never tapped'),
