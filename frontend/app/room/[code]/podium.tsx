@@ -1112,11 +1112,7 @@ export default function PodiumScreen() {
   const HEADER_ICON_BTN = 40;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      >
+    <View style={{ flex: 1, backgroundColor: BG, paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}>
         {/* Header — three equal-width flex columns so the centered title
             stays geometrically centered regardless of the left column
             holding 1 button and the right column holding 2. */}
@@ -1250,161 +1246,54 @@ export default function PodiumScreen() {
           )}
         </View>
 
-        {/* Podium — final standings, on screen from the start */}
-        {podium.length > 0 && (
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'flex-end',
-              justifyContent: 'center',
-              gap: 10,
-              marginBottom: 12,
-            }}
-          >
-            {podiumOrder.map((p) => (
-              <PodiumColumn
-                key={p.pid}
-                name={p.display_name}
-                avatar={p.avatar}
-                // Ticks before → after in sync with the list below; column
-                // heights stay final so the podium shape never lies.
-                score={phase === 'before' ? p.beforeScore : p.afterScore}
-                tier={p.tier}
-                isMe={p.pid === playerId}
-                delayMs={(maxTier - p.tier) * 180}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* Baseline under the podium grounds the columns */}
-        {podium.length > 0 && (
-          <View style={{ height: 2, backgroundColor: INK, marginBottom: 10 }} />
-        )}
-
-        {/* Phase caption for the list replay below */}
-        <Text
-          style={{
-            color: MUTED,
-            ...typography.label,
-            fontSize: 10,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            marginBottom: 12,
-            textAlign: 'right',
-          }}
-        >
-          {phase === 'before' ? 'Before this round' : 'After this round'}
-        </Text>
-
-        {/* Full ranked list — replays the before → after movement for everyone */}
-        {ranked.map((row, index) => {
-          const isMe = row.pid === playerId;
-          const isTop = row.rank === 1;
-
-          return (
-            <Animated.View
-              key={row.pid}
-              layout={LinearTransition.springify().damping(26).stiffness(65).mass(1.1)}
-              entering={FadeInDown.delay(index * 60).duration(320)}
+        {/* Podium — the untouched animated visualization, now the
+            screen's center-stage focus with room to breathe on all sides. */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          {podium.length > 0 && (
+            <View
               style={{
                 flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 14,
-                paddingHorizontal: 14,
-                marginBottom: 10,
-                backgroundColor: isMe ? ME_BG : CARD,
-                borderWidth: 1,
-                borderColor: isMe ? AMBER : HAIRLINE,
-                shadowColor: INK,
-                shadowOpacity: 0.05,
-                shadowRadius: 6,
-                shadowOffset: { width: 0, height: 3 },
-                elevation: 2,
+                alignItems: 'flex-end',
+                justifyContent: 'center',
+                gap: 10,
+                marginBottom: 12,
               }}
             >
-              {/* Rank chip — ties share a rank */}
-              <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  marginRight: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isTop ? AMBER : 'transparent',
-                  borderWidth: isTop ? 0 : 1,
-                  borderColor: HAIRLINE,
-                }}
-              >
-                <Text
-                  style={{
-                    ...typography.label,
-                    fontWeight: '700',
-                    fontSize: 14,
-                    color: isTop ? INK : MUTED,
-                  }}
-                >
-                  {row.rank}
-                </Text>
-              </View>
-
-              <View style={{ marginRight: 10 }}>
-                <AvatarCircle
-                  name={row.display_name}
-                  avatar={row.avatar}
-                  size={32}
-                  ringColor={isMe ? AMBER : row.avatar ? AVATAR_COLORS[row.avatar] : HAIRLINE}
+              {podiumOrder.map((p) => (
+                <PodiumColumn
+                  key={p.pid}
+                  name={p.display_name}
+                  avatar={p.avatar}
+                  score={phase === 'before' ? p.beforeScore : p.afterScore}
+                  tier={p.tier}
+                  isMe={p.pid === playerId}
+                  delayMs={(maxTier - p.tier) * 180}
                 />
-              </View>
+              ))}
+            </View>
+          )}
 
-              <Text
-                numberOfLines={1}
-                style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '600', marginRight: 8 }}
-              >
-                {row.display_name}
-                {isMe ? ' (you)' : ''}
-              </Text>
+          {podium.length > 0 && (
+            <View style={{ height: 2, width: 220, backgroundColor: INK, marginBottom: 10 }} />
+          )}
 
-              {/* Last-round delta pill */}
-              {phase === 'after' && row.delta != null && row.delta !== 0 && (
-                <Animated.View
-                  entering={FadeIn.delay(SCORE_ROLL_MS).duration(300)}
-                  style={{
-                    backgroundColor: row.delta > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.10)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                    marginRight: 10,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: row.delta > 0 ? GO : STOP,
-                      fontSize: 12,
-                      fontWeight: '700',
-                    }}
-                  >
-                    ({row.delta > 0 ? '+' : '−'}{Math.abs(row.delta)})
-                  </Text>
-                </Animated.View>
-              )}
-
-              <AnimatedScore
-                value={row.displayScore}
-                style={{
-                  color: INK,
-                  fontSize: 17,
-                  fontWeight: '800',
-                  minWidth: 30,
-                  textAlign: 'right',
-                }}
-              />
-            </Animated.View>
-          );
-        })}
+          <Text
+            style={{
+              color: MUTED,
+              ...typography.label,
+              fontSize: 10,
+              letterSpacing: 3,
+              textTransform: 'uppercase',
+              textAlign: 'center',
+            }}
+          >
+            {phase === 'before' ? 'Before this round' : 'After this round'}
+          </Text>
+        </View>
 
         {/* Admin actions / non-admin waiting */}
         <Animated.View
-          entering={FadeInDown.delay(ranked.length * 60 + 100).duration(350)}
+          entering={FadeInDown.delay(300).duration(350)}
           style={{ marginTop: 12, gap: 12 }}
         >
           {isAdmin ? (
@@ -1463,7 +1352,6 @@ export default function PodiumScreen() {
             </Text>
           )}
         </Animated.View>
-      </ScrollView>
 
       {showStats && (
         <StatsModal
