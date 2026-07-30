@@ -7,7 +7,6 @@ import Animated, {
   FadeInDown,
   FadeIn,
   FadeOutUp,
-  LinearTransition,
   useSharedValue,
   useAnimatedStyle,
   useAnimatedReaction,
@@ -1108,264 +1107,264 @@ export default function PodiumScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: BG, paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}>
-        {/* Header — three equal-width flex columns so the centered title
-            stays geometrically centered regardless of the left column
-            holding 1 button and the right column holding 2. */}
-        <Animated.View
-          entering={FadeInDown.duration(400)}
-          style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}
-        >
-          <View style={{ flex: 1, alignItems: 'flex-start' }}>
-            <Pressable
-              onPress={() => setConfirmingLeave(true)}
-              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
-              className="active:opacity-60"
-            >
-              <DoorOpen size={18} color={STOP} strokeWidth={2} />
-            </Pressable>
-          </View>
-
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{ color: MUTED, ...typography.label, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>
-              Round results
-            </Text>
-            <Text style={{ color: AMBER, ...typography.title, fontSize: 22, letterSpacing: 3 }}>
-              Podium
-            </Text>
-          </View>
-
-          <View style={{ flex: 1, alignItems: 'flex-end' }}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable
-                onPress={() => setShowSharePopup(true)}
-                style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
-                className="active:opacity-60"
-              >
-                <Share2 size={18} color={INK} strokeWidth={2} />
-              </Pressable>
-
-              {/* Stats — always visible (the Scoreboard tab always has
-                  content, unlike the old conditional Chasers button). */}
-              <Pressable
-                onPress={() => { setStatsInitialTab('scoreboard'); setShowStats(true); }}
-                style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
-                className="active:opacity-60"
-              >
-                <ListOrdered size={18} color={INK} strokeWidth={2} />
-              </Pressable>
-            </View>
-          </View>
-        </Animated.View>
-
-        {/* Up Next — full-width strip, no longer coupled to the header
-            icon row's width. Reserves its footprint before nextGameId
-            arrives so nothing below jumps once it does. */}
-        <View style={{ marginBottom: 20 }}>
-          <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
-            {nextGame ? (
-              <Pressable
-                onPress={() => setShowNextGameModal(true)}
-                style={{
-                  flex: 1,
-                  flexDirection: 'row',
-                  borderWidth: 1.5,
-                  borderColor: INK,
-                  backgroundColor: CARD,
-                  paddingHorizontal: 14,
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-                className="active:opacity-70"
-              >
-                <View
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 16,
-                    backgroundColor: nextGame.accentColor,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <nextGame.Icon size={18} color="#FFFFFF" strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
-                    Up next
-                  </Text>
-                  <Text numberOfLines={1} style={{ color: INK, fontSize: 14, fontWeight: '800' }}>
-                    {nextGame.title}
-                  </Text>
-                </View>
-              </Pressable>
-            ) : (
-              <View
-                style={{
-                  flex: 1,
-                  borderWidth: 1.5,
-                  borderColor: HAIRLINE,
-                  backgroundColor: CARD,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
-                  Up next
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {isAdmin && (
-            <Pressable
-              onPress={handleSkipGame}
-              disabled={!nextGame}
-              style={{
-                height: UP_NEXT_SKIP_HEIGHT,
-                marginTop: 6,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 5,
-                borderWidth: 1.5,
-                borderColor: INK,
-                backgroundColor: nextGame ? AMBER : HAIRLINE,
-              }}
-              className="active:opacity-70"
-            >
-              <FastForward size={11} color={INK} strokeWidth={2.5} />
-              <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
-                Skip
-              </Text>
-            </Pressable>
-          )}
+      {/* Header — three equal-width flex columns so the centered title
+          stays geometrically centered regardless of the left column
+          holding 1 button and the right column holding 2. */}
+      <Animated.View
+        entering={FadeInDown.duration(400)}
+        style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}
+      >
+        <View style={{ flex: 1, alignItems: 'flex-start' }}>
+          <Pressable
+            onPress={() => setConfirmingLeave(true)}
+            style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
+            className="active:opacity-60"
+          >
+            <DoorOpen size={18} color={STOP} strokeWidth={2} />
+          </Pressable>
         </View>
 
-        {/* Podium — the untouched animated visualization, now the
-            screen's center-stage focus with room to breathe on all sides. */}
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          {podium.length > 0 && (
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'flex-end',
-                justifyContent: 'center',
-                gap: 10,
-                marginBottom: 12,
-              }}
-            >
-              {podiumOrder.map((p) => (
-                <PodiumColumn
-                  key={p.pid}
-                  name={p.display_name}
-                  avatar={p.avatar}
-                  score={phase === 'before' ? p.beforeScore : p.afterScore}
-                  tier={p.tier}
-                  isMe={p.pid === playerId}
-                  delayMs={(maxTier - p.tier) * 180}
-                />
-              ))}
-            </View>
-          )}
-
-          {podium.length > 0 && (
-            <View style={{ height: 2, width: 220, backgroundColor: INK, marginBottom: 10 }} />
-          )}
-
-          <Text
-            style={{
-              color: MUTED,
-              ...typography.label,
-              fontSize: 10,
-              letterSpacing: 3,
-              textTransform: 'uppercase',
-              textAlign: 'center',
-            }}
-          >
-            {phase === 'before' ? 'Before this round' : 'After this round'}
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ color: MUTED, ...typography.label, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>
+            Round results
+          </Text>
+          <Text style={{ color: AMBER, ...typography.title, fontSize: 22, letterSpacing: 3 }}>
+            Podium
           </Text>
         </View>
 
-        {/* Admin actions / non-admin waiting */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(350)}
-          style={{ marginTop: 12, gap: 12 }}
-        >
-          {isAdmin ? (
-            <View style={{ gap: 10 }}>
-              {/* Secondary actions — a tweak and an exit, styled as clearly
-                  tappable outlined buttons (not the old dim/disabled-looking
-                  icon squares) side-by-side to save vertical space. */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                <Pressable
-                  onPress={() => setGamesSheetMode('edit')}
-                  style={{
-                    flex: 1,
-                    flexDirection: 'row',
-                    height: 52,
-                    borderWidth: 2,
-                    borderColor: INK,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                  className="active:opacity-60"
-                >
-                  <Pencil size={16} color={INK} strokeWidth={2} />
-                  <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
-                    Edit Games
-                  </Text>
-                </Pressable>
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => setShowSharePopup(true)}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+              className="active:opacity-60"
+            >
+              <Share2 size={18} color={INK} strokeWidth={2} />
+            </Pressable>
 
-                <Pressable
-                  onPress={() => setConfirmingEndNight(true)}
-                  style={{
-                    flex: 1,
-                    flexDirection: 'row',
-                    height: 52,
-                    borderWidth: 2,
-                    borderColor: INK,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                  className="active:opacity-60"
-                >
-                  <LogOut size={16} color={INK} strokeWidth={2} />
-                  <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
-                    End Night
-                  </Text>
-                </Pressable>
-              </View>
+            {/* Stats — always visible (the Scoreboard tab always has
+                content, unlike the old conditional Chasers button). */}
+            <Pressable
+              onPress={() => { setStatsInitialTab('scoreboard'); setShowStats(true); }}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+              className="active:opacity-60"
+            >
+              <ListOrdered size={18} color={INK} strokeWidth={2} />
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
 
-              {/* Next Round — the unmistakable primary CTA: full-width,
-                  taller than the secondary row, amber with a soft glow. */}
-              <Pressable
-                onPress={handleNextRound}
+      {/* Up Next — full-width strip, no longer coupled to the header
+          icon row's width. Reserves its footprint before nextGameId
+          arrives so nothing below jumps once it does. */}
+      <View style={{ marginBottom: 20 }}>
+        <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
+          {nextGame ? (
+            <Pressable
+              onPress={() => setShowNextGameModal(true)}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                borderWidth: 1.5,
+                borderColor: INK,
+                backgroundColor: CARD,
+                paddingHorizontal: 14,
+                alignItems: 'center',
+                gap: 10,
+              }}
+              className="active:opacity-70"
+            >
+              <View
                 style={{
-                  height: 64,
-                  backgroundColor: AMBER,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: nextGame.accentColor,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: AMBER,
-                  shadowOpacity: 0.4,
-                  shadowRadius: 14,
-                  shadowOffset: { width: 0, height: 4 },
-                  elevation: 8,
                 }}
-                className="active:opacity-80"
               >
-                <Text className="text-ink text-base font-bold tracking-[0.2em] uppercase">
-                  Next Round
+                <nextGame.Icon size={18} color="#FFFFFF" strokeWidth={2} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+                  Up next
+                </Text>
+                <Text numberOfLines={1} style={{ color: INK, fontSize: 14, fontWeight: '800' }}>
+                  {nextGame.title}
+                </Text>
+              </View>
+            </Pressable>
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                borderWidth: 1.5,
+                borderColor: HAIRLINE,
+                backgroundColor: CARD,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+                Up next
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {isAdmin && (
+          <Pressable
+            onPress={handleSkipGame}
+            disabled={!nextGame}
+            style={{
+              height: UP_NEXT_SKIP_HEIGHT,
+              marginTop: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              borderWidth: 1.5,
+              borderColor: INK,
+              backgroundColor: nextGame ? AMBER : HAIRLINE,
+            }}
+            className="active:opacity-70"
+          >
+            <FastForward size={11} color={INK} strokeWidth={2.5} />
+            <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
+              Skip
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Podium — the untouched animated visualization, now the
+          screen's center-stage focus with room to breathe on all sides. */}
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        {podium.length > 0 && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'flex-end',
+              justifyContent: 'center',
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            {podiumOrder.map((p) => (
+              <PodiumColumn
+                key={p.pid}
+                name={p.display_name}
+                avatar={p.avatar}
+                score={phase === 'before' ? p.beforeScore : p.afterScore}
+                tier={p.tier}
+                isMe={p.pid === playerId}
+                delayMs={(maxTier - p.tier) * 180}
+              />
+            ))}
+          </View>
+        )}
+
+        {podium.length > 0 && (
+          <View style={{ height: 2, width: 220, backgroundColor: INK, marginBottom: 10 }} />
+        )}
+
+        <Text
+          style={{
+            color: MUTED,
+            ...typography.label,
+            fontSize: 10,
+            letterSpacing: 3,
+            textTransform: 'uppercase',
+            textAlign: 'center',
+          }}
+        >
+          {phase === 'before' ? 'Before this round' : 'After this round'}
+        </Text>
+      </View>
+
+      {/* Admin actions / non-admin waiting */}
+      <Animated.View
+        entering={FadeInDown.delay(300).duration(350)}
+        style={{ marginTop: 12, gap: 12 }}
+      >
+        {isAdmin ? (
+          <View style={{ gap: 10 }}>
+            {/* Secondary actions — a tweak and an exit, styled as clearly
+                tappable outlined buttons (not the old dim/disabled-looking
+                icon squares) side-by-side to save vertical space. */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => setGamesSheetMode('edit')}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  height: 52,
+                  borderWidth: 2,
+                  borderColor: INK,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+                className="active:opacity-60"
+              >
+                <Pencil size={16} color={INK} strokeWidth={2} />
+                <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                  Edit Games
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setConfirmingEndNight(true)}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  height: 52,
+                  borderWidth: 2,
+                  borderColor: INK,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+                className="active:opacity-60"
+              >
+                <LogOut size={16} color={INK} strokeWidth={2} />
+                <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                  End Night
                 </Text>
               </Pressable>
             </View>
-          ) : (
-            <Text style={{ color: MUTED }} className="text-sm text-center">
-              Waiting for host…
-            </Text>
-          )}
-        </Animated.View>
+
+            {/* Next Round — the unmistakable primary CTA: full-width,
+                taller than the secondary row, amber with a soft glow. */}
+            <Pressable
+              onPress={handleNextRound}
+              style={{
+                height: 64,
+                backgroundColor: AMBER,
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: AMBER,
+                shadowOpacity: 0.4,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 8,
+              }}
+              className="active:opacity-80"
+            >
+              <Text className="text-ink text-base font-bold tracking-[0.2em] uppercase">
+                Next Round
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={{ color: MUTED }} className="text-sm text-center">
+            Waiting for host…
+          </Text>
+        )}
+      </Animated.View>
 
       {showStats && (
         <StatsModal
