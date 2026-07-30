@@ -186,23 +186,36 @@ function PodiumColumn({
   );
 }
 
-// ── Chasers-owed popup — shown once per round on first arrival ─────────────
-// Tracked at module scope (not component state) because it needs to survive
-// this screen unmounting between rounds (game -> summary -> podium is a real
-// route each round) — component state would reset on that remount and show
-// the popup again for a round already seen.
-let lastChasersPopupKey: string | null = null;
-
+// ── Stats modal — Scoreboard + Drinks, opened via the header Stats button ──
 interface ChaserRow { pid: string; name: string; avatar: string | null; chasers: number }
 
-type ChasersTab = 'round' | 'total';
+interface RankedRow {
+  pid: string;
+  display_name: string;
+  avatar: string | null;
+  afterScore: number;
+  beforeScore: number;
+  delta: number | null;
+  rank: number;
+  displayScore: number;
+}
 
-function ChasersPopup({
-  rows, totalRows, onDismiss,
-}: { rows: ChaserRow[]; totalRows: ChaserRow[]; onDismiss: () => void }) {
+type DrinksTab = 'round' | 'total';
+
+function StatsModal({
+  ranked, playerId, rows, totalRows, onDismiss, initialTab,
+}: {
+  ranked: RankedRow[];
+  playerId: string | null;
+  rows: ChaserRow[];
+  totalRows: ChaserRow[];
+  onDismiss: () => void;
+  initialTab: 'scoreboard' | 'drinks';
+}) {
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
-  const [tab, setTab] = useState<ChasersTab>('round');
+  const [topTab, setTopTab] = useState<'scoreboard' | 'drinks'>(initialTab);
+  const [drinksTab, setDrinksTab] = useState<DrinksTab>('round');
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 200 });
@@ -216,9 +229,7 @@ function ChasersPopup({
   const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const activeRows = tab === 'round' ? rows : totalRows;
-  // The night's biggest drinker so far — only meaningful on the cumulative
-  // tab, where standings actually persist across rounds.
+  const activeChaserRows = drinksTab === 'round' ? rows : totalRows;
   const topTotalPid = totalRows.length > 0 ? totalRows[0].pid : null;
 
   return (
@@ -227,9 +238,6 @@ function ChasersPopup({
         {
           position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
-          // Opaque enough that whatever happens to be behind it (which row
-          // is highlighted as "you" differs per viewer) never shows through
-          // and makes the popup look inconsistent from player to player.
           backgroundColor: 'rgba(10,10,15,0.94)',
           alignItems: 'center',
           justifyContent: 'center',
@@ -248,14 +256,11 @@ function ChasersPopup({
             backgroundColor: CARD,
             borderWidth: 2,
             borderColor: INK,
-            width: 300,
-            maxWidth: '86%',
+            width: 320,
+            maxWidth: '88%',
+            maxHeight: '74%',
             paddingVertical: 24,
             paddingHorizontal: 22,
-            // Belt-and-suspenders: whatever the cause of a child rendering
-            // wider/taller than this box on a given platform, nothing should
-            // ever be able to visually poke out past the card's own fill —
-            // that's what exposes the dark scrim behind it as an ugly gap.
             overflow: 'hidden',
           },
           cardStyle,
@@ -271,12 +276,10 @@ function ChasersPopup({
             marginBottom: 16,
           }}
         >
-          Who&apos;s Drinking
+          Stats
         </Text>
 
-        {/* Sleek two-segment tab bar — filled ink for the active side,
-            transparent for the other, same border weight as the popup's
-            own edge so it reads as part of one system. */}
+        {/* Top-level tabs */}
         <View
           style={{
             flexDirection: 'row',
@@ -286,98 +289,194 @@ function ChasersPopup({
           }}
         >
           <Pressable
-            onPress={() => setTab('round')}
+            onPress={() => setTopTab('scoreboard')}
             style={{
               flex: 1,
               paddingVertical: 9,
               alignItems: 'center',
-              backgroundColor: tab === 'round' ? INK : 'transparent',
+              backgroundColor: topTab === 'scoreboard' ? INK : 'transparent',
             }}
             className="active:opacity-70"
           >
-            <Text
-              style={{
-                ...typography.label,
-                fontSize: 10,
-                letterSpacing: 1.5,
-                color: tab === 'round' ? CARD : MUTED,
-              }}
-            >
-              This Round
+            <Text style={{ ...typography.label, fontSize: 10, letterSpacing: 1.5, color: topTab === 'scoreboard' ? CARD : MUTED }}>
+              Scoreboard
             </Text>
           </Pressable>
           <View style={{ width: 1.5, backgroundColor: INK }} />
           <Pressable
-            onPress={() => setTab('total')}
+            onPress={() => setTopTab('drinks')}
             style={{
               flex: 1,
               paddingVertical: 9,
               alignItems: 'center',
-              backgroundColor: tab === 'total' ? INK : 'transparent',
+              backgroundColor: topTab === 'drinks' ? INK : 'transparent',
             }}
             className="active:opacity-70"
           >
-            <Text
-              style={{
-                ...typography.label,
-                fontSize: 10,
-                letterSpacing: 1.5,
-                color: tab === 'total' ? CARD : MUTED,
-              }}
-            >
-              Total
+            <Text style={{ ...typography.label, fontSize: 10, letterSpacing: 1.5, color: topTab === 'drinks' ? CARD : MUTED }}>
+              Drinks
             </Text>
           </Pressable>
         </View>
 
-        {activeRows.length === 0 ? (
-          <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
-            Nobody&apos;s owed a single chaser yet.
-          </Text>
-        ) : (
-          <View style={{ gap: 10 }}>
-            {activeRows.map((row) => {
-              const isTopTotal = tab === 'total' && row.pid === topTotalPid;
-              return (
-                <View
-                  key={row.pid}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {topTab === 'scoreboard' ? (
+            <View style={{ gap: 10 }}>
+              {ranked.map((row) => {
+                const isMe = row.pid === playerId;
+                const isTop = row.rank === 1;
+                return (
+                  <View
+                    key={row.pid}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      backgroundColor: isMe ? ME_BG : BG,
+                      borderWidth: 1,
+                      borderColor: isMe ? AMBER : HAIRLINE,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        marginRight: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isTop ? AMBER : 'transparent',
+                        borderWidth: isTop ? 0 : 1,
+                        borderColor: HAIRLINE,
+                      }}
+                    >
+                      <Text style={{ ...typography.label, fontWeight: '700', fontSize: 12, color: isTop ? INK : MUTED }}>
+                        {row.rank}
+                      </Text>
+                    </View>
+                    <View style={{ marginRight: 10 }}>
+                      <AvatarCircle
+                        name={row.display_name}
+                        avatar={row.avatar}
+                        size={30}
+                        ringColor={isMe ? AMBER : row.avatar ? AVATAR_COLORS[row.avatar] : HAIRLINE}
+                      />
+                    </View>
+                    <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 14, fontWeight: '600', marginRight: 8 }}>
+                      {row.display_name}{isMe ? ' (you)' : ''}
+                    </Text>
+                    {row.delta != null && row.delta !== 0 && (
+                      <View
+                        style={{
+                          backgroundColor: row.delta > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.10)',
+                          paddingHorizontal: 7,
+                          paddingVertical: 3,
+                          marginRight: 8,
+                        }}
+                      >
+                        <Text style={{ color: row.delta > 0 ? GO : STOP, fontSize: 11, fontWeight: '700' }}>
+                          ({row.delta > 0 ? '+' : '−'}{Math.abs(row.delta)})
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={{ color: INK, fontSize: 16, fontWeight: '800', minWidth: 28, textAlign: 'right' }}>
+                      {row.displayScore}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderWidth: 1.5,
+                  borderColor: HAIRLINE,
+                  marginBottom: 14,
+                }}
+              >
+                <Pressable
+                  onPress={() => setDrinksTab('round')}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flex: 1,
                     paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    backgroundColor: isTopTotal ? 'rgba(220,38,38,0.07)' : BG,
-                    borderWidth: isTopTotal ? 1.5 : 1,
-                    borderColor: isTopTotal ? STOP : HAIRLINE,
-                    gap: 10,
+                    alignItems: 'center',
+                    backgroundColor: drinksTab === 'round' ? HAIRLINE : 'transparent',
                   }}
+                  className="active:opacity-70"
                 >
-                  <AvatarCircle
-                    name={row.name}
-                    avatar={row.avatar}
-                    size={30}
-                    ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
-                  />
-                  <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
-                    {row.name}
+                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: drinksTab === 'round' ? INK : MUTED }}>
+                    This Round
                   </Text>
-                  {isTopTotal && <Skull size={15} color={STOP} strokeWidth={2.5} />}
-                  {tab === 'total' ? (
-                    <>
-                      <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>×{row.chasers}</Text>
-                      <GlassWater size={16} color={STOP} strokeWidth={2.5} />
-                    </>
-                  ) : (
-                    <>
-                      <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
-                    </>
-                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => setDrinksTab('total')}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    alignItems: 'center',
+                    backgroundColor: drinksTab === 'total' ? HAIRLINE : 'transparent',
+                  }}
+                  className="active:opacity-70"
+                >
+                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: drinksTab === 'total' ? INK : MUTED }}>
+                    Total
+                  </Text>
+                </Pressable>
+              </View>
+
+              {activeChaserRows.length === 0 ? (
+                <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
+                  Nobody&apos;s owed a single chaser yet.
+                </Text>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {activeChaserRows.map((row) => {
+                    const isTopTotal = drinksTab === 'total' && row.pid === topTotalPid;
+                    return (
+                      <View
+                        key={row.pid}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          backgroundColor: isTopTotal ? 'rgba(220,38,38,0.07)' : BG,
+                          borderWidth: isTopTotal ? 1.5 : 1,
+                          borderColor: isTopTotal ? STOP : HAIRLINE,
+                          gap: 10,
+                        }}
+                      >
+                        <AvatarCircle
+                          name={row.name}
+                          avatar={row.avatar}
+                          size={30}
+                          ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+                        />
+                        <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
+                          {row.name}
+                        </Text>
+                        {isTopTotal && <Skull size={15} color={STOP} strokeWidth={2.5} />}
+                        {drinksTab === 'total' ? (
+                          <>
+                            <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>×{row.chasers}</Text>
+                            <GlassWater size={16} color={STOP} strokeWidth={2.5} />
+                          </>
+                        ) : (
+                          <>
+                            <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                            <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
+                          </>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
-              );
-            })}
-          </View>
-        )}
+              )}
+            </>
+          )}
+        </ScrollView>
 
         <Pressable
           onPress={onDismiss}
@@ -391,7 +490,7 @@ function ChasersPopup({
   );
 }
 
-// ── Share popup — same overlay/card language as ChasersPopup ───────────────
+// ── Share popup — same overlay/card language as StatsModal ─────────────────
 // Two distinct actions rather than one button that guesses which the player
 // wants: copying the code is the fast path for someone already talking to
 // the room in person or over voice chat; the native share sheet is the path
@@ -594,7 +693,7 @@ function RuleText({ line }: { line: RuleLine }) {
 
 // Up Next: the admin's queued-game preview, opened by tapping the small
 // card in the header. Deliberately an in-tree overlay (same pattern as
-// ChasersPopup/SharePopup above) rather than a route push — routing away
+// StatsModal/SharePopup above) rather than a route push — routing away
 // would tear down this screen's WebSocket listener, and the whole point is
 // that the FSM's own TUTORIAL transition (Next Round) can pull the room out
 // from under this modal via the screen's existing router.replace effect.
@@ -759,7 +858,7 @@ function NextGameRulesModal({ game, onDismiss }: { game: GameMeta; onDismiss: ()
 }
 
 // Host Migration: sleek, self-dismissing banner — deliberately not a modal
-// like ChasersPopup. A promotion is good news that shouldn't block the
+// like StatsModal. A promotion is good news that shouldn't block the
 // leaderboard someone just arrived to look at; it announces itself and gets
 // out of the way (auto-hides, or a tap dismisses it early).
 const PROMOTION_TOAST_DURATION_MS = 3200;
@@ -859,8 +958,8 @@ export default function PodiumScreen() {
     dismissPromotion();
   }, [snapshot?.justPromoted, dismissPromotion]);
 
-  // Chasers-owed popup — shown once automatically on arrival, and reopenable
-  // any time via the small button in the header (see JSX below).
+  // Chasers owed this round — Drinks tab of the StatsModal, opened via the
+  // small button in the header (see JSX below).
   const chasersRows: ChaserRow[] = Object.entries(outcomes)
     .filter(([, o]) => o.chasers > 0)
     .map(([pid, o]) => ({
@@ -871,7 +970,7 @@ export default function PodiumScreen() {
     }));
 
   // Total Drinks: cumulative chasers across the whole night so far, sorted
-  // worst-first — the ChasersPopup's "TOTAL" tab.
+  // worst-first — the StatsModal's "TOTAL" tab.
   const totalChaserRows: ChaserRow[] = Object.entries(snapshot?.players ?? {})
     .map(([pid, p]) => ({
       pid,
@@ -882,24 +981,8 @@ export default function PodiumScreen() {
     .filter((row) => row.chasers > 0)
     .sort((a, b) => b.chasers - a.chasers);
 
-
-  // Let the podium's own reveal play out first — the before→after standings
-  // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
-  // the moment's payoff; popping the popup over them immediately steals that
-  // effect. Waiting this long also guarantees the screen has fully settled,
-  // so the popup never gets caught mid-transition.
-  const CHASERS_POPUP_DELAY_MS = 3500;
-
-  const [showChasers, setShowChasers] = useState(false);
-  useEffect(() => {
-    if (chasersRows.length === 0 || lastChasersPopupKey === allOutcomesJson) return;
-    const timer = setTimeout(() => {
-      lastChasersPopupKey = allOutcomesJson;
-      setShowChasers(true);
-    }, CHASERS_POPUP_DELAY_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [showStats, setShowStats] = useState(false);
+  const [statsInitialTab, setStatsInitialTab] = useState<'scoreboard' | 'drinks'>('scoreboard');
 
   // 'before' = standings as they stood at the start of this round,
   // 'after' = current cumulative totals. Flipping this drives the list's
@@ -1073,7 +1156,7 @@ export default function PodiumScreen() {
               {/* Stats — always visible (the Scoreboard tab always has
                   content, unlike the old conditional Chasers button). */}
               <Pressable
-                onPress={() => setShowChasers(true)}
+                onPress={() => { setStatsInitialTab('scoreboard'); setShowStats(true); }}
                 style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
                 className="active:opacity-60"
               >
@@ -1382,8 +1465,15 @@ export default function PodiumScreen() {
         </Animated.View>
       </ScrollView>
 
-      {showChasers && (
-        <ChasersPopup rows={chasersRows} totalRows={totalChaserRows} onDismiss={() => setShowChasers(false)} />
+      {showStats && (
+        <StatsModal
+          ranked={ranked}
+          playerId={playerId}
+          rows={chasersRows}
+          totalRows={totalChaserRows}
+          initialTab={statsInitialTab}
+          onDismiss={() => setShowStats(false)}
+        />
       )}
 
       {showSharePopup && (
