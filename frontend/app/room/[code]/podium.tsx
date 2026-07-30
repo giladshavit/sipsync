@@ -197,7 +197,7 @@ interface RankedRow {
 type DrinksTab = 'round' | 'total';
 
 function StatsModal({
-  ranked, playerId, rows, totalRows, onDismiss, initialTab,
+  ranked, playerId, rows, totalRows, onDismiss, initialTab, phase,
 }: {
   ranked: RankedRow[];
   playerId: string | null;
@@ -205,6 +205,7 @@ function StatsModal({
   totalRows: ChaserRow[];
   onDismiss: () => void;
   initialTab: 'scoreboard' | 'drinks';
+  phase: 'before' | 'after';
 }) {
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
@@ -359,7 +360,7 @@ function StatsModal({
                     <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 14, fontWeight: '600', marginRight: 8 }}>
                       {row.display_name}{isMe ? ' (you)' : ''}
                     </Text>
-                    {row.delta != null && row.delta !== 0 && (
+                    {phase === 'after' && row.delta != null && row.delta !== 0 && (
                       <View
                         style={{
                           backgroundColor: row.delta > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.10)',
@@ -1106,7 +1107,11 @@ export default function PodiumScreen() {
   const HEADER_ICON_BTN = 40;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG, paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: BG }}
+      contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Header — three equal-width flex columns so the centered title
           stays geometrically centered regardless of the left column
           holding 1 button and the right column holding 2. */}
@@ -1373,6 +1378,7 @@ export default function PodiumScreen() {
           rows={chasersRows}
           totalRows={totalChaserRows}
           initialTab={statsInitialTab}
+          phase={phase}
           onDismiss={() => setShowStats(false)}
         />
       )}
@@ -1507,6 +1513,6 @@ export default function PodiumScreen() {
           </View>
         </Animated.View>
       )}
-    </View>
+    </ScrollView>
   );
 }
