@@ -59,11 +59,6 @@ const REVEAL_DELAY_MS = 1600;
 // digits spin exactly while the rows swap places.
 const SCORE_ROLL_MS = 1200;
 
-// Admin action row (Edit Games / Next Round / End Night) — one shared
-// height so the two square icon buttons line up exactly with the full-width
-// Next Round button between them.
-const ADMIN_ROW_ICON_BTN = 56;
-
 // Up Next preview — fixed regardless of whether nextGame data has arrived
 // yet or which game it's showing. Without a fixed height here, the header
 // grew/shrank by a line of text every time the title wrapped differently (a
@@ -1297,53 +1292,72 @@ export default function PodiumScreen() {
           style={{ marginTop: 12, gap: 12 }}
         >
           {isAdmin ? (
-            // One row, one clear hierarchy: Next Round is the only button
-            // that carries a label and fills the remaining width, so it's
-            // unmistakably the primary action and the biggest target on the
-            // row. Edit Games and End Night — a tweak and an exit, neither
-            // the "advance the room" action — sit beside it as plain
-            // outlined icon buttons, same square-icon-button language as
-            // the header's Share/Chasers/Skip controls, so nothing here
-            // competes with Next Round for attention.
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-              <Pressable
-                onPress={() => setGamesSheetMode('edit')}
-                style={{
-                  width: ADMIN_ROW_ICON_BTN,
-                  height: ADMIN_ROW_ICON_BTN,
-                  borderWidth: 1.5,
-                  borderColor: HAIRLINE,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-                className="active:opacity-60"
-              >
-                <Pencil size={18} color={MUTED} strokeWidth={2} />
-              </Pressable>
+            <View style={{ gap: 10 }}>
+              {/* Secondary actions — a tweak and an exit, styled as clearly
+                  tappable outlined buttons (not the old dim/disabled-looking
+                  icon squares) side-by-side to save vertical space. */}
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <Pressable
+                  onPress={() => setGamesSheetMode('edit')}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    height: 52,
+                    borderWidth: 2,
+                    borderColor: INK,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  className="active:opacity-60"
+                >
+                  <Pencil size={16} color={INK} strokeWidth={2} />
+                  <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                    Edit Games
+                  </Text>
+                </Pressable>
 
+                <Pressable
+                  onPress={() => setConfirmingEndNight(true)}
+                  style={{
+                    flex: 1,
+                    flexDirection: 'row',
+                    height: 52,
+                    borderWidth: 2,
+                    borderColor: INK,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  className="active:opacity-60"
+                >
+                  <LogOut size={16} color={INK} strokeWidth={2} />
+                  <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                    End Night
+                  </Text>
+                </Pressable>
+              </View>
+
+              {/* Next Round — the unmistakable primary CTA: full-width,
+                  taller than the secondary row, amber with a soft glow. */}
               <Pressable
                 onPress={handleNextRound}
-                style={{ flex: 1, backgroundColor: AMBER, height: ADMIN_ROW_ICON_BTN }}
-                className="items-center justify-center rounded-none active:opacity-80"
-              >
-                <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
-                  Next Round
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => setConfirmingEndNight(true)}
                 style={{
-                  width: ADMIN_ROW_ICON_BTN,
-                  height: ADMIN_ROW_ICON_BTN,
-                  borderWidth: 2,
-                  borderColor: INK,
+                  height: 64,
+                  backgroundColor: AMBER,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  shadowColor: AMBER,
+                  shadowOpacity: 0.4,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 8,
                 }}
-                className="active:opacity-60"
+                className="active:opacity-80"
               >
-                <LogOut size={18} color={INK} strokeWidth={2} />
+                <Text className="text-ink text-base font-bold tracking-[0.2em] uppercase">
+                  Next Round
+                </Text>
               </Pressable>
             </View>
           ) : (
