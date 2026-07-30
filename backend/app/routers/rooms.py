@@ -43,6 +43,13 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
             await redis.hset(key, mapping=room_fields)
             await redis.expire(key, _PRACTICE_TTL_SECONDS if body.practice else _ROOM_TTL_SECONDS)
             await deck.initialize(code, body.game_ids)
+            # Minimum Players: the admin's real intent, tracked separately
+            # from deck.py's own game_ids so a game later auto-pruned by
+            # room_service._sync_eligible_games (e.g. auction, needing more
+            # players than join at first) can come back on its own once the
+            # room grows past its floor — see handle_set_games/
+            # _sync_eligible_games in room_service.py.
+            await redis.rpush(f"room:{code}:admin_game_ids", *body.game_ids)
 
             if body.practice:
                 bot_records = bot_engine.build_bot_player_records(

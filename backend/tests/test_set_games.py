@@ -72,6 +72,38 @@ async def test_ignored_outside_lobby(patch_redis_and_broadcast):
 
 
 @pytest.mark.asyncio
+async def test_ignored_during_tutorial_or_personal_summary(patch_redis_and_broadcast):
+    """Mid-Session Game Editing is deliberately narrow: only LOBBY (before
+    the night starts) and PODIUM (between rounds) allow it — not while a
+    round is actually being set up or resolved."""
+    r, captured = patch_redis_and_broadcast
+    for state in (RoomState.TUTORIAL, RoomState.PERSONAL_SUMMARY):
+        await r.hset(f"room:{CODE}", mapping={"state": state, "admin_id": ADMIN})
+        await deck_singleton.initialize(CODE, ["reflex"])
+
+        await _svc.handle_set_games(CODE, ADMIN, ["roulette"])
+
+        assert await deck_singleton.get_game_ids(CODE) == ["reflex"]
+    assert not any(m["type"] == "GAME_IDS_UPDATED" for m in captured)
+
+
+@pytest.mark.asyncio
+async def test_admin_can_update_selection_from_podium(patch_redis_and_broadcast):
+    """Mid-Session Game Editing: the admin can adjust the lineup between
+    rounds from the podium, not just before the night starts."""
+    r, captured = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.PODIUM, "admin_id": ADMIN})
+    await deck_singleton.initialize(CODE, ["reflex", "tap_race"])
+
+    await _svc.handle_set_games(CODE, ADMIN, ["roulette", "reflex"])
+
+    assert await deck_singleton.get_game_ids(CODE) == ["roulette", "reflex"]
+    msgs = [m for m in captured if m["type"] == "GAME_IDS_UPDATED"]
+    assert len(msgs) == 1
+    assert msgs[0]["game_ids"] == ["roulette", "reflex"]
+
+
+@pytest.mark.asyncio
 async def test_rejects_unknown_game_id(lobby_room, patch_redis_and_broadcast):
     _, captured = patch_redis_and_broadcast
 
