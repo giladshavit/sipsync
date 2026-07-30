@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, ScrollView, TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Award, Check, Copy, Crown, DoorOpen, FastForward, GlassWater, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
+import { Award, Check, Copy, Crown, DoorOpen, FastForward, GlassWater, ListOrdered, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeInDown,
   FadeIn,
   FadeOutUp,
-  LinearTransition,
   useSharedValue,
   useAnimatedStyle,
   useAnimatedReaction,
@@ -58,11 +57,6 @@ const REVEAL_DELAY_MS = 1600;
 // (20 → "2", −10 → "−1"). Duration matches the list's reorder spring so the
 // digits spin exactly while the rows swap places.
 const SCORE_ROLL_MS = 1200;
-
-// Admin action row (Edit Games / Next Round / End Night) — one shared
-// height so the two square icon buttons line up exactly with the full-width
-// Next Round button between them.
-const ADMIN_ROW_ICON_BTN = 56;
 
 // Up Next preview — fixed regardless of whether nextGame data has arrived
 // yet or which game it's showing. Without a fixed height here, the header
@@ -186,23 +180,37 @@ function PodiumColumn({
   );
 }
 
-// ── Chasers-owed popup — shown once per round on first arrival ─────────────
-// Tracked at module scope (not component state) because it needs to survive
-// this screen unmounting between rounds (game -> summary -> podium is a real
-// route each round) — component state would reset on that remount and show
-// the popup again for a round already seen.
-let lastChasersPopupKey: string | null = null;
-
+// ── Stats modal — Scoreboard + Drinks, opened via the header Stats button ──
 interface ChaserRow { pid: string; name: string; avatar: string | null; chasers: number }
 
-type ChasersTab = 'round' | 'total';
+interface RankedRow {
+  pid: string;
+  display_name: string;
+  avatar: string | null;
+  afterScore: number;
+  beforeScore: number;
+  delta: number | null;
+  rank: number;
+  displayScore: number;
+}
 
-function ChasersPopup({
-  rows, totalRows, onDismiss,
-}: { rows: ChaserRow[]; totalRows: ChaserRow[]; onDismiss: () => void }) {
+type DrinksTab = 'round' | 'total';
+
+function StatsModal({
+  ranked, playerId, rows, totalRows, onDismiss, initialTab, phase,
+}: {
+  ranked: RankedRow[];
+  playerId: string | null;
+  rows: ChaserRow[];
+  totalRows: ChaserRow[];
+  onDismiss: () => void;
+  initialTab: 'scoreboard' | 'drinks';
+  phase: 'before' | 'after';
+}) {
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
-  const [tab, setTab] = useState<ChasersTab>('round');
+  const [topTab, setTopTab] = useState<'scoreboard' | 'drinks'>(initialTab);
+  const [drinksTab, setDrinksTab] = useState<DrinksTab>('round');
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 200 });
@@ -216,9 +224,7 @@ function ChasersPopup({
   const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-  const activeRows = tab === 'round' ? rows : totalRows;
-  // The night's biggest drinker so far — only meaningful on the cumulative
-  // tab, where standings actually persist across rounds.
+  const activeChaserRows = drinksTab === 'round' ? rows : totalRows;
   const topTotalPid = totalRows.length > 0 ? totalRows[0].pid : null;
 
   return (
@@ -227,9 +233,6 @@ function ChasersPopup({
         {
           position: 'absolute',
           top: 0, left: 0, right: 0, bottom: 0,
-          // Opaque enough that whatever happens to be behind it (which row
-          // is highlighted as "you" differs per viewer) never shows through
-          // and makes the popup look inconsistent from player to player.
           backgroundColor: 'rgba(10,10,15,0.94)',
           alignItems: 'center',
           justifyContent: 'center',
@@ -248,14 +251,11 @@ function ChasersPopup({
             backgroundColor: CARD,
             borderWidth: 2,
             borderColor: INK,
-            width: 300,
-            maxWidth: '86%',
+            width: 320,
+            maxWidth: '88%',
+            maxHeight: '74%',
             paddingVertical: 24,
             paddingHorizontal: 22,
-            // Belt-and-suspenders: whatever the cause of a child rendering
-            // wider/taller than this box on a given platform, nothing should
-            // ever be able to visually poke out past the card's own fill —
-            // that's what exposes the dark scrim behind it as an ugly gap.
             overflow: 'hidden',
           },
           cardStyle,
@@ -271,12 +271,10 @@ function ChasersPopup({
             marginBottom: 16,
           }}
         >
-          Who&apos;s Drinking
+          Stats
         </Text>
 
-        {/* Sleek two-segment tab bar — filled ink for the active side,
-            transparent for the other, same border weight as the popup's
-            own edge so it reads as part of one system. */}
+        {/* Top-level tabs */}
         <View
           style={{
             flexDirection: 'row',
@@ -286,98 +284,194 @@ function ChasersPopup({
           }}
         >
           <Pressable
-            onPress={() => setTab('round')}
+            onPress={() => setTopTab('scoreboard')}
             style={{
               flex: 1,
               paddingVertical: 9,
               alignItems: 'center',
-              backgroundColor: tab === 'round' ? INK : 'transparent',
+              backgroundColor: topTab === 'scoreboard' ? INK : 'transparent',
             }}
             className="active:opacity-70"
           >
-            <Text
-              style={{
-                ...typography.label,
-                fontSize: 10,
-                letterSpacing: 1.5,
-                color: tab === 'round' ? CARD : MUTED,
-              }}
-            >
-              This Round
+            <Text style={{ ...typography.label, fontSize: 10, letterSpacing: 1.5, color: topTab === 'scoreboard' ? CARD : MUTED }}>
+              Scoreboard
             </Text>
           </Pressable>
           <View style={{ width: 1.5, backgroundColor: INK }} />
           <Pressable
-            onPress={() => setTab('total')}
+            onPress={() => setTopTab('drinks')}
             style={{
               flex: 1,
               paddingVertical: 9,
               alignItems: 'center',
-              backgroundColor: tab === 'total' ? INK : 'transparent',
+              backgroundColor: topTab === 'drinks' ? INK : 'transparent',
             }}
             className="active:opacity-70"
           >
-            <Text
-              style={{
-                ...typography.label,
-                fontSize: 10,
-                letterSpacing: 1.5,
-                color: tab === 'total' ? CARD : MUTED,
-              }}
-            >
-              Total
+            <Text style={{ ...typography.label, fontSize: 10, letterSpacing: 1.5, color: topTab === 'drinks' ? CARD : MUTED }}>
+              Drinks
             </Text>
           </Pressable>
         </View>
 
-        {activeRows.length === 0 ? (
-          <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
-            Nobody&apos;s owed a single chaser yet.
-          </Text>
-        ) : (
-          <View style={{ gap: 10 }}>
-            {activeRows.map((row) => {
-              const isTopTotal = tab === 'total' && row.pid === topTotalPid;
-              return (
-                <View
-                  key={row.pid}
+        <ScrollView showsVerticalScrollIndicator={false}>
+          {topTab === 'scoreboard' ? (
+            <View style={{ gap: 10 }}>
+              {ranked.map((row) => {
+                const isMe = row.pid === playerId;
+                const isTop = row.rank === 1;
+                return (
+                  <View
+                    key={row.pid}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      backgroundColor: isMe ? ME_BG : BG,
+                      borderWidth: 1,
+                      borderColor: isMe ? AMBER : HAIRLINE,
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        marginRight: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        backgroundColor: isTop ? AMBER : 'transparent',
+                        borderWidth: isTop ? 0 : 1,
+                        borderColor: HAIRLINE,
+                      }}
+                    >
+                      <Text style={{ ...typography.label, fontWeight: '700', fontSize: 12, color: isTop ? INK : MUTED }}>
+                        {row.rank}
+                      </Text>
+                    </View>
+                    <View style={{ marginRight: 10 }}>
+                      <AvatarCircle
+                        name={row.display_name}
+                        avatar={row.avatar}
+                        size={30}
+                        ringColor={isMe ? AMBER : row.avatar ? AVATAR_COLORS[row.avatar] : HAIRLINE}
+                      />
+                    </View>
+                    <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 14, fontWeight: '600', marginRight: 8 }}>
+                      {row.display_name}{isMe ? ' (you)' : ''}
+                    </Text>
+                    {phase === 'after' && row.delta != null && row.delta !== 0 && (
+                      <View
+                        style={{
+                          backgroundColor: row.delta > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.10)',
+                          paddingHorizontal: 7,
+                          paddingVertical: 3,
+                          marginRight: 8,
+                        }}
+                      >
+                        <Text style={{ color: row.delta > 0 ? GO : STOP, fontSize: 11, fontWeight: '700' }}>
+                          ({row.delta > 0 ? '+' : '−'}{Math.abs(row.delta)})
+                        </Text>
+                      </View>
+                    )}
+                    <Text style={{ color: INK, fontSize: 16, fontWeight: '800', minWidth: 28, textAlign: 'right' }}>
+                      {row.displayScore}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderWidth: 1.5,
+                  borderColor: HAIRLINE,
+                  marginBottom: 14,
+                }}
+              >
+                <Pressable
+                  onPress={() => setDrinksTab('round')}
                   style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
+                    flex: 1,
                     paddingVertical: 8,
-                    paddingHorizontal: 12,
-                    backgroundColor: isTopTotal ? 'rgba(220,38,38,0.07)' : BG,
-                    borderWidth: isTopTotal ? 1.5 : 1,
-                    borderColor: isTopTotal ? STOP : HAIRLINE,
-                    gap: 10,
+                    alignItems: 'center',
+                    backgroundColor: drinksTab === 'round' ? HAIRLINE : 'transparent',
                   }}
+                  className="active:opacity-70"
                 >
-                  <AvatarCircle
-                    name={row.name}
-                    avatar={row.avatar}
-                    size={30}
-                    ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
-                  />
-                  <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
-                    {row.name}
+                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: drinksTab === 'round' ? INK : MUTED }}>
+                    This Round
                   </Text>
-                  {isTopTotal && <Skull size={15} color={STOP} strokeWidth={2.5} />}
-                  {tab === 'total' ? (
-                    <>
-                      <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>×{row.chasers}</Text>
-                      <GlassWater size={16} color={STOP} strokeWidth={2.5} />
-                    </>
-                  ) : (
-                    <>
-                      <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
-                      <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
-                    </>
-                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => setDrinksTab('total')}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 8,
+                    alignItems: 'center',
+                    backgroundColor: drinksTab === 'total' ? HAIRLINE : 'transparent',
+                  }}
+                  className="active:opacity-70"
+                >
+                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: drinksTab === 'total' ? INK : MUTED }}>
+                    Total
+                  </Text>
+                </Pressable>
+              </View>
+
+              {activeChaserRows.length === 0 ? (
+                <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
+                  Nobody&apos;s owed a single chaser yet.
+                </Text>
+              ) : (
+                <View style={{ gap: 10 }}>
+                  {activeChaserRows.map((row) => {
+                    const isTopTotal = drinksTab === 'total' && row.pid === topTotalPid;
+                    return (
+                      <View
+                        key={row.pid}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          backgroundColor: isTopTotal ? 'rgba(220,38,38,0.07)' : BG,
+                          borderWidth: isTopTotal ? 1.5 : 1,
+                          borderColor: isTopTotal ? STOP : HAIRLINE,
+                          gap: 10,
+                        }}
+                      >
+                        <AvatarCircle
+                          name={row.name}
+                          avatar={row.avatar}
+                          size={30}
+                          ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+                        />
+                        <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
+                          {row.name}
+                        </Text>
+                        {isTopTotal && <Skull size={15} color={STOP} strokeWidth={2.5} />}
+                        {drinksTab === 'total' ? (
+                          <>
+                            <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>×{row.chasers}</Text>
+                            <GlassWater size={16} color={STOP} strokeWidth={2.5} />
+                          </>
+                        ) : (
+                          <>
+                            <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                            <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
+                          </>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
-              );
-            })}
-          </View>
-        )}
+              )}
+            </>
+          )}
+        </ScrollView>
 
         <Pressable
           onPress={onDismiss}
@@ -391,7 +485,7 @@ function ChasersPopup({
   );
 }
 
-// ── Share popup — same overlay/card language as ChasersPopup ───────────────
+// ── Share popup — same overlay/card language as StatsModal ─────────────────
 // Two distinct actions rather than one button that guesses which the player
 // wants: copying the code is the fast path for someone already talking to
 // the room in person or over voice chat; the native share sheet is the path
@@ -594,7 +688,7 @@ function RuleText({ line }: { line: RuleLine }) {
 
 // Up Next: the admin's queued-game preview, opened by tapping the small
 // card in the header. Deliberately an in-tree overlay (same pattern as
-// ChasersPopup/SharePopup above) rather than a route push — routing away
+// StatsModal/SharePopup above) rather than a route push — routing away
 // would tear down this screen's WebSocket listener, and the whole point is
 // that the FSM's own TUTORIAL transition (Next Round) can pull the room out
 // from under this modal via the screen's existing router.replace effect.
@@ -759,7 +853,7 @@ function NextGameRulesModal({ game, onDismiss }: { game: GameMeta; onDismiss: ()
 }
 
 // Host Migration: sleek, self-dismissing banner — deliberately not a modal
-// like ChasersPopup. A promotion is good news that shouldn't block the
+// like StatsModal. A promotion is good news that shouldn't block the
 // leaderboard someone just arrived to look at; it announces itself and gets
 // out of the way (auto-hides, or a tap dismisses it early).
 const PROMOTION_TOAST_DURATION_MS = 3200;
@@ -859,8 +953,8 @@ export default function PodiumScreen() {
     dismissPromotion();
   }, [snapshot?.justPromoted, dismissPromotion]);
 
-  // Chasers-owed popup — shown once automatically on arrival, and reopenable
-  // any time via the small button in the header (see JSX below).
+  // Chasers owed this round — Drinks tab of the StatsModal, opened via the
+  // small button in the header (see JSX below).
   const chasersRows: ChaserRow[] = Object.entries(outcomes)
     .filter(([, o]) => o.chasers > 0)
     .map(([pid, o]) => ({
@@ -871,7 +965,7 @@ export default function PodiumScreen() {
     }));
 
   // Total Drinks: cumulative chasers across the whole night so far, sorted
-  // worst-first — the ChasersPopup's "TOTAL" tab.
+  // worst-first — the StatsModal's "TOTAL" tab.
   const totalChaserRows: ChaserRow[] = Object.entries(snapshot?.players ?? {})
     .map(([pid, p]) => ({
       pid,
@@ -882,36 +976,8 @@ export default function PodiumScreen() {
     .filter((row) => row.chasers > 0)
     .sort((a, b) => b.chasers - a.chasers);
 
-  // Header icon-button sizing — the Up Next card below the row is given the
-  // same pixel width as this row so the two visually stack as one column
-  // (see the header JSX below). Fixed-size buttons (rather than the
-  // padding-derived sizing used elsewhere) make that width computable
-  // instead of needing an onLayout measurement round-trip.
-  const showChasersBtn = chasersRows.length > 0 || totalChaserRows.length > 0;
-  const ICON_BTN = 40;
-  // Share + Leave always render; Chasers joins them whenever there's
-  // something to show — one more button than before now that Leave Room
-  // lives in this row too.
-  const headerIconCount = showChasersBtn ? 3 : 2;
-  const iconRowWidth = headerIconCount * ICON_BTN + (headerIconCount - 1) * 8;
-
-  // Let the podium's own reveal play out first — the before→after standings
-  // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
-  // the moment's payoff; popping the popup over them immediately steals that
-  // effect. Waiting this long also guarantees the screen has fully settled,
-  // so the popup never gets caught mid-transition.
-  const CHASERS_POPUP_DELAY_MS = 3500;
-
-  const [showChasers, setShowChasers] = useState(false);
-  useEffect(() => {
-    if (chasersRows.length === 0 || lastChasersPopupKey === allOutcomesJson) return;
-    const timer = setTimeout(() => {
-      lastChasersPopupKey = allOutcomesJson;
-      setShowChasers(true);
-    }, CHASERS_POPUP_DELAY_MS);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [showStats, setShowStats] = useState(false);
+  const [statsInitialTab, setStatsInitialTab] = useState<'scoreboard' | 'drinks'>('scoreboard');
 
   // 'before' = standings as they stood at the start of this round,
   // 'after' = current cumulative totals. Flipping this drives the list's
@@ -1038,175 +1104,151 @@ export default function PodiumScreen() {
   }
 
   const insets = useSafeAreaInsets();
+  const HEADER_ICON_BTN = 40;
 
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
-      <ScrollView
-        contentContainerStyle={{ paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
+    <ScrollView
+      style={{ flex: 1, backgroundColor: BG }}
+      contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header — three equal-width flex columns so the centered title
+          stays geometrically centered regardless of the left column
+          holding 1 button and the right column holding 2. */}
+      <Animated.View
+        entering={FadeInDown.duration(400)}
+        style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}
       >
-        {/* Header */}
-        <Animated.View
-          entering={FadeInDown.duration(400)}
-          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}
-        >
-          <View>
-            <Text style={{ color: AMBER, ...typography.label, fontSize: 11, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 }}>
-              Round results
-            </Text>
-            <Text style={{ fontWeight: '200', color: INK, fontSize: 44, lineHeight: 48, letterSpacing: -2 }}>
-              Leader
-            </Text>
-            <Text style={{ fontWeight: '900', color: AMBER, fontSize: 44, lineHeight: 48, letterSpacing: -2 }}>
-              board
-            </Text>
+        <View style={{ flex: 1, alignItems: 'flex-start' }}>
+          <Pressable
+            onPress={() => setConfirmingLeave(true)}
+            style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, backgroundColor: 'rgba(220,38,38,0.10)', alignItems: 'center', justifyContent: 'center' }}
+            className="active:opacity-60"
+          >
+            <DoorOpen size={18} color={STOP} strokeWidth={2} />
+          </Pressable>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{ color: MUTED, ...typography.label, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>
+            Round results
+          </Text>
+          <Text style={{ color: AMBER, ...typography.title, fontSize: 22, letterSpacing: 3 }}>
+            Podium
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, alignItems: 'flex-end' }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => setShowSharePopup(true)}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, backgroundColor: 'rgba(245,158,11,0.12)', alignItems: 'center', justifyContent: 'center' }}
+              className="active:opacity-60"
+            >
+              <Share2 size={18} color={INK} strokeWidth={2} />
+            </Pressable>
+
+            {/* Stats — always visible (the Scoreboard tab always has
+                content, unlike the old conditional Chasers button). */}
+            <Pressable
+              onPress={() => { setStatsInitialTab('scoreboard'); setShowStats(true); }}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, backgroundColor: 'rgba(245,158,11,0.12)', alignItems: 'center', justifyContent: 'center' }}
+              className="active:opacity-60"
+            >
+              <ListOrdered size={18} color={INK} strokeWidth={2} />
+            </Pressable>
           </View>
+        </View>
+      </Animated.View>
 
-          <View style={{ alignItems: 'flex-end' }}>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {/* Opens the dual-option Share popup (copy code / native share
-                  sheet) — available to everyone, not just the admin, so
-                  anyone here can pull in a friend who missed the start. Same
-                  size/border weight as the chasers button beside it. Fixed
-                  width/height (rather than padding-derived sizing) so the Up
-                  Next card below can match this row's exact pixel width. */}
-              <Pressable
-                onPress={() => setShowSharePopup(true)}
-                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
-                className="active:opacity-60"
+      {/* Up Next — full-width strip, no longer coupled to the header
+          icon row's width. Reserves its footprint before nextGameId
+          arrives so nothing below jumps once it does. */}
+      <View style={{ marginBottom: 20 }}>
+        <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
+          {nextGame ? (
+            <Pressable
+              onPress={() => setShowNextGameModal(true)}
+              style={{
+                flex: 1,
+                flexDirection: 'row',
+                borderWidth: 1.5,
+                borderColor: INK,
+                backgroundColor: nextGame.accentColor,
+                paddingHorizontal: 14,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+              }}
+              className="active:opacity-70"
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: 'rgba(255,255,255,0.22)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
               >
-                <Share2 size={18} color={INK} strokeWidth={2} />
-              </Pressable>
-
-              {/* Reopens the "who's drinking" popup on demand — it also pops up
-                  once automatically, but people arrive at this screen at
-                  different times and may want to check it again later. Stays
-                  visible whenever either tab would have something to show —
-                  a round nobody lost this time shouldn't hide a night's worth
-                  of TOTAL standings. */}
-              {showChasersBtn && (
-                <Pressable
-                  onPress={() => setShowChasers(true)}
-                  style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
-                  className="active:opacity-60"
-                >
-                  <GlassWater size={18} color={INK} strokeWidth={2} />
-                </Pressable>
-              )}
-
-              {/* Leave Room — personal, permanent departure, available to
-                  every player here (unlike End Night further down, which is
-                  admin-only and ends the whole session). Stop-colored,
-                  distinct from the neutral Share/Chasers buttons beside it,
-                  so it doesn't read as just another utility action. */}
-              <Pressable
-                onPress={() => setConfirmingLeave(true)}
-                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
-                className="active:opacity-60"
-              >
-                <DoorOpen size={18} color={STOP} strokeWidth={2} />
-              </Pressable>
-            </View>
-
-            {/* Up Next preview — same width as the icon-button row above it,
-                fixed height regardless of whether nextGame has loaded yet or
-                which game it's showing (see UP_NEXT_CARD_HEIGHT's own
-                comment) so nothing below ever jumps. Tapping the card opens
-                the inline rules modal rather than routing away (would tear
-                down this screen's WS listener). The admin's Skip control is
-                its own clearly-labeled pill under the card, not a tiny
-                overlapping badge — it needs to read as a button, not a
-                decoration. */}
-            <View style={{ width: iconRowWidth, marginTop: 8 }}>
-              <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
-                {nextGame ? (
-                  <Pressable
-                    onPress={() => setShowNextGameModal(true)}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1.5,
-                      borderColor: INK,
-                      backgroundColor: CARD,
-                      paddingVertical: 8,
-                      paddingHorizontal: 4,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    className="active:opacity-70"
-                  >
-                    <View
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: nextGame.accentColor,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 4,
-                      }}
-                    >
-                      <nextGame.Icon size={14} color="#FFFFFF" strokeWidth={2} />
-                    </View>
-                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
-                      Up next
-                    </Text>
-                    <Text
-                      numberOfLines={2}
-                      style={{ color: INK, fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 1, lineHeight: 12 }}
-                    >
-                      {nextGame.title}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  // Reserves the exact same footprint before the first
-                  // ROOM_STATE lands (or the deck momentarily returns
-                  // nothing) so this box's arrival never itself causes the
-                  // jump this whole fixed-height treatment exists to avoid.
-                  <View
-                    style={{
-                      flex: 1,
-                      borderWidth: 1.5,
-                      borderColor: HAIRLINE,
-                      backgroundColor: CARD,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
-                      Up next
-                    </Text>
-                  </View>
-                )}
+                <nextGame.Icon size={18} color="#FFFFFF" strokeWidth={2} />
               </View>
-
-              {isAdmin && (
-                <Pressable
-                  onPress={handleSkipGame}
-                  disabled={!nextGame}
-                  style={{
-                    height: UP_NEXT_SKIP_HEIGHT,
-                    marginTop: 6,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 5,
-                    borderWidth: 1.5,
-                    borderColor: INK,
-                    backgroundColor: nextGame ? AMBER : HAIRLINE,
-                  }}
-                  className="active:opacity-70"
-                >
-                  <FastForward size={11} color={INK} strokeWidth={2.5} />
-                  <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
-                    Skip
-                  </Text>
-                </Pressable>
-              )}
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: 'rgba(255,255,255,0.8)' }}>
+                  Up next
+                </Text>
+                <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>
+                  {nextGame.title}
+                </Text>
+              </View>
+            </Pressable>
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                borderWidth: 1.5,
+                borderColor: HAIRLINE,
+                backgroundColor: CARD,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+                Up next
+              </Text>
             </View>
-          </View>
-        </Animated.View>
+          )}
+        </View>
 
-        {/* Podium — final standings, on screen from the start */}
+        {isAdmin && (
+          <Pressable
+            onPress={handleSkipGame}
+            disabled={!nextGame}
+            style={{
+              height: UP_NEXT_SKIP_HEIGHT,
+              marginTop: 6,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 5,
+              borderWidth: 1.5,
+              borderColor: INK,
+              backgroundColor: nextGame ? AMBER : HAIRLINE,
+            }}
+            className="active:opacity-70"
+          >
+            <FastForward size={11} color={INK} strokeWidth={2.5} />
+            <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
+              Skip this game
+            </Text>
+          </Pressable>
+        )}
+      </View>
+
+      {/* Podium — the untouched animated visualization, now the
+          screen's center-stage focus with room to breathe on all sides. */}
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         {podium.length > 0 && (
           <View
             style={{
@@ -1222,8 +1264,6 @@ export default function PodiumScreen() {
                 key={p.pid}
                 name={p.display_name}
                 avatar={p.avatar}
-                // Ticks before → after in sync with the list below; column
-                // heights stay final so the podium shape never lies.
                 score={phase === 'before' ? p.beforeScore : p.afterScore}
                 tier={p.tier}
                 isMe={p.pid === playerId}
@@ -1233,196 +1273,102 @@ export default function PodiumScreen() {
           </View>
         )}
 
-        {/* Baseline under the podium grounds the columns */}
         {podium.length > 0 && (
-          <View style={{ height: 2, backgroundColor: INK, marginBottom: 10 }} />
+          <View style={{ height: 2, width: 220, backgroundColor: INK }} />
         )}
+      </View>
 
-        {/* Phase caption for the list replay below */}
-        <Text
-          style={{
-            color: MUTED,
-            ...typography.label,
-            fontSize: 10,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            marginBottom: 12,
-            textAlign: 'right',
-          }}
-        >
-          {phase === 'before' ? 'Before this round' : 'After this round'}
-        </Text>
-
-        {/* Full ranked list — replays the before → after movement for everyone */}
-        {ranked.map((row, index) => {
-          const isMe = row.pid === playerId;
-          const isTop = row.rank === 1;
-
-          return (
-            <Animated.View
-              key={row.pid}
-              layout={LinearTransition.springify().damping(26).stiffness(65).mass(1.1)}
-              entering={FadeInDown.delay(index * 60).duration(320)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 14,
-                paddingHorizontal: 14,
-                marginBottom: 10,
-                backgroundColor: isMe ? ME_BG : CARD,
-                borderWidth: 1,
-                borderColor: isMe ? AMBER : HAIRLINE,
-                shadowColor: INK,
-                shadowOpacity: 0.05,
-                shadowRadius: 6,
-                shadowOffset: { width: 0, height: 3 },
-                elevation: 2,
-              }}
-            >
-              {/* Rank chip — ties share a rank */}
-              <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  marginRight: 12,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: isTop ? AMBER : 'transparent',
-                  borderWidth: isTop ? 0 : 1,
-                  borderColor: HAIRLINE,
-                }}
-              >
-                <Text
-                  style={{
-                    ...typography.label,
-                    fontWeight: '700',
-                    fontSize: 14,
-                    color: isTop ? INK : MUTED,
-                  }}
-                >
-                  {row.rank}
-                </Text>
-              </View>
-
-              <View style={{ marginRight: 10 }}>
-                <AvatarCircle
-                  name={row.display_name}
-                  avatar={row.avatar}
-                  size={32}
-                  ringColor={isMe ? AMBER : row.avatar ? AVATAR_COLORS[row.avatar] : HAIRLINE}
-                />
-              </View>
-
-              <Text
-                numberOfLines={1}
-                style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '600', marginRight: 8 }}
-              >
-                {row.display_name}
-                {isMe ? ' (you)' : ''}
-              </Text>
-
-              {/* Last-round delta pill */}
-              {phase === 'after' && row.delta != null && row.delta !== 0 && (
-                <Animated.View
-                  entering={FadeIn.delay(SCORE_ROLL_MS).duration(300)}
-                  style={{
-                    backgroundColor: row.delta > 0 ? 'rgba(22,163,74,0.12)' : 'rgba(220,38,38,0.10)',
-                    paddingHorizontal: 8,
-                    paddingVertical: 3,
-                    marginRight: 10,
-                  }}
-                >
-                  <Text
-                    style={{
-                      color: row.delta > 0 ? GO : STOP,
-                      fontSize: 12,
-                      fontWeight: '700',
-                    }}
-                  >
-                    ({row.delta > 0 ? '+' : '−'}{Math.abs(row.delta)})
-                  </Text>
-                </Animated.View>
-              )}
-
-              <AnimatedScore
-                value={row.displayScore}
-                style={{
-                  color: INK,
-                  fontSize: 17,
-                  fontWeight: '800',
-                  minWidth: 30,
-                  textAlign: 'right',
-                }}
-              />
-            </Animated.View>
-          );
-        })}
-
-        {/* Admin actions / non-admin waiting */}
-        <Animated.View
-          entering={FadeInDown.delay(ranked.length * 60 + 100).duration(350)}
-          style={{ marginTop: 12, gap: 12 }}
-        >
-          {isAdmin ? (
-            // One row, one clear hierarchy: Next Round is the only button
-            // that carries a label and fills the remaining width, so it's
-            // unmistakably the primary action and the biggest target on the
-            // row. Edit Games and End Night — a tweak and an exit, neither
-            // the "advance the room" action — sit beside it as plain
-            // outlined icon buttons, same square-icon-button language as
-            // the header's Share/Chasers/Skip controls, so nothing here
-            // competes with Next Round for attention.
-            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+      {/* Admin actions / non-admin waiting */}
+      <Animated.View
+        entering={FadeInDown.delay(300).duration(350)}
+        style={{ marginTop: 12, gap: 12 }}
+      >
+        {isAdmin ? (
+          <View style={{ gap: 10 }}>
+            {/* Secondary actions — a tweak and an exit, styled as clearly
+                tappable outlined buttons (not the old dim/disabled-looking
+                icon squares) side-by-side to save vertical space. */}
+            <View style={{ flexDirection: 'row', gap: 10 }}>
               <Pressable
                 onPress={() => setGamesSheetMode('edit')}
                 style={{
-                  width: ADMIN_ROW_ICON_BTN,
-                  height: ADMIN_ROW_ICON_BTN,
-                  borderWidth: 1.5,
-                  borderColor: HAIRLINE,
+                  flex: 1,
+                  flexDirection: 'row',
+                  height: 52,
+                  borderWidth: 2,
+                  borderColor: INK,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: 8,
                 }}
                 className="active:opacity-60"
               >
-                <Pencil size={18} color={MUTED} strokeWidth={2} />
-              </Pressable>
-
-              <Pressable
-                onPress={handleNextRound}
-                style={{ flex: 1, backgroundColor: AMBER, height: ADMIN_ROW_ICON_BTN }}
-                className="items-center justify-center rounded-none active:opacity-80"
-              >
-                <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
-                  Next Round
+                <Pencil size={16} color={INK} strokeWidth={2} />
+                <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                  Edit Games
                 </Text>
               </Pressable>
 
               <Pressable
                 onPress={() => setConfirmingEndNight(true)}
                 style={{
-                  width: ADMIN_ROW_ICON_BTN,
-                  height: ADMIN_ROW_ICON_BTN,
+                  flex: 1,
+                  flexDirection: 'row',
+                  height: 52,
                   borderWidth: 2,
                   borderColor: INK,
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: 8,
                 }}
                 className="active:opacity-60"
               >
-                <LogOut size={18} color={INK} strokeWidth={2} />
+                <LogOut size={16} color={INK} strokeWidth={2} />
+                <Text style={{ ...typography.label, fontSize: 11, letterSpacing: 1.5, color: INK }}>
+                  End Night
+                </Text>
               </Pressable>
             </View>
-          ) : (
-            <Text style={{ color: MUTED }} className="text-sm text-center">
-              Waiting for host…
-            </Text>
-          )}
-        </Animated.View>
-      </ScrollView>
 
-      {showChasers && (
-        <ChasersPopup rows={chasersRows} totalRows={totalChaserRows} onDismiss={() => setShowChasers(false)} />
+            {/* Next Round — the unmistakable primary CTA: full-width,
+                taller than the secondary row, amber with a soft glow. */}
+            <Pressable
+              onPress={handleNextRound}
+              style={{
+                height: 64,
+                backgroundColor: AMBER,
+                alignItems: 'center',
+                justifyContent: 'center',
+                shadowColor: AMBER,
+                shadowOpacity: 0.4,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 8,
+              }}
+              className="active:opacity-80"
+            >
+              <Text className="text-ink text-base font-bold tracking-[0.2em] uppercase">
+                Next Round
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={{ color: MUTED }} className="text-sm text-center">
+            Waiting for host…
+          </Text>
+        )}
+      </Animated.View>
+
+      {showStats && (
+        <StatsModal
+          ranked={ranked}
+          playerId={playerId}
+          rows={chasersRows}
+          totalRows={totalChaserRows}
+          initialTab={statsInitialTab}
+          phase={phase}
+          onDismiss={() => setShowStats(false)}
+        />
       )}
 
       {showSharePopup && (
@@ -1555,6 +1501,6 @@ export default function PodiumScreen() {
           </View>
         </Animated.View>
       )}
-    </View>
+    </ScrollView>
   );
 }

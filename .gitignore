@@ -44,3 +44,6 @@ npm-debug.log*
 
 # Redis dump
 dump.rdb
+
+# Git worktrees (superpowers subagent-driven-development)
+.worktrees/
