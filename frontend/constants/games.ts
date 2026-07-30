@@ -299,6 +299,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: Swords,
     categories: ['strategy'],
     accentColor: '#DB2777',
+    minPlayers: 2,
     rules: [
       'Players are randomly paired up.',
       [
@@ -504,6 +505,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: Package,
     categories: ['luck', 'strategy'], // sealed pick is chance; the bluff is strategy
     accentColor: '#475569',
+    minPlayers: 2,
     rules: [
       'Two players are picked at random.',
       [

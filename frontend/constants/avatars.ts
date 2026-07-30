@@ -73,6 +73,17 @@ const AVATAR_COLORS_FALLBACK = [
   '#6A7A9A', '#9A6A4A', '#5A6A7A',
 ];
 
+// Mixes a hex color toward white — used for the avatar picker's press
+// feedback (the tapped avatar's own color goes lighter, like a pressed
+// button, instead of a separate highlight color).
+export function lightenColor(hex: string, amount: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const mix = (channel: number) => Math.round(channel + (255 - channel) * amount);
+  return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
+}
+
 // Stable per-player color for the avatar-less fallback (vibe icon or initial
 // letter) — hashed from the player id so it stays consistent across renders.
 export function avatarFallbackColor(seed: string): string {

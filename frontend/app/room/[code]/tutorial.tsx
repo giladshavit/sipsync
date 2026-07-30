@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -7,11 +7,19 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { colors, typography } from '@/constants/design';
 import { TUTORIAL_COMPONENTS } from '@/constants/tutorials';
 import { getGameById } from '@/constants/games';
 import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
+import { CustomQuestionSourceSheet } from '@/components/CustomQuestionSourceSheet';
+
+// Majority/Minority Rules only: instead of auto-advancing like every other
+// game's tutorial, the admin gets a manual "Start Game" button once the
+// mandatory viewing window ends, which opens the Game Bank / Write Our Own
+// choice — see CustomQuestionSourceSheet.
+const CUSTOM_QUESTION_ASSETS = ['tutorial.majority', 'tutorial.minority'];
 
 // Sacrifice's two-phone story needs the longest hold of any default-length
 // tutorial (~5.1s of story + a beat to land on "room safe"); every other
@@ -47,7 +55,15 @@ export default function TutorialScreen() {
     tutorialAsset: string;
   }>();
 
+  const { playerId } = usePlayerIdentity();
   const { snapshot, send } = useRoomSocket(code);
+  const isAdmin = !!snapshot && snapshot.admin_id === playerId;
+  const isCustomQuestionGame = !!tutorialAsset && CUSTOM_QUESTION_ASSETS.includes(tutorialAsset);
+  // Custom Question games hold here once the mandatory viewing window ends
+  // instead of auto-sending TUTORIAL_DONE — the admin picks a source first
+  // (see handleUseBank/handlePickWriter below).
+  const [countdownDone, setCountdownDone] = useState(false);
+  const [chooserOpen, setChooserOpen] = useState(false);
 
   const durationMs = tutorialAsset ? (DURATION_MS_OVERRIDES[tutorialAsset] ?? DEFAULT_DURATION_MS) : DEFAULT_DURATION_MS;
 
@@ -66,20 +82,41 @@ export default function TutorialScreen() {
     progress.value = withTiming(0, { duration: durationMs, easing: Easing.linear });
 
     const timer = setTimeout(() => {
-      // Everyone sends; server silently ignores non-admin senders
-      sendRef.current({ type: 'TUTORIAL_DONE' });
+      if (isCustomQuestionGame) {
+        setCountdownDone(true);
+      } else {
+        // Everyone sends; server silently ignores non-admin senders
+        sendRef.current({ type: 'TUTORIAL_DONE' });
+      }
     }, durationMs);
 
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [durationMs]);
+  }, [durationMs, isCustomQuestionGame]);
 
-  // Navigate when server confirms PLAYING
+  // Navigate when the server confirms PLAYING, or hand off to the writer's
+  // input screen (or every other client's waiting view for them) once the
+  // admin picked "Write Our Own".
   useEffect(() => {
     if (snapshot?.state === 'PLAYING') {
       router.replace({ pathname: '/room/[code]/game', params: { code } });
+    } else if (snapshot?.state === 'CUSTOM_QUESTION_INPUT') {
+      router.replace({
+        pathname: '/room/[code]/custom-question',
+        params: { code, writerId: snapshot.writerId ?? '' },
+      });
     }
-  }, [snapshot?.state, code]);
+  }, [snapshot?.state, snapshot?.writerId, code]);
+
+  function handleUseBank() {
+    setChooserOpen(false);
+    send({ type: 'TUTORIAL_DONE' });
+  }
+
+  function handlePickWriter(writerId: string) {
+    setChooserOpen(false);
+    send({ type: 'START_CUSTOM_QUESTION', writer_id: writerId });
+  }
 
   const TutorialComponent = tutorialAsset ? (TUTORIAL_COMPONENTS[tutorialAsset] ?? null) : null;
   // tutorialAsset is always `tutorial.<game_id>` (see constants/tutorials.ts)
@@ -135,26 +172,61 @@ export default function TutorialScreen() {
         )}
       </View>
 
-      {/* Countdown bar — mandatory, no skip */}
-      <View
-        style={{
-          height: 6,
-          backgroundColor: colors.surface,
-          borderRadius: 3,
-          overflow: 'hidden',
-        }}
-      >
-        <Animated.View
-          style={[
-            { height: '100%', backgroundColor: colors.amber, borderRadius: 3 },
-            barStyle,
-          ]}
-        />
-      </View>
+      {!countdownDone ? (
+        <>
+          {/* Countdown bar — mandatory, no skip */}
+          <View
+            style={{
+              height: 6,
+              backgroundColor: colors.surface,
+              borderRadius: 3,
+              overflow: 'hidden',
+            }}
+          >
+            <Animated.View
+              style={[
+                { height: '100%', backgroundColor: colors.amber, borderRadius: 3 },
+                barStyle,
+              ]}
+            />
+          </View>
 
-      <Text className="text-fog text-xs mt-3 text-center">
-        Starting in {durationMs / 1000} seconds…
-      </Text>
+          <Text className="text-fog text-xs mt-3 text-center">
+            Starting in {durationMs / 1000} seconds…
+          </Text>
+        </>
+      ) : isAdmin ? (
+        <Pressable
+          onPress={() => setChooserOpen(true)}
+          className="bg-amber py-5 items-center rounded-none active:opacity-80"
+        >
+          <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
+            Start Game
+          </Text>
+        </Pressable>
+      ) : (
+        <Text
+          style={{
+            color: colors.amber,
+            ...typography.label,
+            fontSize: 11,
+            letterSpacing: 3,
+            textAlign: 'center',
+            paddingVertical: 12,
+          }}
+        >
+          Waiting for host to start
+        </Text>
+      )}
+
+      {chooserOpen && (
+        <CustomQuestionSourceSheet
+          players={snapshot?.players ?? {}}
+          onUseBank={handleUseBank}
+          onPickWriter={handlePickWriter}
+          onClose={() => setChooserOpen(false)}
+        />
+      )}
     </View>
   );
 }

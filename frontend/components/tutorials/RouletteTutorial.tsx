@@ -20,9 +20,16 @@ import { colors, typography } from '@/constants/design';
 const FINGER_IN_MS = 300;
 const TAP1_MS = 900;
 const SAFE_CAPTION_MS = 1_300;
-const TURN2_MS = 2_300;
-const TAP2_MS = 3_000;
-const POISON_CAPTION_MS = 3_400;
+const HAND_EXIT_MS = 2_200;
+const HAND_EXIT_DURATION = 320;
+const HAND_ENTER_MS = 2_620;
+const HAND_ENTER_DURATION = 320;
+const TAP2_MS = 3_090;
+const POISON_CAPTION_MS = 3_490;
+// How far the hand travels below its resting spot to clear the phone
+// mockup's visible area — the mockup's outer frame clips it via
+// overflow: hidden, so this reads as the hand leaving/entering the screen.
+const HAND_OFFSCREEN_OFFSET = 220;
 
 const CARD_W = 82;
 const CARD_H = 92;
@@ -116,6 +123,7 @@ function ClosedMiniCard({ slot }: { slot: { left: number; top: number } }): Reac
 
 export function RouletteTutorial(): React.ReactElement {
   const [stage, setStage] = useState<Stage>('intro');
+  const [handTurn, setHandTurn] = useState<'A' | 'B'>('A');
 
   const rotationA = useSharedValue(0);
   const rotationB = useSharedValue(0);
@@ -137,6 +145,7 @@ export function RouletteTutorial(): React.ReactElement {
 
     function startCycle() {
       setStage('intro');
+      setHandTurn('A');
       rotationA.value = 0;
       rotationB.value = 0;
       shake.value = 0;
@@ -164,19 +173,32 @@ export function RouletteTutorial(): React.ReactElement {
       );
       timers.push(setTimeout(() => setStage('safe'), SAFE_CAPTION_MS));
 
-      // Maya's turn — finger slides to the second card
+      // Maya's turn — hand 1 leaves down and off-screen (clipped by the
+      // phone mockup's overflow: hidden frame)
       timers.push(
         setTimeout(() => {
           setStage('turn2');
-          fingerX.value = withTiming(FINGER_B.x, {
-            duration: 450,
-            easing: Easing.inOut(Easing.quad),
+          fingerY.value = withTiming(FINGER_A.y + HAND_OFFSCREEN_OFFSET, {
+            duration: HAND_EXIT_DURATION,
+            easing: Easing.in(Easing.quad),
           });
+          fingerOpacity.value = withTiming(0, { duration: HAND_EXIT_DURATION });
+        }, HAND_EXIT_MS),
+      );
+
+      // Hand 2 (Maya) swaps in while off-screen/invisible, then arrives
+      // from below onto her card
+      timers.push(
+        setTimeout(() => {
+          fingerX.value = FINGER_B.x;
+          fingerY.value = FINGER_B.y + HAND_OFFSCREEN_OFFSET;
+          setHandTurn('B');
           fingerY.value = withTiming(FINGER_B.y, {
-            duration: 450,
-            easing: Easing.inOut(Easing.quad),
+            duration: HAND_ENTER_DURATION,
+            easing: Easing.out(Easing.quad),
           });
-        }, TURN2_MS),
+          fingerOpacity.value = withTiming(1, { duration: HAND_ENTER_DURATION });
+        }, HAND_ENTER_MS),
       );
 
       // Tap 2 → poison flip + phone shake
@@ -375,7 +397,11 @@ export function RouletteTutorial(): React.ReactElement {
             >
               <Image
                 source={require('@/assets/images/tap-gesture.png')}
-                style={{ width: 64, height: 64 }}
+                style={{
+                  width: 64,
+                  height: 64,
+                  tintColor: handTurn === 'B' ? colors.tapped : undefined,
+                }}
               />
             </Animated.View>
           </View>

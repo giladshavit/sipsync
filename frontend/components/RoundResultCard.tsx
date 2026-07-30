@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Image, ScrollView } from 'react-native';
 import { Crown, GlassWater } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   FadeInDown,
   useSharedValue,
@@ -76,6 +77,7 @@ export function RoundResultCard({
   playerId: string | null;
   displayName: string;
 }) {
+  const insets = useSafeAreaInsets();
   const result = outcome?.result ?? 'SAFE';
   const bgColor = roundResultBgColor(result);
 
@@ -185,7 +187,7 @@ export function RoundResultCard({
         className="flex-1 items-center px-8"
         style={{
           justifyContent: hasBreakdown ? 'flex-start' : 'center',
-          paddingTop: hasBreakdown ? 28 : 0,
+          paddingTop: hasBreakdown ? insets.top + 28 : 0,
         }}
         onLayout={(e) => setOuterHeight(e.nativeEvent.layout.height)}
       >

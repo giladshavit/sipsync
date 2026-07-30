@@ -31,6 +31,14 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     )
                 case "TUTORIAL_DONE":
                     await room_service.handle_tutorial_done(code, player_id)
+                case "START_CUSTOM_QUESTION":
+                    await room_service.handle_start_custom_question(
+                        code, player_id, msg.get("writer_id", "")
+                    )
+                case "SUBMIT_CUSTOM_QUESTION":
+                    await room_service.handle_submit_custom_question(
+                        code, player_id, msg.get("question_data", {})
+                    )
                 case "NEXT_ROUND":
                     await room_service.handle_next_round(code, player_id)
                 case "GOTO_PODIUM":
@@ -39,6 +47,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     await room_service.handle_admin_next(code, player_id)
                 case "END_NIGHT":
                     await room_service.handle_end_night(code, player_id)
+                case "SKIP_GAME":
+                    await room_service.handle_skip_game(code, player_id)
                 case "LEAVE_ROOM":
                     await room_service.handle_leave(code, player_id)
                 case "GAME_ACTION":

@@ -4,6 +4,8 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Bot } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { usePracticeExit } from '@/hooks/usePracticeExit';
+import { PracticeExitButton } from '@/components/PracticeExitButton';
 import { colors } from '@/constants/design';
 
 // Minimal glue screen for practice-vs-bots rooms — there's no one to invite,
@@ -16,11 +18,12 @@ import { colors } from '@/constants/design';
 // TUTORIAL_DONE itself (never rendering tutorial.tsx) and hands off
 // straight to the live game screen once the FSM reaches PLAYING.
 export default function PracticeStartScreen() {
-  const { code } = useLocalSearchParams<{ code: string }>();
+  const { code, gameId } = useLocalSearchParams<{ code: string; gameId: string }>();
   const { playerId } = usePlayerIdentity();
   const { snapshot, send } = useRoomSocket(code);
   const startedRef = useRef(false);
   const tutorialDoneRef = useRef(false);
+  const exitPractice = usePracticeExit(send, gameId);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -46,6 +49,7 @@ export default function PracticeStartScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+      <PracticeExitButton onPress={exitPractice} />
       <Bot size={40} color={colors.amber} strokeWidth={1.5} />
       <ActivityIndicator color={colors.amber} />
       <Text style={{ color: colors.chalk, fontSize: 13 }}>Setting up your practice round…</Text>

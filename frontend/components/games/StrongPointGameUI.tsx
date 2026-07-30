@@ -153,8 +153,6 @@ export const StrongPointGameUI: React.FC<MiniGameProps> = ({
                   height: diameter,
                   borderRadius: diameter / 2,
                   backgroundColor: colors.electric,
-                  borderWidth: 3,
-                  borderColor: '#8FF0FF',
                 },
                 growthStyle,
               ]}

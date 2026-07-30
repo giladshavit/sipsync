@@ -299,7 +299,10 @@ export default function GameRulesScreen() {
       // this very click) would then resurface when the user hits the back
       // button, showing the Bot button stuck on its loading spinner instead
       // of a normal back navigation.
-      router.replace({ pathname: '/room/[code]/practice-start', params: { code: data.code } });
+      router.replace({
+        pathname: '/room/[code]/practice-start',
+        params: { code: data.code, gameId: game.id },
+      });
     } catch {
       setSimulating(false);
       setSelectedRole(null);

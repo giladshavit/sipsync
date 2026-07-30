@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Check, ChevronRight, X } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, Lock, X } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { colors, typography } from '@/constants/design';
 import { GAME_CATALOG, type GameMeta } from '@/constants/games';
@@ -78,11 +78,22 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
   const viewPool = GAME_CATALOG.filter((g) => selectedIds.includes(g.id));
   const viewGames = filter === 'all' ? viewPool : viewPool.filter((g) => g.categories.includes(filter));
 
-  const allSelected = localIds.length === GAME_CATALOG.length;
+  const meetsFloor = (game: GameMeta) => !game.minPlayers || playerCount >= game.minPlayers;
+
+  // What Select All is actually allowed to turn on: every game the room
+  // currently qualifies for, plus anything already selected from before the
+  // room shrank (same "stays toggleable off, never force-added" rule single
+  // cards follow — see handleCardPress/the locked calc below). Previously
+  // this bulk action just checked every id in the catalog outright, which
+  // visually marked below-floor games as selected even though the server
+  // would immediately filter them back out — a real selection the UI
+  // claimed but didn't actually have.
+  const allowedIds = GAME_CATALOG.filter((g) => meetsFloor(g) || localIds.includes(g.id)).map((g) => g.id);
+  const allSelected = localIds.length === allowedIds.length && allowedIds.every((id) => localIds.includes(id));
   const noneSelected = localIds.length === 0;
 
   function handleMasterToggle() {
-    commitSelection(allSelected ? [] : GAME_CATALOG.map((g) => g.id));
+    commitSelection(allSelected ? [] : allowedIds);
   }
 
   function handleCardPress(id: string) {
@@ -197,11 +208,10 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
                     const isSelected = localIds.includes(game.id);
                     // Below the floor, a game can still be deselected (in
                     // case the room shrank after it was picked) — it just
-                    // can't be newly added one at a time until the room has
-                    // enough players. Select All is an explicit bulk
-                    // override and bypasses this.
-                    const belowMinPlayers = !!game.minPlayers && playerCount < game.minPlayers;
-                    const locked = !isSelected && belowMinPlayers;
+                    // can't be newly added, one at a time or via Select All
+                    // (see allowedIds above), until the room has enough
+                    // players again.
+                    const locked = !isSelected && !meetsFloor(game);
                     return (
                       <GameGridCard
                         key={game.id}
@@ -358,6 +368,29 @@ function GameGridCard({
               <Check size={11} color={colors.ink} strokeWidth={3} />
             </View>
           )}
+
+          {/* Same corner slot as the selected checkmark above — locked and
+              selected never overlap (locked is only ever true when
+              !selected), so there's no conflict sharing the position. */}
+          {locked && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                backgroundColor: colors.stop,
+                borderWidth: 2,
+                borderColor: colors.ink,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Lock size={10} color={colors.parchment} strokeWidth={2.5} />
+            </View>
+          )}
         </View>
 
         <View
@@ -385,9 +418,28 @@ function GameGridCard({
             {game.title}
           </Text>
           {locked && (
-            <Text style={{ color: colors.stop, fontSize: 8, marginTop: 2, fontWeight: '700', textAlign: 'center' }}>
-              {game.minPlayers}+ players
-            </Text>
+            <View
+              style={{
+                marginTop: 3,
+                paddingHorizontal: 6,
+                paddingVertical: 1.5,
+                borderWidth: 1.5,
+                borderColor: colors.stop,
+              }}
+            >
+              <Text
+                style={{
+                  color: colors.stop,
+                  fontSize: 8,
+                  fontWeight: '800',
+                  letterSpacing: 0.6,
+                  textAlign: 'center',
+                  textTransform: 'uppercase',
+                }}
+              >
+                Min {game.minPlayers}
+              </Text>
+            </View>
           )}
         </View>
       </View>

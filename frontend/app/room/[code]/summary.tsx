@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
+import { View, Text } from 'react-native';
 import { Stack, useLocalSearchParams, useNavigation, router } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -10,7 +10,7 @@ import Animated, {
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { RoundResultCard, roundResultBgColor } from '@/components/RoundResultCard';
-import { typography } from '@/constants/design';
+import { PracticeExitButton } from '@/components/PracticeExitButton';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
 
 const LOCK_MS = 6_000;
@@ -41,9 +41,9 @@ export default function SummaryScreen() {
   const [lockExpired, setLockExpired] = useState(false);
   const lockExpiredRef = useRef(false);
 
-  // Client-local move to the podium — used both by the automatic PODIUM
-  // branch below and by the manual escape-hatch button. Purely this-client:
-  // it never signals the server, so it can't move anyone else's screen.
+  // Client-local move to the podium — fired by the automatic PODIUM branch
+  // below. Purely this-client: it never signals the server, so it can't
+  // move anyone else's screen.
   // The room-level PERSONAL_SUMMARY -> PODIUM signal has its own paths
   // (every client's automatic GOTO_PODIUM + the server's safety-net timer).
   function goToPodiumNow() {
@@ -116,8 +116,7 @@ export default function SummaryScreen() {
   // server at all, and sending it again later on the SAME dead socket
   // wouldn't help either. Re-sending whenever a fresh connection actually
   // lands (including the one reconnect() below forces after the self-heal
-  // timeout, or from the manual "GO TO LEADERBOARD" button) is what
-  // actually gets it through. ────────────────────────────────────────────
+  // timeout) is what actually gets it through. ──────────────────────────
   useEffect(() => {
     if (!lockExpired || !isConnected) return;
     if (isPractice) exitToRulesNow();
@@ -126,12 +125,15 @@ export default function SummaryScreen() {
   }, [lockExpired, isConnected, isPractice, send]);
 
   // ── Block all back navigation for the full 6 s ────────────────────────────
+  // Practice rooms are exempt — the mandatory window is a real-game social
+  // mechanic (see CLAUDE.md), not something a solo bot round needs, and the
+  // PracticeExitButton below relies on being able to navigate away early.
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (!lockExpiredRef.current) e.preventDefault();
+      if (!isPractice && !lockExpiredRef.current) e.preventDefault();
     });
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, isPractice]);
 
   // ── Navigate on FSM transitions ───────────────────────────────────────────
   // Handles every state the room could actually be in when this client's
@@ -203,6 +205,7 @@ export default function SummaryScreen() {
       <Stack.Screen options={{ gestureEnabled: false }} />
 
       <View className="flex-1" style={{ backgroundColor: roundResultBgColor(outcome?.result) }}>
+        {isPractice && <PracticeExitButton onPress={exitToRulesNow} />}
         <RoundResultCard
           outcome={outcome}
           allOutcomes={allOutcomes}
@@ -227,40 +230,9 @@ export default function SummaryScreen() {
           </View>
 
           <View className="mt-5 min-h-[52px] items-center justify-center">
-            {lockExpired ? (
-              <View style={{ alignItems: 'center', gap: 10 }}>
-                <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
-                  {isPractice ? 'Returning to rules…' : 'Moving to Leaderboard…'}
-                </Text>
-                {/* Visible only once the mandatory window is already over —
-                    a manual escape hatch for the rare case the automatic
-                    transition doesn't arrive on its own. Navigates THIS
-                    client straight to the podium with the outcome data it
-                    already holds — no server round-trip, no room-wide
-                    broadcast, so it can never move anyone else's screen.
-                    The podium screen opens its own fresh socket on mount,
-                    which doubles as the reconnect this client needed. */}
-                <Pressable
-                  onPress={isPractice ? exitToRulesNow : goToPodiumNow}
-                  style={{ borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)', paddingVertical: 10, paddingHorizontal: 18 }}
-                  className="active:opacity-70"
-                >
-                  <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 12, letterSpacing: 1 }}>
-                    {isPractice ? 'BACK TO RULES' : 'GO TO LEADERBOARD'}
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <Text
-                style={{
-                  color: 'rgba(255,255,255,0.45)',
-                  ...typography.label,
-                  fontSize: 10,
-                  letterSpacing: 3,
-                  textTransform: 'uppercase',
-                }}
-              >
-                Mandatory window · 6s
+            {lockExpired && (
+              <Text style={{ color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>
+                {isPractice ? 'Returning to rules…' : 'Moving on…'}
               </Text>
             )}
           </View>
