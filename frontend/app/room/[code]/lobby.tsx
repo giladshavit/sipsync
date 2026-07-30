@@ -28,17 +28,33 @@ export default function LobbyScreen() {
 
   const isRoomAdmin = !!snapshot && snapshot.admin_id === playerId;
   const players = Object.entries(snapshot?.players ?? {});
+  // A disconnected player stays in `players` (seat/score/avatar reserved for
+  // the server's reconnection grace period) but shouldn't count toward
+  // headcount-driven copy or gating — those should reflect who's actually here.
+  const connectedPlayers = players.filter(([, p]) => p.connected !== false);
   const gameIds = snapshot?.gameIds ?? [];
   const selectedGames = gameIds
     .map((id) => getGameById(id))
     .filter((g): g is NonNullable<typeof g> => g != null);
-  const myAvatar = playerId ? snapshot?.players[playerId]?.avatar : null;
+  const myPlayer = playerId ? snapshot?.players[playerId] : undefined;
+  const myAvatar = myPlayer?.avatar ?? null;
   const takenAvatars = new Set(
     players.filter(([pid]) => pid !== playerId).map(([, p]) => p.avatar).filter((a): a is string => !!a),
   );
 
   useEffect(() => {
-    if (snapshot?.state === 'TUTORIAL') {
+    if (!snapshot?.state) return;
+
+    // Late Join: a fresh arrival mid-round is flagged waiting_for_next_game
+    // by the server (see handle_handshake) — they have no data for the live
+    // tutorial/board of a round they weren't part of, so the Waiting Room
+    // holds them until it ends instead of routing onward like everyone else.
+    if (myPlayer?.waiting_for_next_game && (snapshot.state === 'TUTORIAL' || snapshot.state === 'PLAYING')) {
+      router.replace({ pathname: '/room/[code]/waiting', params: { code } });
+      return;
+    }
+
+    if (snapshot.state === 'TUTORIAL') {
       router.replace({
         pathname: '/room/[code]/tutorial',
         params: {
@@ -47,8 +63,23 @@ export default function LobbyScreen() {
           tutorialAsset: snapshot.tutorialAsset ?? '',
         },
       });
+      return;
     }
-  }, [snapshot?.state, code]);
+
+    // Defensive fallbacks for a client that somehow lands on lobby.tsx
+    // after the room has already moved on (e.g. a join whose first
+    // snapshot arrives mid-round, past TUTORIAL, but not flagged waiting —
+    // an existing participant reconnecting here rather than on the screen
+    // they left) — route straight to where that state actually lives
+    // instead of leaving them stuck on the lobby roster.
+    if (snapshot.state === 'PLAYING') {
+      router.replace({ pathname: '/room/[code]/game', params: { code } });
+      return;
+    }
+    if (snapshot.state === 'PERSONAL_SUMMARY' || snapshot.state === 'PODIUM') {
+      router.replace({ pathname: '/room/[code]/podium', params: { code } });
+    }
+  }, [snapshot?.state, myPlayer?.waiting_for_next_game, code]);
 
   async function handleCopy() {
     await Clipboard.setStringAsync(code ?? '');
@@ -91,9 +122,9 @@ export default function LobbyScreen() {
 
   // Split-weight titles — thin ink line over heavy amber line, like the
   // home screen's Sip / Sync signature.
-  const [titleThin, titleHeavy] = players.length < 2
+  const [titleThin, titleHeavy] = connectedPlayers.length < 2
     ? ['Waiting for', 'friends…']
-    : players.length < 5
+    : connectedPlayers.length < 5
     ? ['Almost', 'there!']
     : ['Ready to', 'play!'];
 
@@ -129,7 +160,7 @@ export default function LobbyScreen() {
             marginBottom: 6,
           }}
         >
-          {players.length} {players.length === 1 ? 'player' : 'players'} joined
+          {connectedPlayers.length} {connectedPlayers.length === 1 ? 'player' : 'players'} joined
         </Text>
         <Text style={{ fontWeight: '200', color: colors.ink, fontSize: 40, lineHeight: 44, letterSpacing: -2 }}>
           {titleThin}
@@ -273,12 +304,16 @@ export default function LobbyScreen() {
               // hash color used for the vibe/initial placeholder.
               const ringColor = player.avatar ? AVATAR_COLORS[player.avatar] : undefined;
               const fallbackColor = avatarFallbackColor(pid);
+              // Still in the roster (seat/score/avatar reserved) but their
+              // socket dropped — the server keeps them for a reconnection
+              // grace period before a PLAYER_LEFT actually removes them.
+              const isDisconnected = player.connected === false;
 
               return (
                 <Animated.View
                   key={pid}
                   entering={FadeInDown.duration(300)}
-                  style={{ width: AVATAR_SIZE, alignItems: 'center' }}
+                  style={{ width: AVATAR_SIZE, alignItems: 'center', opacity: isDisconnected ? 0.4 : 1 }}
                 >
                   {/* Plain wrapper (no overflow clipping) so the edit badge
                       below can sit half outside the circle without being
@@ -352,7 +387,24 @@ export default function LobbyScreen() {
                   >
                     {shortName}
                   </Text>
-                  {isAdmin && (
+                  {isDisconnected ? (
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      style={{
+                        color: colors.dune,
+                        ...typography.label,
+                        fontSize: 7,
+                        letterSpacing: 0.6,
+                        fontWeight: '700',
+                        marginTop: 1,
+                        textAlign: 'center',
+                        width: AVATAR_SIZE,
+                      }}
+                    >
+                      RECONNECTING
+                    </Text>
+                  ) : isAdmin ? (
                     <Text
                       style={{
                         color: colors.amber,
@@ -365,7 +417,7 @@ export default function LobbyScreen() {
                     >
                       HOST
                     </Text>
-                  )}
+                  ) : null}
                 </Animated.View>
               );
             })}
@@ -428,11 +480,11 @@ export default function LobbyScreen() {
 
             <Pressable
               onPress={handleStartGame}
-              disabled={players.length < 2}
+              disabled={connectedPlayers.length < 2}
               className="bg-amber py-5 items-center rounded-none active:opacity-80 disabled:opacity-40"
             >
               <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
-                {players.length < 2 ? 'Waiting for players…' : 'Start Game'}
+                {connectedPlayers.length < 2 ? 'Waiting for players…' : 'Start Game'}
               </Text>
             </Pressable>
           </>
@@ -515,7 +567,7 @@ export default function LobbyScreen() {
           selectedIds={gameIds}
           onSetSelected={gamesSheetMode === 'edit' ? handleSetGames : undefined}
           onClose={() => setGamesSheetMode(null)}
-          playerCount={players.length}
+          playerCount={connectedPlayers.length}
         />
       )}
 

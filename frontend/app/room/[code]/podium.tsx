@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextStyle } from 'react-native';
-import { Award, GlassWater } from 'lucide-react-native';
+import { View, Text, Pressable, Share, ScrollView, TextStyle } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import { Award, Check, Copy, Crown, FastForward, GlassWater, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeInDown,
   FadeIn,
+  FadeOutUp,
   LinearTransition,
   useSharedValue,
   useAnimatedStyle,
@@ -20,7 +22,9 @@ import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { typography } from '@/constants/design';
 import { AVATAR_COLORS } from '@/constants/avatars';
+import { GAME_CATALOG, getGameById, type GameMeta, type RuleLine } from '@/constants/games';
 import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
+import { GamesSheet } from '@/components/GamesSheet';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
 
 // Same light/cream/amber register as the home screen — this is a results
@@ -37,6 +41,11 @@ const BRONZE   = '#E8C9A0';
 const GO       = '#16A34A';
 const STOP     = '#DC2626';
 const ME_BG    = '#FCEFD1';
+// The non-semantic identity pair a couple of games' rule text uses to tag
+// "player 1 / player 2" (see RuleSegment's own doc comment in games.ts) —
+// matches constants/design.ts's colors.tapped / colors.orange.
+const BLUE     = '#2563EB';
+const ORANGE   = '#F97316';
 
 // Time the "before this round" standings stay on screen before settling
 // into the final order — long enough to actually read who moved.
@@ -49,6 +58,22 @@ const REVEAL_DELAY_MS = 1600;
 // (20 → "2", −10 → "−1"). Duration matches the list's reorder spring so the
 // digits spin exactly while the rows swap places.
 const SCORE_ROLL_MS = 1200;
+
+// Admin action row (Edit Games / Next Round / End Night) — one shared
+// height so the two square icon buttons line up exactly with the full-width
+// Next Round button between them.
+const ADMIN_ROW_ICON_BTN = 56;
+
+// Up Next preview — fixed regardless of whether nextGame data has arrived
+// yet or which game it's showing. Without a fixed height here, the header
+// grew/shrank by a line of text every time the title wrapped differently (a
+// one-word title vs a three-word one) or the moment nextGameId first landed
+// after mount, and everything below — the podium columns, the standings
+// list — visibly jumped to absorb the difference. Reserving the same box up
+// front (see the always-rendered placeholder below) keeps that whole region
+// static from first paint.
+const UP_NEXT_CARD_HEIGHT = 72;
+const UP_NEXT_SKIP_HEIGHT = 26;
 
 function AnimatedScore({ value, style }: { value: number; style: TextStyle }) {
   const sv = useSharedValue(value);
@@ -170,9 +195,14 @@ let lastChasersPopupKey: string | null = null;
 
 interface ChaserRow { pid: string; name: string; avatar: string | null; chasers: number }
 
-function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () => void }) {
+type ChasersTab = 'round' | 'total';
+
+function ChasersPopup({
+  rows, totalRows, onDismiss,
+}: { rows: ChaserRow[]; totalRows: ChaserRow[]; onDismiss: () => void }) {
   const opacity = useSharedValue(0);
   const scale = useSharedValue(0.85);
+  const [tab, setTab] = useState<ChasersTab>('round');
 
   useEffect(() => {
     opacity.value = withTiming(1, { duration: 200 });
@@ -185,6 +215,11 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
 
   const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
   const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const activeRows = tab === 'round' ? rows : totalRows;
+  // The night's biggest drinker so far — only meaningful on the cumulative
+  // tab, where standings actually persist across rounds.
+  const topTotalPid = totalRows.length > 0 ? totalRows[0].pid : null;
 
   return (
     <Animated.View
@@ -228,59 +263,121 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
       >
         <Text
           style={{
-            ...typography.label,
-            fontSize: 11,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            color: MUTED,
-            marginBottom: 4,
-            textAlign: 'center',
-          }}
-        >
-          This round
-        </Text>
-        <Text
-          style={{
             fontWeight: '900',
             color: INK,
             fontSize: 24,
             letterSpacing: -0.5,
             textAlign: 'center',
-            marginBottom: 18,
+            marginBottom: 16,
           }}
         >
           Who&apos;s Drinking
         </Text>
 
-        <View style={{ gap: 10 }}>
-          {rows.map((row) => (
-            <View
-              key={row.pid}
+        {/* Sleek two-segment tab bar — filled ink for the active side,
+            transparent for the other, same border weight as the popup's
+            own edge so it reads as part of one system. */}
+        <View
+          style={{
+            flexDirection: 'row',
+            borderWidth: 1.5,
+            borderColor: INK,
+            marginBottom: 16,
+          }}
+        >
+          <Pressable
+            onPress={() => setTab('round')}
+            style={{
+              flex: 1,
+              paddingVertical: 9,
+              alignItems: 'center',
+              backgroundColor: tab === 'round' ? INK : 'transparent',
+            }}
+            className="active:opacity-70"
+          >
+            <Text
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                backgroundColor: BG,
-                borderWidth: 1,
-                borderColor: HAIRLINE,
-                gap: 10,
+                ...typography.label,
+                fontSize: 10,
+                letterSpacing: 1.5,
+                color: tab === 'round' ? CARD : MUTED,
               }}
             >
-              <AvatarCircle
-                name={row.name}
-                avatar={row.avatar}
-                size={30}
-                ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
-              />
-              <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
-                {row.name}
-              </Text>
-              <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
-              <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
-            </View>
-          ))}
+              This Round
+            </Text>
+          </Pressable>
+          <View style={{ width: 1.5, backgroundColor: INK }} />
+          <Pressable
+            onPress={() => setTab('total')}
+            style={{
+              flex: 1,
+              paddingVertical: 9,
+              alignItems: 'center',
+              backgroundColor: tab === 'total' ? INK : 'transparent',
+            }}
+            className="active:opacity-70"
+          >
+            <Text
+              style={{
+                ...typography.label,
+                fontSize: 10,
+                letterSpacing: 1.5,
+                color: tab === 'total' ? CARD : MUTED,
+              }}
+            >
+              Total
+            </Text>
+          </Pressable>
         </View>
+
+        {activeRows.length === 0 ? (
+          <Text style={{ color: MUTED, fontSize: 13, textAlign: 'center', paddingVertical: 16 }}>
+            Nobody&apos;s owed a single chaser yet.
+          </Text>
+        ) : (
+          <View style={{ gap: 10 }}>
+            {activeRows.map((row) => {
+              const isTopTotal = tab === 'total' && row.pid === topTotalPid;
+              return (
+                <View
+                  key={row.pid}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 8,
+                    paddingHorizontal: 12,
+                    backgroundColor: isTopTotal ? 'rgba(220,38,38,0.07)' : BG,
+                    borderWidth: isTopTotal ? 1.5 : 1,
+                    borderColor: isTopTotal ? STOP : HAIRLINE,
+                    gap: 10,
+                  }}
+                >
+                  <AvatarCircle
+                    name={row.name}
+                    avatar={row.avatar}
+                    size={30}
+                    ringColor={row.avatar ? AVATAR_COLORS[row.avatar] : STOP}
+                  />
+                  <Text numberOfLines={1} style={{ flex: 1, color: INK, fontSize: 15, fontWeight: '700' }}>
+                    {row.name}
+                  </Text>
+                  {isTopTotal && <Skull size={15} color={STOP} strokeWidth={2.5} />}
+                  {tab === 'total' ? (
+                    <>
+                      <Text style={{ color: STOP, fontSize: 16, fontWeight: '900' }}>×{row.chasers}</Text>
+                      <GlassWater size={16} color={STOP} strokeWidth={2.5} />
+                    </>
+                  ) : (
+                    <>
+                      <GlassWater size={16} color={STOP} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                      <Text style={{ color: STOP, fontSize: 15, fontWeight: '800' }}>{row.chasers}</Text>
+                    </>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         <Pressable
           onPress={onDismiss}
@@ -294,6 +391,427 @@ function ChasersPopup({ rows, onDismiss }: { rows: ChaserRow[]; onDismiss: () =>
   );
 }
 
+// ── Share popup — same overlay/card language as ChasersPopup ───────────────
+// Two distinct actions rather than one button that guesses which the player
+// wants: copying the code is the fast path for someone already talking to
+// the room in person or over voice chat; the native share sheet is the path
+// for sending it somewhere text has to travel (a text thread, DMs).
+function SharePopup({ code, onDismiss }: { code: string; onDismiss: () => void }) {
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.85);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 200 });
+    scale.value = withSequence(
+      withTiming(1.04, { duration: 220, easing: Easing.out(Easing.back(2)) }),
+      withTiming(1, { duration: 130 }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  async function handleCopy() {
+    await Clipboard.setStringAsync(code ?? '');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  async function handleShareLink() {
+    await Share.share({ message: `Join my SipSync room! Code: ${code}` });
+    onDismiss();
+  }
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(10,10,15,0.94)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+        },
+        overlayStyle,
+      ]}
+    >
+      <Pressable
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        onPress={onDismiss}
+      />
+      <Animated.View
+        style={[
+          {
+            backgroundColor: CARD,
+            borderWidth: 2,
+            borderColor: INK,
+            width: 300,
+            maxWidth: '86%',
+            paddingVertical: 24,
+            paddingHorizontal: 22,
+            overflow: 'hidden',
+          },
+          cardStyle,
+        ]}
+      >
+        <Pressable
+          onPress={onDismiss}
+          hitSlop={8}
+          style={{ position: 'absolute', top: 16, right: 16, zIndex: 1 }}
+          className="active:opacity-60"
+        >
+          <X size={18} color={MUTED} strokeWidth={2} />
+        </Pressable>
+
+        <Text
+          style={{
+            ...typography.label,
+            fontSize: 11,
+            letterSpacing: 3,
+            textTransform: 'uppercase',
+            color: MUTED,
+            marginBottom: 4,
+            textAlign: 'center',
+          }}
+        >
+          Invite friends
+        </Text>
+        <Text
+          style={{
+            fontWeight: '900',
+            color: AMBER,
+            fontSize: 24,
+            letterSpacing: -0.5,
+            textAlign: 'center',
+            marginBottom: 22,
+          }}
+        >
+          Bring Someone In
+        </Text>
+
+        <View style={{ gap: 12 }}>
+          {/* Premium code block — same monospace/tracked treatment as
+              lobby.tsx's own code display, the icon absolutely positioned
+              so the code itself stays perfectly centered regardless of
+              digit width. This *is* the "Copy Room Code" action now, not a
+              separate readout sitting above a smaller button for it. */}
+          <Pressable
+            onPress={handleCopy}
+            style={{
+              backgroundColor: BG,
+              borderWidth: 2,
+              borderColor: INK,
+              paddingVertical: 18,
+              alignItems: 'center',
+            }}
+            className="active:opacity-70"
+          >
+            <Text
+              style={{
+                color: INK,
+                fontSize: 22,
+                fontFamily: 'Courier New',
+                fontWeight: '700',
+                letterSpacing: 8,
+                textAlign: 'center',
+              }}
+            >
+              {code}
+            </Text>
+            <View style={{ position: 'absolute', right: 16, top: 0, bottom: 0, justifyContent: 'center' }}>
+              {copied ? <Check size={20} color={GO} strokeWidth={2} /> : <Copy size={20} color={INK} strokeWidth={2} />}
+            </View>
+          </Pressable>
+
+          {/* Share Invite Link — filled amber, the clear visual opposite of
+              the outlined code block above it. */}
+          <Pressable
+            onPress={handleShareLink}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 15,
+              backgroundColor: AMBER,
+              gap: 9,
+            }}
+            className="active:opacity-80"
+          >
+            <Share2 size={17} color={INK} strokeWidth={2.5} />
+            <Text style={{ color: INK, fontSize: 14, fontWeight: '800' }} className="tracking-[0.14em] uppercase">
+              Share Invite Link
+            </Text>
+          </Pressable>
+        </View>
+
+        <Pressable
+          onPress={onDismiss}
+          style={{ marginTop: 20, paddingVertical: 10, alignItems: 'center' }}
+          className="active:opacity-60"
+        >
+          <Text style={{ color: MUTED }} className="text-xs font-bold tracking-[0.15em] uppercase">Close</Text>
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+function ruleSegmentColor(color: 'red' | 'green' | 'amber' | 'blue' | 'orange' | undefined): string {
+  if (color === 'red') return STOP;
+  if (color === 'green') return GO;
+  if (color === 'amber') return AMBER;
+  if (color === 'blue') return BLUE;
+  if (color === 'orange') return ORANGE;
+  return INK;
+}
+
+// Inline echo of games/[id]/index.tsx's own RuleText — same string-or-
+// colored-segments rendering, just sized for this modal's tighter card
+// rather than a full screen.
+function RuleText({ line }: { line: RuleLine }) {
+  if (typeof line === 'string') {
+    return <Text style={{ color: INK, fontSize: 14, lineHeight: 20, flex: 1 }}>{line}</Text>;
+  }
+  return (
+    <Text style={{ fontSize: 14, lineHeight: 20, flex: 1 }}>
+      {line.map((seg, i) => (
+        <Text
+          key={i}
+          style={{
+            color: ruleSegmentColor(seg.color),
+            fontWeight: seg.color || seg.bold ? '800' : '400',
+          }}
+        >
+          {seg.text}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+// Up Next: the admin's queued-game preview, opened by tapping the small
+// card in the header. Deliberately an in-tree overlay (same pattern as
+// ChasersPopup/SharePopup above) rather than a route push — routing away
+// would tear down this screen's WebSocket listener, and the whole point is
+// that the FSM's own TUTORIAL transition (Next Round) can pull the room out
+// from under this modal via the screen's existing router.replace effect.
+// Scoped to what the card promises — how to play, the icon, the tagline —
+// not the full details screen's who-drinks/scoring breakdown, which stays
+// a reason to visit the real rules screen later.
+function NextGameRulesModal({ game, onDismiss }: { game: GameMeta; onDismiss: () => void }) {
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.9);
+
+  useEffect(() => {
+    opacity.value = withTiming(1, { duration: 200 });
+    scale.value = withSequence(
+      withTiming(1.03, { duration: 220, easing: Easing.out(Easing.back(2)) }),
+      withTiming(1, { duration: 130 }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const overlayStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const cardStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const { Icon } = game;
+
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(10,10,15,0.94)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+        },
+        overlayStyle,
+      ]}
+    >
+      <Pressable
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        onPress={onDismiss}
+      />
+      <Animated.View
+        style={[
+          {
+            backgroundColor: CARD,
+            borderWidth: 2,
+            borderColor: INK,
+            width: 320,
+            maxWidth: '88%',
+            maxHeight: '78%',
+            overflow: 'hidden',
+          },
+          cardStyle,
+        ]}
+      >
+        <View
+          style={{
+            height: 108,
+            backgroundColor: game.accentColor,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Icon size={46} color="#FFFFFF" strokeWidth={1.5} />
+        </View>
+
+        <Pressable
+          onPress={onDismiss}
+          hitSlop={8}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            width: 30,
+            height: 30,
+            borderRadius: 15,
+            backgroundColor: 'rgba(10,10,15,0.35)',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          className="active:opacity-70"
+        >
+          <X size={16} color="#FFFFFF" strokeWidth={2.5} />
+        </Pressable>
+
+        <ScrollView contentContainerStyle={{ padding: 20 }} showsVerticalScrollIndicator={false}>
+          <Text
+            style={{
+              ...typography.label,
+              fontSize: 10,
+              letterSpacing: 3,
+              color: MUTED,
+              marginBottom: 4,
+            }}
+          >
+            Up next
+          </Text>
+          <Text style={{ fontWeight: '900', color: INK, fontSize: 22, letterSpacing: -0.5, marginBottom: 4 }}>
+            {game.title}
+          </Text>
+          <Text style={{ color: MUTED, fontSize: 13, marginBottom: 20 }}>
+            {game.tagline}
+          </Text>
+
+          <Text
+            style={{
+              ...typography.label,
+              fontSize: 11,
+              letterSpacing: 2,
+              color: INK,
+              marginBottom: 12,
+            }}
+          >
+            How to play
+          </Text>
+          <View style={{ gap: 12 }}>
+            {game.rules.map((rule, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 10 }}>
+                <Text style={{ color: AMBER, fontWeight: '900', fontSize: 13, width: 16 }}>
+                  {i + 1}
+                </Text>
+                <RuleText line={rule} />
+              </View>
+            ))}
+          </View>
+
+          {game.RulesIllustration && (
+            <View style={{ marginTop: 14 }}>
+              <game.RulesIllustration />
+            </View>
+          )}
+
+          {game.rulesNote && (
+            <View
+              style={{
+                borderWidth: 2,
+                borderColor: INK,
+                backgroundColor: AMBER,
+                paddingVertical: 10,
+                paddingHorizontal: 14,
+                marginTop: 14,
+              }}
+            >
+              <Text style={{ color: INK, fontSize: 13, fontWeight: '700', lineHeight: 18 }}>
+                {game.rulesNote}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+
+        <Pressable
+          onPress={onDismiss}
+          style={{ paddingVertical: 16, alignItems: 'center', borderTopWidth: 1.5, borderTopColor: HAIRLINE }}
+          className="active:opacity-70"
+        >
+          <Text style={{ color: MUTED }} className="text-xs font-bold tracking-[0.15em] uppercase">Close</Text>
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
+// Host Migration: sleek, self-dismissing banner — deliberately not a modal
+// like ChasersPopup. A promotion is good news that shouldn't block the
+// leaderboard someone just arrived to look at; it announces itself and gets
+// out of the way (auto-hides, or a tap dismisses it early).
+const PROMOTION_TOAST_DURATION_MS = 3200;
+
+function PromotionToast({ topInset, onDismiss }: { topInset: number; onDismiss: () => void }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, PROMOTION_TOAST_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+
+  return (
+    <Animated.View
+      entering={FadeInDown.duration(280).easing(Easing.out(Easing.cubic))}
+      exiting={FadeOutUp.duration(220)}
+      pointerEvents="box-none"
+      style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        paddingTop: topInset + 10,
+        alignItems: 'center',
+        zIndex: 60,
+      }}
+    >
+      <Pressable
+        onPress={onDismiss}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: INK,
+          borderWidth: 2,
+          borderColor: AMBER,
+          paddingVertical: 12,
+          paddingHorizontal: 16,
+          maxWidth: '86%',
+          shadowColor: INK,
+          shadowOpacity: 0.25,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+          elevation: 6,
+        }}
+        className="active:opacity-80"
+      >
+        <Crown size={18} color={AMBER} strokeWidth={2} />
+        <Text style={{ color: '#FFF', fontSize: 13, fontWeight: '700' }}>
+          You are now the Room Admin
+        </Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 export default function PodiumScreen() {
   const { code, allOutcomesJson } = useLocalSearchParams<{
     code: string;
@@ -301,13 +819,35 @@ export default function PodiumScreen() {
   }>();
 
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send, dissolved } = useRoomSocket(code);
+  const { snapshot, send, dissolved, dismissPromotion } = useRoomSocket(code);
 
   const outcomes: Record<string, PlayerOutcome> = (() => {
     try { return allOutcomesJson ? JSON.parse(allOutcomesJson) : {}; } catch { return {}; }
   })();
 
   const isAdmin = !!snapshot && snapshot.admin_id === playerId;
+
+  // Up Next preview — the deck's peeked (not popped) next game, shown to
+  // everyone in the header; only the admin gets the Skip control next to it.
+  const nextGame = snapshot?.nextGameId ? getGameById(snapshot.nextGameId) : undefined;
+  const [showNextGameModal, setShowNextGameModal] = useState(false);
+  function handleSkipGame() { send({ type: 'SKIP_GAME' }); }
+
+  // Host Migration: this is the only screen that ever renders the toast —
+  // useRoomSocket computes justPromoted per-mount, so it only fires here
+  // when the promotion itself happens while this screen is open (a
+  // mid-round promotion, e.g. an admin's disconnect, is never retroactively
+  // flagged once this screen mounts fresh — see justPromoted's own doc
+  // comment). Consuming it (dismissPromotion) immediately, rather than
+  // waiting for the toast's own auto-hide, means a second podium mount
+  // before the toast finishes its timer (e.g. a fast Next Round → End Night
+  // round-trip) won't show it twice.
+  const [showPromotionToast, setShowPromotionToast] = useState(false);
+  useEffect(() => {
+    if (!snapshot?.justPromoted) return;
+    setShowPromotionToast(true);
+    dismissPromotion();
+  }, [snapshot?.justPromoted, dismissPromotion]);
 
   // Chasers-owed popup — shown once automatically on arrival, and reopenable
   // any time via the small button in the header (see JSX below).
@@ -319,6 +859,28 @@ export default function PodiumScreen() {
       avatar: snapshot?.players[pid]?.avatar ?? null,
       chasers: o.chasers,
     }));
+
+  // Total Drinks: cumulative chasers across the whole night so far, sorted
+  // worst-first — the ChasersPopup's "TOTAL" tab.
+  const totalChaserRows: ChaserRow[] = Object.entries(snapshot?.players ?? {})
+    .map(([pid, p]) => ({
+      pid,
+      name: p.display_name,
+      avatar: p.avatar ?? null,
+      chasers: p.total_chasers ?? 0,
+    }))
+    .filter((row) => row.chasers > 0)
+    .sort((a, b) => b.chasers - a.chasers);
+
+  // Header icon-button sizing — the Up Next card below the row is given the
+  // same pixel width as this row so the two visually stack as one column
+  // (see the header JSX below). Fixed-size buttons (rather than the
+  // padding-derived sizing used elsewhere) make that width computable
+  // instead of needing an onLayout measurement round-trip.
+  const showChasersBtn = chasersRows.length > 0 || totalChaserRows.length > 0;
+  const ICON_BTN = 40;
+  const iconRowWidth = showChasersBtn ? ICON_BTN * 2 + 8 : ICON_BTN;
+
   // Let the podium's own reveal play out first — the before→after standings
   // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
   // the moment's payoff; popping the popup over them immediately steals that
@@ -423,6 +985,35 @@ export default function PodiumScreen() {
   function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
   function handleEndNight()  { send({ type: 'END_NIGHT' }); }
 
+  // Share Invite: available to every player here (not just admin) — anyone
+  // on the podium between rounds is a natural moment to pull in someone who
+  // couldn't make the start (see Late Join / waiting.tsx for what happens
+  // when they use it mid-round). Opens SharePopup rather than acting
+  // immediately — copy-vs-share-sheet is a real choice, not a single
+  // best-guess action.
+  const [showSharePopup, setShowSharePopup] = useState(false);
+
+  // Mid-Session Game Editing: the admin can adjust tonight's lineup from
+  // here too, not just the lobby — the server now allows SET_GAMES from
+  // PODIUM as well as LOBBY (see room_service.handle_set_games).
+  const [gamesSheetMode, setGamesSheetMode] = useState<'edit' | null>(null);
+  const connectedPlayerCount = Object.values(snapshot?.players ?? {}).filter(
+    (p) => p.connected !== false,
+  ).length;
+
+  // Same bulk-replace flow as lobby.tsx's commitGameIds/handleSetGames:
+  // always reorders to catalog order and never lets the list go empty (the
+  // server's own normalize_game_ids silently no-ops SET_GAMES on an empty
+  // list, so this guard keeps the UI truthful about what will actually apply).
+  function commitGameIds(next: string[]) {
+    const ordered = GAME_CATALOG.filter((g) => next.includes(g.id)).map((g) => g.id);
+    if (ordered.length === 0) return;
+    send({ type: 'SET_GAMES', game_ids: ordered });
+  }
+  function handleSetGames(ids: string[]) {
+    commitGameIds(Array.from(new Set(ids)));
+  }
+
   const insets = useSafeAreaInsets();
 
   return (
@@ -448,18 +1039,135 @@ export default function PodiumScreen() {
             </Text>
           </View>
 
-          {/* Reopens the "who's drinking" popup on demand — it also pops up
-              once automatically, but people arrive at this screen at
-              different times and may want to check it again later. */}
-          {chasersRows.length > 0 && (
-            <Pressable
-              onPress={() => setShowChasers(true)}
-              style={{ borderWidth: 1.5, borderColor: INK, padding: 8 }}
-              className="active:opacity-60"
-            >
-              <GlassWater size={18} color={INK} strokeWidth={2} />
-            </Pressable>
-          )}
+          <View style={{ alignItems: 'flex-end' }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {/* Opens the dual-option Share popup (copy code / native share
+                  sheet) — available to everyone, not just the admin, so
+                  anyone here can pull in a friend who missed the start. Same
+                  size/border weight as the chasers button beside it. Fixed
+                  width/height (rather than padding-derived sizing) so the Up
+                  Next card below can match this row's exact pixel width. */}
+              <Pressable
+                onPress={() => setShowSharePopup(true)}
+                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+                className="active:opacity-60"
+              >
+                <Share2 size={18} color={INK} strokeWidth={2} />
+              </Pressable>
+
+              {/* Reopens the "who's drinking" popup on demand — it also pops up
+                  once automatically, but people arrive at this screen at
+                  different times and may want to check it again later. Stays
+                  visible whenever either tab would have something to show —
+                  a round nobody lost this time shouldn't hide a night's worth
+                  of TOTAL standings. */}
+              {showChasersBtn && (
+                <Pressable
+                  onPress={() => setShowChasers(true)}
+                  style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+                  className="active:opacity-60"
+                >
+                  <GlassWater size={18} color={INK} strokeWidth={2} />
+                </Pressable>
+              )}
+            </View>
+
+            {/* Up Next preview — same width as the icon-button row above it,
+                fixed height regardless of whether nextGame has loaded yet or
+                which game it's showing (see UP_NEXT_CARD_HEIGHT's own
+                comment) so nothing below ever jumps. Tapping the card opens
+                the inline rules modal rather than routing away (would tear
+                down this screen's WS listener). The admin's Skip control is
+                its own clearly-labeled pill under the card, not a tiny
+                overlapping badge — it needs to read as a button, not a
+                decoration. */}
+            <View style={{ width: iconRowWidth, marginTop: 8 }}>
+              <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
+                {nextGame ? (
+                  <Pressable
+                    onPress={() => setShowNextGameModal(true)}
+                    style={{
+                      flex: 1,
+                      borderWidth: 1.5,
+                      borderColor: INK,
+                      backgroundColor: CARD,
+                      paddingVertical: 8,
+                      paddingHorizontal: 4,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                    className="active:opacity-70"
+                  >
+                    <View
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 12,
+                        backgroundColor: nextGame.accentColor,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginBottom: 4,
+                      }}
+                    >
+                      <nextGame.Icon size={14} color="#FFFFFF" strokeWidth={2} />
+                    </View>
+                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
+                      Up next
+                    </Text>
+                    <Text
+                      numberOfLines={2}
+                      style={{ color: INK, fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 1, lineHeight: 12 }}
+                    >
+                      {nextGame.title}
+                    </Text>
+                  </Pressable>
+                ) : (
+                  // Reserves the exact same footprint before the first
+                  // ROOM_STATE lands (or the deck momentarily returns
+                  // nothing) so this box's arrival never itself causes the
+                  // jump this whole fixed-height treatment exists to avoid.
+                  <View
+                    style={{
+                      flex: 1,
+                      borderWidth: 1.5,
+                      borderColor: HAIRLINE,
+                      backgroundColor: CARD,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
+                      Up next
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {isAdmin && (
+                <Pressable
+                  onPress={handleSkipGame}
+                  disabled={!nextGame}
+                  style={{
+                    height: UP_NEXT_SKIP_HEIGHT,
+                    marginTop: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 5,
+                    borderWidth: 1.5,
+                    borderColor: INK,
+                    backgroundColor: nextGame ? AMBER : HAIRLINE,
+                  }}
+                  className="active:opacity-70"
+                >
+                  <FastForward size={11} color={INK} strokeWidth={2.5} />
+                  <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
+                    Skip
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
         </Animated.View>
 
         {/* Podium — final standings, on screen from the start */}
@@ -620,11 +1328,34 @@ export default function PodiumScreen() {
           style={{ marginTop: 12, gap: 12 }}
         >
           {isAdmin ? (
-            <>
+            // One row, one clear hierarchy: Next Round is the only button
+            // that carries a label and fills the remaining width, so it's
+            // unmistakably the primary action and the biggest target on the
+            // row. Edit Games and End Night — a tweak and an exit, neither
+            // the "advance the room" action — sit beside it as plain
+            // outlined icon buttons, same square-icon-button language as
+            // the header's Share/Chasers/Skip controls, so nothing here
+            // competes with Next Round for attention.
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              <Pressable
+                onPress={() => setGamesSheetMode('edit')}
+                style={{
+                  width: ADMIN_ROW_ICON_BTN,
+                  height: ADMIN_ROW_ICON_BTN,
+                  borderWidth: 1.5,
+                  borderColor: HAIRLINE,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                className="active:opacity-60"
+              >
+                <Pencil size={18} color={MUTED} strokeWidth={2} />
+              </Pressable>
+
               <Pressable
                 onPress={handleNextRound}
-                style={{ backgroundColor: AMBER }}
-                className="py-5 items-center rounded-none active:opacity-80"
+                style={{ flex: 1, backgroundColor: AMBER, height: ADMIN_ROW_ICON_BTN }}
+                className="items-center justify-center rounded-none active:opacity-80"
               >
                 <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
                   Next Round
@@ -633,14 +1364,19 @@ export default function PodiumScreen() {
 
               <Pressable
                 onPress={handleEndNight}
-                style={{ borderWidth: 2, borderColor: INK }}
-                className="py-5 items-center rounded-none active:opacity-60"
+                style={{
+                  width: ADMIN_ROW_ICON_BTN,
+                  height: ADMIN_ROW_ICON_BTN,
+                  borderWidth: 2,
+                  borderColor: INK,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                className="active:opacity-60"
               >
-                <Text style={{ color: INK }} className="text-sm font-bold tracking-[0.18em] uppercase">
-                  End Night
-                </Text>
+                <LogOut size={18} color={INK} strokeWidth={2} />
               </Pressable>
-            </>
+            </View>
           ) : (
             <Text style={{ color: MUTED }} className="text-sm text-center">
               Waiting for host…
@@ -650,7 +1386,29 @@ export default function PodiumScreen() {
       </ScrollView>
 
       {showChasers && (
-        <ChasersPopup rows={chasersRows} onDismiss={() => setShowChasers(false)} />
+        <ChasersPopup rows={chasersRows} totalRows={totalChaserRows} onDismiss={() => setShowChasers(false)} />
+      )}
+
+      {showSharePopup && (
+        <SharePopup code={code ?? ''} onDismiss={() => setShowSharePopup(false)} />
+      )}
+
+      {showNextGameModal && nextGame && (
+        <NextGameRulesModal game={nextGame} onDismiss={() => setShowNextGameModal(false)} />
+      )}
+
+      {gamesSheetMode && (
+        <GamesSheet
+          mode={gamesSheetMode}
+          selectedIds={snapshot?.gameIds ?? []}
+          onSetSelected={handleSetGames}
+          onClose={() => setGamesSheetMode(null)}
+          playerCount={connectedPlayerCount}
+        />
+      )}
+
+      {showPromotionToast && (
+        <PromotionToast topInset={insets.top} onDismiss={() => setShowPromotionToast(false)} />
       )}
     </View>
   );

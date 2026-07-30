@@ -39,6 +39,8 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     await room_service.handle_admin_next(code, player_id)
                 case "END_NIGHT":
                     await room_service.handle_end_night(code, player_id)
+                case "SKIP_GAME":
+                    await room_service.handle_skip_game(code, player_id)
                 case "LEAVE_ROOM":
                     await room_service.handle_leave(code, player_id)
                 case "GAME_ACTION":

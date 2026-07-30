@@ -14,6 +14,25 @@ export interface Player {
    * AVATAR_IMAGES, server-assigned, unique per room, swappable by the
    * player themself. */
   avatar?: string | null;
+  /** False while the player's socket is dropped but they're still within
+   * the server's reconnection grace period — their seat, score, and avatar
+   * stay reserved. Absent/true means fully present. Only PLAYER_LEFT (after
+   * the grace period expires, or an explicit LEAVE_ROOM) removes them. */
+  connected?: boolean;
+  /** Server epoch-ms timestamp of the disconnect that produced the current
+   * `connected: false`, null once reconnected. */
+  disconnected_at?: number | null;
+  /** Late Join: true while this player joined mid-round (TUTORIAL or
+   * PLAYING) and hasn't been part of a round's own setup yet — the server
+   * excludes them from the game in progress and clears this once it ends.
+   * Drives whether *this* player's own client shows the Waiting Room
+   * instead of the live tutorial/board (see app/room/[code]/waiting.tsx). */
+  waiting_for_next_game?: boolean;
+  /** Total Drinks: cumulative chasers owed across every round played so
+   * far tonight, not just the most recent one — accumulated server-side in
+   * _enrich_scores_and_broadcast alongside score. Drives the "TOTAL" tab in
+   * the Who's Drinking popup on podium.tsx. */
+  total_chasers?: number;
 }
 
 export interface RoomSnapshot {
@@ -30,6 +49,21 @@ export interface RoomSnapshot {
    * changes summary.tsx's post-round destination from the podium back to the
    * rules screen this room was started from. */
   isPractice: boolean;
+  /** Host Migration: true once this hook instance has observed *this*
+   * player's own admin_id newly become theirs (a promotion, not just being
+   * the room's original creator) and nothing has dismissed it yet — see
+   * dismissPromotion(). Detected locally per mount (see previousAdminId in
+   * useRoomSocket); a promotion that happens while this player is on a
+   * different screen (a different mount) won't retroactively flag here —
+   * only podium.tsx renders a toast for it, so that's the one screen where
+   * it matters, and it's simplest to compute directly from what a single
+   * mount has itself observed rather than tracking it across screens. */
+  justPromoted?: boolean;
+  /** Up Next preview (podium.tsx): the game id the deck will hand out next,
+   * peeked (not popped) server-side so it can be shown before the round
+   * that draws it actually starts. Null once the deck itself is empty (no
+   * games selected). */
+  nextGameId?: string | null;
 }
 
 export interface PlayerOutcome {
@@ -82,6 +116,9 @@ export interface UseRoomSocket {
    * that might never come (see summary.tsx) call this as a self-heal.
    */
   reconnect: () => void;
+  /** Acknowledges a shown Host Migration promotion toast so `justPromoted`
+   * doesn't re-fire on the next screen. See `justPromoted` on RoomSnapshot. */
+  dismissPromotion: () => void;
 }
 
 const RECONNECT_DELAY_MS = 1500;
@@ -108,6 +145,13 @@ export function useRoomSocket(code: string): UseRoomSocket {
   // without waiting for a React re-render (avoids a setSnapshot race).
   const outcomesRef = useRef<Record<string, PlayerOutcome>>({});
   const [dissolved, setDissolved] = useState(false);
+  // Host Migration: last admin_id this hook instance has itself observed —
+  // null until the first ROOM_STATE lands, then compared on every
+  // subsequent one to detect *this* player being newly promoted. Local to
+  // this mount (not module scope) — a promotion that happens while this
+  // player is on a different screen won't be back-filled here when a later
+  // screen mounts fresh; only podium.tsx renders the toast, so that's fine.
+  const previousAdminId = useRef<string | null>(null);
 
   // Keep stable refs to identity so the connect function always uses latest values
   const playerIdRef = useRef(playerId);
@@ -150,7 +194,19 @@ export function useRoomSocket(code: string): UseRoomSocket {
         const msg = JSON.parse(event.data);
 
         switch (msg.type) {
-          case 'ROOM_STATE':
+          case 'ROOM_STATE': {
+            // Host Migration: flag a promotion only when this hook instance
+            // has already seen a *different* admin_id before (so the very
+            // first ROOM_STATE this mount ever receives — the room
+            // creator's own initial snapshot, or simply arriving on a
+            // screen where the promotion already happened earlier — never
+            // flags a promotion) and the new one is this player's own id.
+            const justPromoted =
+              !!previousAdminId.current &&
+              previousAdminId.current !== playerIdRef.current &&
+              msg.admin_id === playerIdRef.current;
+            previousAdminId.current = msg.admin_id ?? null;
+
             setSnapshot({
               state: msg.state,
               admin_id: msg.admin_id,
@@ -169,8 +225,11 @@ export function useRoomSocket(code: string): UseRoomSocket {
               ...(msg.tutorial_type
                 ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
                 : {}),
+              justPromoted,
+              nextGameId: msg.next_game_id ?? null,
             });
             break;
+          }
 
           case 'GAME_IDS_UPDATED':
             setSnapshot((prev) =>
@@ -191,11 +250,35 @@ export function useRoomSocket(code: string): UseRoomSocket {
                         clock_offset: msg.clock_offset ?? 0,
                         vibe: msg.vibe ?? null,
                         avatar: msg.avatar ?? null,
+                        connected: true,
+                        disconnected_at: null,
+                        waiting_for_next_game: msg.waiting_for_next_game ?? false,
+                        total_chasers: msg.total_chasers ?? 0,
                       },
                     },
                   }
                 : prev,
             );
+            break;
+
+          // Soft departure: the player's socket dropped but the server is
+          // holding their seat/score/avatar for a grace period in case they
+          // reconnect. Unlike PLAYER_LEFT, they stay in the roster.
+          case 'PLAYER_DISCONNECTED':
+            setSnapshot((prev) => {
+              if (!prev || !prev.players[msg.player_id]) return prev;
+              return {
+                ...prev,
+                players: {
+                  ...prev.players,
+                  [msg.player_id]: {
+                    ...prev.players[msg.player_id],
+                    connected: false,
+                    disconnected_at: Date.now(),
+                  },
+                },
+              };
+            });
             break;
 
           case 'PLAYER_AVATAR_CHANGED':
@@ -246,8 +329,19 @@ export function useRoomSocket(code: string): UseRoomSocket {
                     ...(msg.tutorial_type
                       ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
                       : {}),
+                    // Only the PODIUM transition carries this — see
+                    // room_service's handle_goto_podium / _summary_timeout.
+                    ...(msg.next_game_id !== undefined ? { nextGameId: msg.next_game_id } : {}),
                   }
                 : prev,
+            );
+            break;
+
+          // Up Next preview: admin skipped the queued game — server already
+          // burned it (deck.pop_next_game) and peeked the new one.
+          case 'NEXT_GAME_UPDATED':
+            setSnapshot((prev) =>
+              prev ? { ...prev, nextGameId: msg.next_game_id ?? null } : prev,
             );
             break;
         }
@@ -306,5 +400,9 @@ export function useRoomSocket(code: string): UseRoomSocket {
     connectRef.current();
   }, []);
 
-  return { snapshot, isConnected, send, outcomesRef, dissolved, reconnect };
+  const dismissPromotion = useCallback(() => {
+    setSnapshot((prev) => (prev ? { ...prev, justPromoted: false } : prev));
+  }, []);
+
+  return { snapshot, isConnected, send, outcomesRef, dissolved, reconnect, dismissPromotion };
 }

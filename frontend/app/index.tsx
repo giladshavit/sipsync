@@ -67,10 +67,9 @@ export default function HomeScreen() {
         setError('Room not found.');
         return;
       }
-      if (data.state !== 'LOBBY') {
-        setError('Game already in progress.');
-        return;
-      }
+      // Late Join: a round already in progress no longer blocks joining —
+      // lobby.tsx reads the first ROOM_STATE snapshot and routes a mid-round
+      // arrival to the Waiting Room instead of the live board/tutorial.
       router.push(`/room/${code}/lobby`);
     } catch {
       setError('Could not reach server. Check your connection.');

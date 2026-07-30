@@ -14,6 +14,7 @@ import pytest
 import app.engine.fsm as fsm_module
 import app.engine.room_service as rs_module
 from app.engine.base import BaseMiniGame
+from app.engine.deck import deck as deck_singleton
 from app.engine.fsm import RoomState
 
 
@@ -113,6 +114,11 @@ def patch_redis_and_broadcast(monkeypatch):
     r = fakeredis.FakeAsyncRedis(decode_responses=True)
     monkeypatch.setattr(rs_module, "redis", r)
     monkeypatch.setattr(fsm_module, "redis", r)
+    # Up Next preview: handle_goto_podium / _summary_timeout now peek the
+    # deck via the module-level `deck` singleton, which binds its own real
+    # Redis client independent of rs_module's — same reasoning as
+    # test_avatar.py/test_late_join.py's own patch of it.
+    monkeypatch.setattr(deck_singleton, "_redis", r)
 
     captured: list[dict] = []
 

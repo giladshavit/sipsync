@@ -8,6 +8,7 @@ from fastapi import WebSocket
 
 from app.engine import bot_engine, fsm
 from app.engine.deck import deck
+from app.engine.eligibility import count_active_players, resolve_effective_games
 from app.engine.fsm import RoomState
 from app.engine.avatar_pool import AVATAR_POOL, pick_avatar
 from app.engine.game_loader import GAME_REGISTRY, load_game
@@ -15,6 +16,26 @@ from app.models.room import normalize_game_ids
 from app.redis_client import redis
 
 _bot_rng = random.Random()
+
+
+def _select_new_admin(players_raw: dict[str, str]) -> str:
+    """Host Migration: random new admin when the current one permanently
+    departs (explicit LEAVE_ROOM or their own disconnect-grace-period
+    expiry — see _finalize_departure, called from both). Prefers currently
+    ACTIVE (connected, and not a Late Join still waiting_for_next_game)
+    players — a player who is themselves mid-grace-period isn't actually
+    present to do anything host-only, and a late joiner on the Waiting Room
+    screen has no admin-gated controls to reach either, so handing either
+    of them the room would just orphan it a second time. Falls back in
+    tiers (connected-and-not-waiting -> connected -> anyone) so the room
+    still has *a* admin_id even in a room made up entirely of
+    disconnected/waiting players, rather than being left with none."""
+    parsed = {pid: json.loads(raw) for pid, raw in players_raw.items()}
+    connected_ids = [pid for pid, p in parsed.items() if p.get("connected", True)]
+    fully_active_ids = [
+        pid for pid in connected_ids if not parsed[pid].get("waiting_for_next_game")
+    ]
+    return random.choice(fully_active_ids or connected_ids or list(players_raw.keys()))
 
 
 def _round_fingerprint(state: dict) -> tuple:
@@ -48,6 +69,21 @@ def _round_fingerprint(state: dict) -> tuple:
 # before slower games' clients ever get there.
 _SUMMARY_SAFETY_NET_MS = 25_000
 
+# Session Resilience: how long a disconnected player's seat, score, and
+# avatar stay reserved before they're permanently removed. Covers brief
+# network blips / app backgrounding without a client having to rejoin from
+# scratch — see handle_disconnect / _disconnect_grace_timeout.
+_DISCONNECT_GRACE_MS = 60_000
+
+# Host Migration: how long a disconnected admin gets before someone else is
+# handed the room — deliberately far shorter than _DISCONNECT_GRACE_MS, but
+# generous enough to absorb both an ordinary screen-transition reconnect
+# (every round transition closes and reopens each client's own socket,
+# including the admin's) and a brief mobile-network blip, so a micro-drop
+# doesn't trigger an unwarranted, jarring admin handoff. See
+# _admin_migration_timeout, spawned from handle_disconnect.
+_ADMIN_MIGRATION_GRACE_MS = 10_000
+
 
 class RoomService:
     def __init__(self) -> None:
@@ -66,6 +102,56 @@ class RoomService:
 
     async def _set_game_state(self, code: str, state: dict) -> None:
         await redis.set(f"room:{code}:game", json.dumps(state))
+
+    async def _build_room_state_payload(self, code: str, admin_id: str | None) -> dict:
+        """Canonical full ROOM_STATE payload — the frontend's ROOM_STATE
+        handler does a wholesale snapshot replace, not a merge, so every
+        field the client depends on (active_game, practice, tutorial_type/
+        tutorial_asset when mid-TUTORIAL) must be present on *every*
+        ROOM_STATE this server ever sends, not just the handshake's own.
+        Originally only handle_handshake built this; Host Migration's
+        re-broadcast (_broadcast_new_admin_snapshot) grew its own
+        independent, narrower payload that silently dropped active_game —
+        breaking the round for every other client the instant an admin
+        migration landed mid-game. Centralizing it here is what actually
+        prevents that class of bug recurring, not just this one instance of
+        it."""
+        state = await redis.hget(f"room:{code}", "state")
+        active_game_id = await redis.hget(f"room:{code}", "active_game")
+        players_raw = await redis.hgetall(f"room:{code}:players")
+        players = {pid: json.loads(d) for pid, d in players_raw.items()}
+        game_ids = await deck.get_game_ids(code)
+        practice = await redis.hget(f"room:{code}", "practice") == "1"
+
+        # Reconnecting (or, for Host Migration, simply being re-synced)
+        # mid-TUTORIAL needs the tutorial identity too — the FSM_TRANSITION
+        # broadcast that normally carries it is long gone by the time a
+        # later ROOM_STATE goes out, so without this the client can only
+        # render a generic placeholder.
+        tutorial_fields: dict = {}
+        if state == RoomState.TUTORIAL:
+            game_cls = GAME_REGISTRY.get(active_game_id) if active_game_id else None
+            if game_cls:
+                tutorial_fields = {
+                    "tutorial_type": game_cls.tutorial_type,
+                    "tutorial_asset": game_cls.tutorial_asset,
+                }
+
+        return {
+            "type": "ROOM_STATE",
+            "state": state,
+            "admin_id": admin_id,
+            "players": players,
+            "game_ids": game_ids,
+            "practice": practice,
+            "active_game": active_game_id,
+            # Up Next preview (podium.tsx): present on every ROOM_STATE, not
+            # just while actually on PODIUM — cheap to compute and other
+            # screens simply ignore it, same reasoning as the other fields
+            # on this canonical payload (see this method's own docstring).
+            "next_game_id": await deck.peek_next_game(code),
+            **tutorial_fields,
+        }
 
     async def _pubsub_listener(self, code: str) -> None:
         """Forward Redis pub/sub messages to all locally connected clients in
@@ -137,8 +223,26 @@ class RoomService:
             delta = outcome.get("score_delta", 0)
             new_score = int(player_data.get("score", 0)) + delta
             player_data["score"] = new_score
+            # Total Drinks: cumulative chasers owed across the whole night,
+            # separate from any single round's outcome — the "TOTAL" tab in
+            # the Who's Drinking popup reads this directly off the player
+            # record rather than replaying every round's outcomes.
+            new_total_chasers = int(player_data.get("total_chasers", 0)) + outcome.get("chasers", 0)
+            player_data["total_chasers"] = new_total_chasers
             await redis.hset(f"room:{code}:players", pid, json.dumps(player_data))
             enriched[pid] = {**outcome, "total_score": new_score}
+
+        # Late Join: anyone who joined mid-round was excluded from this
+        # round's players_list (see handle_tutorial_done), so never appears
+        # in `outcomes` above — they've now waited out the round they
+        # missed, so clear the flag here rather than leaving them stuck
+        # waiting through every subsequent round too.
+        for pid, player_data in players.items():
+            if pid in outcomes or not player_data.get("waiting_for_next_game"):
+                continue
+            player_data["waiting_for_next_game"] = False
+            await redis.hset(f"room:{code}:players", pid, json.dumps(player_data))
+
         await self.broadcast(code, {"type": "OUTCOMES", "outcomes": enriched})
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
@@ -192,6 +296,7 @@ class RoomService:
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
             "new_state": RoomState.PODIUM.value,
+            "next_game_id": await deck.peek_next_game(code),
         })
 
     async def _game_timeout(self, code: str, timeout_at: int) -> None:
@@ -313,6 +418,36 @@ class RoomService:
         elif bot_engine.needs_reschedule_on_action(game_id):
             await self._maybe_schedule_bot_actions(code, game_id, new_state)
 
+    async def _sync_eligible_games(self, code: str, active_player_count: int) -> None:
+        """Keeps the room's *effective* game_ids (the deck.py list actually
+        used to shuffle/pop rounds, and what every client's GamesSheet reads
+        as "selected") in step with the admin's real intent as the room's
+        active headcount changes.
+
+        The admin's actual choice is tracked separately in
+        room:{code}:admin_game_ids, untouched by this method — that's what
+        lets a game pruned out here because the room shrank come back on its
+        own once enough players return, instead of the admin having to
+        reselect it by hand. Triggered from handle_handshake (a join can
+        grow the room back past a floor) and _finalize_departure (a
+        permanent leave/grace-period expiry can shrink it below one).
+        handle_set_games writes admin_game_ids itself and recomputes the
+        effective list inline rather than calling this, since an explicit
+        admin edit should always reshuffle/broadcast even when the effective
+        set happens not to change — see that method."""
+        admin_ids = await redis.lrange(f"room:{code}:admin_game_ids", 0, -1)
+        if not admin_ids:
+            return  # room hasn't had its games set yet
+
+        current_ids = await deck.get_game_ids(code)
+        new_ids = resolve_effective_games(admin_ids, active_player_count, fallback=admin_ids)
+
+        if new_ids == current_ids:
+            return  # no actual change — don't reshuffle the deck or broadcast for nothing
+
+        await deck.initialize(code, new_ids)
+        await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
+
     # ── Public handle_* interface ─────────────────────────────────────────────
 
     async def handle_handshake(
@@ -332,19 +467,46 @@ class RoomService:
         # players handshaking at once must never both land on the same
         # still-free avatar.
         async with self._room_lock(code):
+            state = await redis.hget(f"room:{code}", "state")
             existing_raw = await redis.hget(f"room:{code}:players", player_id)
             existing = json.loads(existing_raw) if existing_raw else {}
+            is_new_player = existing_raw is None
+
+            players_raw = await redis.hgetall(f"room:{code}:players")
+            used = {
+                json.loads(d).get("avatar")
+                for pid, d in players_raw.items()
+                if pid != player_id
+            }
+            used.discard(None)
 
             avatar = existing.get("avatar")
-            if avatar is None:
-                players_raw = await redis.hgetall(f"room:{code}:players")
-                used = {
-                    json.loads(d).get("avatar")
-                    for pid, d in players_raw.items()
-                    if pid != player_id
-                }
-                used.discard(None)
+            # Avatar Conflict Guard: normally a disconnected player's record
+            # (and its avatar) stays reserved for the whole grace period, so
+            # `avatar in used` shouldn't happen — but if it does (e.g. their
+            # slot was already reaped and a new player claimed the id before
+            # this reconnect landed), fall back to a fresh available avatar
+            # instead of colliding with whoever has it now.
+            if avatar is None or avatar in used:
                 avatar = pick_avatar(used, preferred_avatar)
+
+            # Late Join: a brand-new player_id connecting while a round is
+            # already underway (TUTORIAL or PLAYING) can't retroactively be
+            # part of it — its initial state was already computed from
+            # whoever was present at the time (see handle_tutorial_done's
+            # own exclusion of waiting_for_next_game players). They're added
+            # to the roster immediately at 0 score like any new player, just
+            # flagged so their own client shows a Waiting Room instead of a
+            # live tutorial/board it has no data for them in. An existing
+            # player's own reconnect must never re-derive this from the
+            # *current* state (they might be reconnecting mid-round as a
+            # full participant) — it only ever carries forward whatever this
+            # player's record already had, cleared once the round they
+            # missed actually ends (_enrich_scores_and_broadcast).
+            if is_new_player:
+                waiting_for_next_game = state in (RoomState.TUTORIAL, RoomState.PLAYING)
+            else:
+                waiting_for_next_game = existing.get("waiting_for_next_game", False)
 
             await redis.hset(
                 f"room:{code}:players",
@@ -355,6 +517,13 @@ class RoomService:
                     "clock_offset": clock_offset,
                     "vibe": vibe if vibe is not None else existing.get("vibe"),
                     "avatar": avatar,
+                    "connected": True,
+                    "disconnected_at": None,
+                    "waiting_for_next_game": waiting_for_next_game,
+                    # Total Drinks: this write replaces the whole player
+                    # record, so anything not carried forward here from
+                    # `existing` is silently lost on every reconnect.
+                    "total_chasers": existing.get("total_chasers", 0),
                 }),
             )
 
@@ -364,27 +533,17 @@ class RoomService:
             self._subscriptions.add(code)
             asyncio.create_task(self._pubsub_listener(code))
 
-        state = await redis.hget(f"room:{code}", "state")
+        # Minimum Players: a join can bring the room back up to a game's
+        # floor (e.g. auction dropping out earlier because the room shrank).
+        # Run before building the snapshot below so this client's own first
+        # ROOM_STATE already reflects the corrected list, instead of a flash
+        # of the stale one followed by a GAME_IDS_UPDATED broadcast a moment
+        # later.
+        active_count = await count_active_players(redis, code)
+        if active_count is not None:
+            await self._sync_eligible_games(code, active_count)
+
         admin_id = await redis.hget(f"room:{code}", "admin_id")
-        active_game_id = await redis.hget(f"room:{code}", "active_game")
-        players_raw = await redis.hgetall(f"room:{code}:players")
-        players = {pid: json.loads(d) for pid, d in players_raw.items()}
-
-        # Reconnecting mid-TUTORIAL (e.g. a client that missed the PODIUM
-        # round entirely and is catching up) needs the tutorial identity too —
-        # the FSM_TRANSITION broadcast that carried it is long gone, and
-        # without it the client can only render a generic placeholder.
-        tutorial_fields: dict = {}
-        if state == RoomState.TUTORIAL:
-            game_cls = GAME_REGISTRY.get(active_game_id) if active_game_id else None
-            if game_cls:
-                tutorial_fields = {
-                    "tutorial_type": game_cls.tutorial_type,
-                    "tutorial_asset": game_cls.tutorial_asset,
-                }
-
-        game_ids = await deck.get_game_ids(code)
-        practice = await redis.hget(f"room:{code}", "practice") == "1"
 
         # Send full snapshot directly — before pub/sub listener can race.
         # active_game is included whenever set (not just mid-round) so a
@@ -392,20 +551,13 @@ class RoomService:
         # opening its own fresh socket) still knows which game was just
         # played — practice mode needs this to route back to that game's
         # rules screen instead of the podium.
-        await websocket.send_text(json.dumps({
-            "type": "ROOM_STATE",
-            "state": state,
-            "admin_id": admin_id,
-            "players": players,
-            "game_ids": game_ids,
-            "practice": practice,
-            "active_game": active_game_id,
-            **tutorial_fields,
-        }))
+        payload = await self._build_room_state_payload(code, admin_id)
+        await websocket.send_text(json.dumps(payload))
 
         # If a game is already running, send its current state so
         # late-joining or reconnecting clients don't miss the broadcast
-        if state == RoomState.PLAYING:
+        if payload["state"] == RoomState.PLAYING:
+            active_game_id = payload["active_game"]
             current_game_state = await self._get_game_state(code)
             if active_game_id and current_game_state:
                 await websocket.send_text(json.dumps({
@@ -426,6 +578,17 @@ class RoomService:
             "clock_offset": rejoined.get("clock_offset", 0),
             "vibe": rejoined.get("vibe"),
             "avatar": rejoined.get("avatar"),
+            # Always true here — this event fires for both brand-new joins and
+            # reconnects (see the comment above handle_disconnect); it's what
+            # flips a client's local "disconnected" flag back off.
+            "connected": True,
+            # Late Join: lets other clients' own rosters reflect a new
+            # arrival's waiting status too, not just the joiner's own screen
+            # (which decides its routing from the ROOM_STATE snapshot).
+            "waiting_for_next_game": rejoined.get("waiting_for_next_game", False),
+            # Total Drinks: reconnecting must not reset the "TOTAL" tab's
+            # tally for this player on every other client's popup.
+            "total_chasers": rejoined.get("total_chasers", 0),
         })
 
         return player_id
@@ -439,20 +602,47 @@ class RoomService:
     async def handle_set_games(
         self, code: str, player_id: str | None, game_ids: list[str]
     ) -> None:
-        """Admin-only, lobby-only: replace the room's game selection and
-        reshuffle the deck from it. Broadcasts the new selection so every
-        player's lobby screen updates, not just the admin's."""
+        """Admin-only: replace the room's game selection and reshuffle the
+        deck from it. Broadcasts the new selection so every player's screen
+        updates, not just the admin's. Allowed from LOBBY (before the night
+        starts) and from PODIUM (Mid-Session Game Editing — the admin can
+        adjust the lineup between rounds without restarting the room).
+
+        Minimum Players: `normalized` is persisted verbatim as the admin's
+        real intent (room:{code}:admin_game_ids) — untouched by player-count
+        changes — so _sync_eligible_games can restore a game that's later
+        auto-pruned once the room grows back past its floor. What's actually
+        pushed into the deck and broadcast is the *effective* subset playable
+        at the room's current headcount right now (falling back to the full
+        `normalized` list if every one of the admin's picks needs more
+        players than are present, rather than ever collapsing to empty).
+        Deliberately always reshuffles/broadcasts on this explicit admin
+        action, even on the rare edit where the effective set doesn't
+        actually change — unlike _sync_eligible_games's own no-op-if-
+        unchanged guard, which exists only to keep automatic join/leave syncs
+        from spamming reshuffles."""
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if player_id != admin_id:
             return
-        if await redis.hget(f"room:{code}", "state") != RoomState.LOBBY:
+        if await redis.hget(f"room:{code}", "state") not in (RoomState.LOBBY, RoomState.PODIUM):
             return
         try:
             normalized = normalize_game_ids(game_ids)
         except ValueError:
             return
-        await deck.initialize(code, normalized)
-        await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": normalized})
+
+        await redis.delete(f"room:{code}:admin_game_ids")
+        await redis.rpush(f"room:{code}:admin_game_ids", *normalized)
+
+        active_count = await count_active_players(redis, code)
+        effective = (
+            normalized
+            if active_count is None
+            else resolve_effective_games(normalized, active_count, fallback=normalized)
+        )
+
+        await deck.initialize(code, effective)
+        await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": effective})
 
     async def handle_set_avatar(self, code: str, player_id: str | None, avatar: str) -> None:
         """Self-service: any player may change their own room avatar, as long
@@ -507,10 +697,18 @@ class RoomService:
         asked_key = f"room:{code}:asked_questions"
         asked_questions = await redis.smembers(asked_key)
 
-        players_list = [
-            {"player_id": pid, "asked_questions": asked_questions, **json.loads(d)}
-            for pid, d in players_raw.items()
-        ]
+        # Late Join: exclude anyone still waiting_for_next_game — they
+        # joined mid-TUTORIAL (after this round's game was already picked)
+        # or mid-PLAYING and were flagged in handle_handshake precisely so
+        # they're never part of a round's initial state computed without
+        # them. They become eligible starting the round after this one,
+        # once _enrich_scores_and_broadcast clears the flag at round end.
+        players_list = []
+        for pid, d in players_raw.items():
+            parsed = json.loads(d)
+            if parsed.get("waiting_for_next_game"):
+                continue
+            players_list.append({"player_id": pid, "asked_questions": asked_questions, **parsed})
         initial_state = game.get_initial_state(players_list)
 
         if await redis.hget(f"room:{code}", "practice") == "1":
@@ -580,6 +778,7 @@ class RoomService:
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
             "new_state": RoomState.PODIUM.value,
+            "next_game_id": await deck.peek_next_game(code),
         })
 
     async def handle_admin_next(self, code: str, player_id: str | None) -> None:
@@ -597,9 +796,27 @@ class RoomService:
             f"room:{code}:players",
             f"room:{code}:deck",
             f"room:{code}:game_ids",
+            f"room:{code}:admin_game_ids",
             f"room:{code}:game",
         )
         await self.broadcast(code, {"type": "ROOM_DISSOLVED"})
+
+    async def handle_skip_game(self, code: str, player_id: str | None) -> None:
+        """Admin-only, PODIUM-only: burns the currently-queued Up Next game
+        (deck.pop_next_game) and broadcasts whichever game is now up next, so
+        every client's preview card updates without a full ROOM_STATE
+        round-trip."""
+        admin_id = await redis.hget(f"room:{code}", "admin_id")
+        if player_id != admin_id:
+            return
+        if await redis.hget(f"room:{code}", "state") != RoomState.PODIUM:
+            return
+        await deck.pop_next_game(code)
+        new_next_game_id = await deck.peek_next_game(code)
+        await self.broadcast(code, {
+            "type": "NEXT_GAME_UPDATED",
+            "next_game_id": new_next_game_id,
+        })
 
     async def handle_game_action(
         self, code: str, player_id: str | None, payload: dict
@@ -608,22 +825,62 @@ class RoomService:
             return
         await self._handle_game_action(code, player_id, payload)
 
-    async def handle_leave(self, code: str, player_id: str | None) -> None:
-        """
-        Explicit, permanent departure (lobby back button) — unlike a transient
-        disconnect, the player's record is deleted. If the host leaves, hosting
-        passes to a random remaining player; if the room empties, it dissolves.
-        """
-        if player_id is None:
-            return
+    async def _broadcast_new_admin_snapshot(self, code: str, new_admin_id: str) -> None:
+        """Full ROOM_STATE so every client picks up the new host in one
+        message. Shared by both immediate Host Migration (the admin's own
+        socket drops — see handle_disconnect, which can't afford to wait out
+        the full disconnect grace period since admin-gated actions would
+        freeze the room the whole time) and the eventual permanent-departure
+        reassignment (_finalize_departure, explicit LEAVE_ROOM or grace
+        period expiry). Caller must have already persisted `admin_id` in
+        Redis.
 
-        await redis.hdel(f"room:{code}:players", player_id)
-        self._connections.get(code, {}).pop(player_id, None)
+        Uses the same _build_room_state_payload as handle_handshake — the
+        frontend replaces its entire snapshot wholesale on ROOM_STATE, not a
+        merge, so a narrower ad-hoc payload here would silently blank out
+        whatever fields it left out (active_game, practice, tutorial_*) for
+        every other connected client the instant this lands.
+        """
+        payload = await self._build_room_state_payload(code, new_admin_id)
+        await self.broadcast(code, payload)
 
+        # ROOM_STATE never carries live round data (gameState) — only a
+        # companion GAME_STATE message does, and unlike the fields above,
+        # the frontend's snapshot replace can't "forget" gameState from a
+        # payload that never had a chance to include it in the first place.
+        # Re-broadcasting it here, mirroring the same pairing handle_handshake
+        # sends a reconnecting client directly, is what keeps every other
+        # client's live round intact across a migration landing mid-game
+        # instead of everyone falling back to a blank "no active game" state.
+        if payload["state"] == RoomState.PLAYING:
+            active_game_id = payload["active_game"]
+            current_game_state = await self._get_game_state(code)
+            if active_game_id and current_game_state:
+                await self.broadcast(code, {
+                    "type": "GAME_STATE",
+                    "game_id": active_game_id,
+                    "state": current_game_state,
+                })
+
+    async def _finalize_departure(self, code: str, player_id: str) -> None:
+        """Broadcasts a departing player's permanent removal and, if they were
+        admin, reassigns host (or dissolves an emptied room). Caller must have
+        already deleted the player's Redis record. Shared by explicit
+        LEAVE_ROOM and disconnect-grace-period expiry — the two paths that
+        actually remove a player, as opposed to just marking them
+        disconnected."""
         await self.broadcast(code, {
             "type": "PLAYER_LEFT",
             "player_id": player_id,
         })
+
+        # Minimum Players: a permanent departure can shrink the room below a
+        # game's floor (e.g. auction/flying_bomb dropping out). Caller has
+        # already deleted this player's Redis record, so the fresh count
+        # here already excludes them.
+        active_count = await count_active_players(redis, code)
+        if active_count:
+            await self._sync_eligible_games(code, active_count)
 
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if admin_id != player_id:
@@ -637,42 +894,179 @@ class RoomService:
                 f"room:{code}:players",
                 f"room:{code}:deck",
                 f"room:{code}:game_ids",
+                f"room:{code}:admin_game_ids",
                 f"room:{code}:game",
             )
             return
 
-        new_admin = random.choice(list(players_raw.keys()))
+        new_admin = _select_new_admin(players_raw)
         await redis.hset(f"room:{code}", "admin_id", new_admin)
+        await self._broadcast_new_admin_snapshot(code, new_admin)
 
-        # Full snapshot so every client picks up the new host in one message
-        state = await redis.hget(f"room:{code}", "state")
-        players = {pid: json.loads(d) for pid, d in players_raw.items()}
-        game_ids = await deck.get_game_ids(code)
-        await self.broadcast(code, {
-            "type": "ROOM_STATE",
-            "state": state,
-            "admin_id": new_admin,
-            "players": players,
-            "game_ids": game_ids,
-        })
+    async def handle_leave(self, code: str, player_id: str | None) -> None:
+        """
+        Explicit, permanent departure (lobby back button) — unlike a transient
+        disconnect, the player's record is deleted immediately, no grace
+        period. If the host leaves, hosting passes to a random remaining
+        player; if the room empties, it dissolves.
+        """
+        if player_id is None:
+            return
+
+        async with self._room_lock(code):
+            await redis.hdel(f"room:{code}:players", player_id)
+            self._connections.get(code, {}).pop(player_id, None)
+
+        await self._finalize_departure(code, player_id)
 
     async def handle_disconnect(
         self, code: str, player_id: str, websocket: WebSocket
     ) -> None:
+        """
+        Session Resilience: a dropped socket does NOT remove the player. Their
+        record (score, avatar, accumulated drinks) is kept and just marked
+        DISCONNECTED with a timestamp; handle_handshake restores them to
+        ACTIVE if they reconnect within _DISCONNECT_GRACE_MS. Only
+        _disconnect_grace_timeout, once the grace period actually elapses
+        without a reconnect, performs the permanent removal.
+
+        Host Migration is the one exception to "just wait out the grace
+        period": nearly every room-progressing action (ADMIN_START,
+        TUTORIAL_DONE, SET_GAMES, NEXT_ROUND, ...) is admin-gated, so a
+        disconnected admin would freeze the room for the full 60s — or
+        longer, since a bad connection often won't reconnect within it
+        either. If the disconnecting player is the admin, a new one is
+        picked after _ADMIN_MIGRATION_GRACE_MS (see
+        _admin_migration_timeout), not the full 60s. Their own player
+        record (score, avatar) is unaffected either way and still gets the
+        normal grace period like any other player — only `admin_id` moves.
+        """
         room_conns = self._connections.get(code, {})
-        # Only remove this websocket if it is still the registered connection for
-        # this player. Screen transitions (router.replace) mount the new screen
-        # before unmounting the old one, so the new screen's HANDSHAKE may have
-        # already replaced this entry in _connections. Removing it blindly would
-        # sever the new connection and drop all subsequent broadcasts.
-        if room_conns.get(player_id) is websocket:
-            room_conns.pop(player_id, None)
-            # Only announce departure when we actually removed the connection;
-            # the new screen's PLAYER_JOINED already covers the screen-transition case.
-            await self.broadcast(code, {
-                "type": "PLAYER_LEFT",
-                "player_id": player_id,
-            })
+        # Only act on this websocket if it is still the registered connection
+        # for this player. Screen transitions (router.replace) mount the new
+        # screen before unmounting the old one, so the new screen's HANDSHAKE
+        # may have already replaced this entry in _connections. Treating that
+        # race as a real disconnect would mark a still-present player
+        # DISCONNECTED right after their own reconnect set them ACTIVE.
+        if room_conns.get(player_id) is not websocket:
+            return
+        room_conns.pop(player_id, None)
+
+        disconnected_at = int(time.time() * 1000)
+        was_admin = False
+        async with self._room_lock(code):
+            raw = await redis.hget(f"room:{code}:players", player_id)
+            if raw is None:
+                return
+            player = json.loads(raw)
+            player["connected"] = False
+            player["disconnected_at"] = disconnected_at
+            await redis.hset(f"room:{code}:players", player_id, json.dumps(player))
+            was_admin = await redis.hget(f"room:{code}", "admin_id") == player_id
+
+        await self.broadcast(code, {
+            "type": "PLAYER_DISCONNECTED",
+            "player_id": player_id,
+            "grace_period_ms": _DISCONNECT_GRACE_MS,
+        })
+
+        # Full 60s removal timer regardless of admin status — untouched by
+        # the admin-migration timeout below, which only ever concerns *who
+        # holds admin_id*, never whether/when this player's own record gets
+        # permanently deleted.
+        asyncio.create_task(
+            self._disconnect_grace_timeout(code, player_id, disconnected_at)
+        )
+
+        if was_admin:
+            asyncio.create_task(
+                self._admin_migration_timeout(code, player_id, disconnected_at)
+            )
+
+    async def _admin_migration_timeout(
+        self, code: str, player_id: str, disconnected_at: int
+    ) -> None:
+        """Host Migration: hands the room to someone else once a
+        disconnected admin has been gone for _ADMIN_MIGRATION_GRACE_MS —
+        far short of the full _DISCONNECT_GRACE_MS (so the room doesn't
+        freeze on every admin-gated action for a minute), but comfortably
+        longer than an ordinary reconnect round trip or a mobile micro-drop
+        (so those don't trigger an unwarranted handoff either).
+
+        The identity check in handle_disconnect filters out a screen
+        transition ONLY when the new screen's HANDSHAKE happens to register
+        before the old socket's close reaches the server — in practice the
+        old socket's close is usually the faster of the two (no network
+        round trip needed), so that ordering can't be relied on alone. This
+        timeout, and its staleness re-check below, is what actually
+        distinguishes "mid screen-transition (or a brief network blip)" from
+        "really gone" — mirrors the same sleep-then-recheck idiom as
+        _disconnect_grace_timeout.
+        """
+        delay_s = max(
+            0.0,
+            (disconnected_at + _ADMIN_MIGRATION_GRACE_MS - int(time.time() * 1000)) / 1000,
+        )
+        await asyncio.sleep(delay_s)
+
+        async with self._room_lock(code):
+            room_exists = await redis.exists(f"room:{code}")
+            raw = await redis.hget(f"room:{code}:players", player_id)
+            if not room_exists or raw is None:
+                return  # room dissolved or player already permanently removed
+            player = json.loads(raw)
+            if player.get("connected", True):
+                return  # reconnected within the grace period
+            if player.get("disconnected_at") != disconnected_at:
+                return  # they reconnected and dropped again — a newer timer owns this
+            if await redis.hget(f"room:{code}", "admin_id") != player_id:
+                return  # no longer admin for some other reason
+
+            players_raw = await redis.hgetall(f"room:{code}:players")
+            candidates = {
+                pid: raw for pid, raw in players_raw.items() if pid != player_id
+            }
+            if not candidates:
+                return  # no one left to hand off to
+
+            new_admin = _select_new_admin(candidates)
+            await redis.hset(f"room:{code}", "admin_id", new_admin)
+
+        # _broadcast_new_admin_snapshot builds the payload from
+        # _build_room_state_payload — the same canonical snapshot handshake
+        # uses, so active_game (and practice/tutorial_*) is always included,
+        # never the narrower ad-hoc payload that used to blank other
+        # clients' "no active game" state on a mid-round migration.
+        await self._broadcast_new_admin_snapshot(code, new_admin)
+
+    async def _disconnect_grace_timeout(
+        self, code: str, player_id: str, disconnected_at: int
+    ) -> None:
+        """Permanently removes a player once _DISCONNECT_GRACE_MS has elapsed
+        since they disconnected, unless they've since reconnected (`connected`
+        flipped back to True by handle_handshake) or disconnected again more
+        recently (a newer task owns that `disconnected_at` and will do the
+        removal instead — mirrors the staleness-recheck pattern used by
+        _summary_timeout/_game_timeout)."""
+        delay_s = max(
+            0.0,
+            (disconnected_at + _DISCONNECT_GRACE_MS - int(time.time() * 1000)) / 1000,
+        )
+        await asyncio.sleep(delay_s)
+
+        async with self._room_lock(code):
+            raw = await redis.hget(f"room:{code}:players", player_id)
+            if raw is None:
+                return  # already removed (e.g. explicit LEAVE_ROOM)
+            player = json.loads(raw)
+            if player.get("connected", True):
+                return  # reconnected within the grace period
+            if player.get("disconnected_at") != disconnected_at:
+                return  # superseded by a more recent disconnect's own timer
+            await redis.hdel(f"room:{code}:players", player_id)
+            self._connections.get(code, {}).pop(player_id, None)
+
+        await self._finalize_departure(code, player_id)
 
 
 room_service = RoomService()
