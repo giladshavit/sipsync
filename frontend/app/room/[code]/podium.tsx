@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, ScrollView, TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Award, Check, Copy, Crown, DoorOpen, FastForward, GlassWater, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
+import { Award, Check, Copy, Crown, DoorOpen, FastForward, GlassWater, ListOrdered, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeInDown,
@@ -882,18 +882,6 @@ export default function PodiumScreen() {
     .filter((row) => row.chasers > 0)
     .sort((a, b) => b.chasers - a.chasers);
 
-  // Header icon-button sizing — the Up Next card below the row is given the
-  // same pixel width as this row so the two visually stack as one column
-  // (see the header JSX below). Fixed-size buttons (rather than the
-  // padding-derived sizing used elsewhere) make that width computable
-  // instead of needing an onLayout measurement round-trip.
-  const showChasersBtn = chasersRows.length > 0 || totalChaserRows.length > 0;
-  const ICON_BTN = 40;
-  // Share + Leave always render; Chasers joins them whenever there's
-  // something to show — one more button than before now that Leave Room
-  // lives in this row too.
-  const headerIconCount = showChasersBtn ? 3 : 2;
-  const iconRowWidth = headerIconCount * ICON_BTN + (headerIconCount - 1) * 8;
 
   // Let the podium's own reveal play out first — the before→after standings
   // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
@@ -1038,6 +1026,7 @@ export default function PodiumScreen() {
   }
 
   const insets = useSafeAreaInsets();
+  const HEADER_ICON_BTN = 40;
 
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
@@ -1045,166 +1034,138 @@ export default function PodiumScreen() {
         contentContainerStyle={{ paddingHorizontal: 24, paddingTop: insets.top + 16, paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
+        {/* Header — three equal-width flex columns so the centered title
+            stays geometrically centered regardless of the left column
+            holding 1 button and the right column holding 2. */}
         <Animated.View
           entering={FadeInDown.duration(400)}
-          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}
+          style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 16 }}
         >
-          <View>
-            <Text style={{ color: AMBER, ...typography.label, fontSize: 11, letterSpacing: 4, textTransform: 'uppercase', marginBottom: 6 }}>
+          <View style={{ flex: 1, alignItems: 'flex-start' }}>
+            <Pressable
+              onPress={() => setConfirmingLeave(true)}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
+              className="active:opacity-60"
+            >
+              <DoorOpen size={18} color={STOP} strokeWidth={2} />
+            </Pressable>
+          </View>
+
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ color: MUTED, ...typography.label, fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 }}>
               Round results
             </Text>
-            <Text style={{ fontWeight: '200', color: INK, fontSize: 44, lineHeight: 48, letterSpacing: -2 }}>
-              Leader
-            </Text>
-            <Text style={{ fontWeight: '900', color: AMBER, fontSize: 44, lineHeight: 48, letterSpacing: -2 }}>
-              board
+            <Text style={{ color: AMBER, ...typography.title, fontSize: 22, letterSpacing: 3 }}>
+              Podium
             </Text>
           </View>
 
-          <View style={{ alignItems: 'flex-end' }}>
+          <View style={{ flex: 1, alignItems: 'flex-end' }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {/* Opens the dual-option Share popup (copy code / native share
-                  sheet) — available to everyone, not just the admin, so
-                  anyone here can pull in a friend who missed the start. Same
-                  size/border weight as the chasers button beside it. Fixed
-                  width/height (rather than padding-derived sizing) so the Up
-                  Next card below can match this row's exact pixel width. */}
               <Pressable
                 onPress={() => setShowSharePopup(true)}
-                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+                style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
                 className="active:opacity-60"
               >
                 <Share2 size={18} color={INK} strokeWidth={2} />
               </Pressable>
 
-              {/* Reopens the "who's drinking" popup on demand — it also pops up
-                  once automatically, but people arrive at this screen at
-                  different times and may want to check it again later. Stays
-                  visible whenever either tab would have something to show —
-                  a round nobody lost this time shouldn't hide a night's worth
-                  of TOTAL standings. */}
-              {showChasersBtn && (
-                <Pressable
-                  onPress={() => setShowChasers(true)}
-                  style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
-                  className="active:opacity-60"
-                >
-                  <GlassWater size={18} color={INK} strokeWidth={2} />
-                </Pressable>
-              )}
-
-              {/* Leave Room — personal, permanent departure, available to
-                  every player here (unlike End Night further down, which is
-                  admin-only and ends the whole session). Stop-colored,
-                  distinct from the neutral Share/Chasers buttons beside it,
-                  so it doesn't read as just another utility action. */}
+              {/* Stats — always visible (the Scoreboard tab always has
+                  content, unlike the old conditional Chasers button). */}
               <Pressable
-                onPress={() => setConfirmingLeave(true)}
-                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
+                onPress={() => setShowChasers(true)}
+                style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
                 className="active:opacity-60"
               >
-                <DoorOpen size={18} color={STOP} strokeWidth={2} />
+                <ListOrdered size={18} color={INK} strokeWidth={2} />
               </Pressable>
-            </View>
-
-            {/* Up Next preview — same width as the icon-button row above it,
-                fixed height regardless of whether nextGame has loaded yet or
-                which game it's showing (see UP_NEXT_CARD_HEIGHT's own
-                comment) so nothing below ever jumps. Tapping the card opens
-                the inline rules modal rather than routing away (would tear
-                down this screen's WS listener). The admin's Skip control is
-                its own clearly-labeled pill under the card, not a tiny
-                overlapping badge — it needs to read as a button, not a
-                decoration. */}
-            <View style={{ width: iconRowWidth, marginTop: 8 }}>
-              <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
-                {nextGame ? (
-                  <Pressable
-                    onPress={() => setShowNextGameModal(true)}
-                    style={{
-                      flex: 1,
-                      borderWidth: 1.5,
-                      borderColor: INK,
-                      backgroundColor: CARD,
-                      paddingVertical: 8,
-                      paddingHorizontal: 4,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                    className="active:opacity-70"
-                  >
-                    <View
-                      style={{
-                        width: 24,
-                        height: 24,
-                        borderRadius: 12,
-                        backgroundColor: nextGame.accentColor,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 4,
-                      }}
-                    >
-                      <nextGame.Icon size={14} color="#FFFFFF" strokeWidth={2} />
-                    </View>
-                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
-                      Up next
-                    </Text>
-                    <Text
-                      numberOfLines={2}
-                      style={{ color: INK, fontSize: 10, fontWeight: '800', textAlign: 'center', marginTop: 1, lineHeight: 12 }}
-                    >
-                      {nextGame.title}
-                    </Text>
-                  </Pressable>
-                ) : (
-                  // Reserves the exact same footprint before the first
-                  // ROOM_STATE lands (or the deck momentarily returns
-                  // nothing) so this box's arrival never itself causes the
-                  // jump this whole fixed-height treatment exists to avoid.
-                  <View
-                    style={{
-                      flex: 1,
-                      borderWidth: 1.5,
-                      borderColor: HAIRLINE,
-                      backgroundColor: CARD,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Text style={{ ...typography.label, fontSize: 7, letterSpacing: 1, color: MUTED }}>
-                      Up next
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {isAdmin && (
-                <Pressable
-                  onPress={handleSkipGame}
-                  disabled={!nextGame}
-                  style={{
-                    height: UP_NEXT_SKIP_HEIGHT,
-                    marginTop: 6,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 5,
-                    borderWidth: 1.5,
-                    borderColor: INK,
-                    backgroundColor: nextGame ? AMBER : HAIRLINE,
-                  }}
-                  className="active:opacity-70"
-                >
-                  <FastForward size={11} color={INK} strokeWidth={2.5} />
-                  <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
-                    Skip
-                  </Text>
-                </Pressable>
-              )}
             </View>
           </View>
         </Animated.View>
+
+        {/* Up Next — full-width strip, no longer coupled to the header
+            icon row's width. Reserves its footprint before nextGameId
+            arrives so nothing below jumps once it does. */}
+        <View style={{ marginBottom: 20 }}>
+          <View style={{ height: UP_NEXT_CARD_HEIGHT }}>
+            {nextGame ? (
+              <Pressable
+                onPress={() => setShowNextGameModal(true)}
+                style={{
+                  flex: 1,
+                  flexDirection: 'row',
+                  borderWidth: 1.5,
+                  borderColor: INK,
+                  backgroundColor: CARD,
+                  paddingHorizontal: 14,
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+                className="active:opacity-70"
+              >
+                <View
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    backgroundColor: nextGame.accentColor,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <nextGame.Icon size={18} color="#FFFFFF" strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+                    Up next
+                  </Text>
+                  <Text numberOfLines={1} style={{ color: INK, fontSize: 14, fontWeight: '800' }}>
+                    {nextGame.title}
+                  </Text>
+                </View>
+              </Pressable>
+            ) : (
+              <View
+                style={{
+                  flex: 1,
+                  borderWidth: 1.5,
+                  borderColor: HAIRLINE,
+                  backgroundColor: CARD,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+                  Up next
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {isAdmin && (
+            <Pressable
+              onPress={handleSkipGame}
+              disabled={!nextGame}
+              style={{
+                height: UP_NEXT_SKIP_HEIGHT,
+                marginTop: 6,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 5,
+                borderWidth: 1.5,
+                borderColor: INK,
+                backgroundColor: nextGame ? AMBER : HAIRLINE,
+              }}
+              className="active:opacity-70"
+            >
+              <FastForward size={11} color={INK} strokeWidth={2.5} />
+              <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
+                Skip
+              </Text>
+            </Pressable>
+          )}
+        </View>
 
         {/* Podium — final standings, on screen from the start */}
         {podium.length > 0 && (
