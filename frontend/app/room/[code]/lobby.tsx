@@ -72,6 +72,13 @@ export default function LobbyScreen() {
     // an existing participant reconnecting here rather than on the screen
     // they left) — route straight to where that state actually lives
     // instead of leaving them stuck on the lobby roster.
+    if (snapshot.state === 'CUSTOM_QUESTION_INPUT') {
+      router.replace({
+        pathname: '/room/[code]/custom-question',
+        params: { code, writerId: snapshot.writerId ?? '' },
+      });
+      return;
+    }
     if (snapshot.state === 'PLAYING') {
       router.replace({ pathname: '/room/[code]/game', params: { code } });
       return;
@@ -79,7 +86,7 @@ export default function LobbyScreen() {
     if (snapshot.state === 'PERSONAL_SUMMARY' || snapshot.state === 'PODIUM') {
       router.replace({ pathname: '/room/[code]/podium', params: { code } });
     }
-  }, [snapshot?.state, myPlayer?.waiting_for_next_game, code]);
+  }, [snapshot?.state, snapshot?.writerId, myPlayer?.waiting_for_next_game, code]);
 
   async function handleCopy() {
     await Clipboard.setStringAsync(code ?? '');

@@ -31,6 +31,14 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                     )
                 case "TUTORIAL_DONE":
                     await room_service.handle_tutorial_done(code, player_id)
+                case "START_CUSTOM_QUESTION":
+                    await room_service.handle_start_custom_question(
+                        code, player_id, msg.get("writer_id", "")
+                    )
+                case "SUBMIT_CUSTOM_QUESTION":
+                    await room_service.handle_submit_custom_question(
+                        code, player_id, msg.get("question_data", {})
+                    )
                 case "NEXT_ROUND":
                     await room_service.handle_next_round(code, player_id)
                 case "GOTO_PODIUM":

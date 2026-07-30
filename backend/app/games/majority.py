@@ -62,14 +62,27 @@ class MajorityGame(BaseMiniGame):
     tutorial_asset = "tutorial.majority"
     mode = "FLOW"
 
-    def get_initial_state(self, players: list[dict[str, Any]]) -> dict[str, Any]:
+    def get_initial_state(
+        self,
+        players: list[dict[str, Any]],
+        custom_question: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
         now_ms = int(time.time() * 1000)
         turn_deadline_at = now_ms + _VOTE_MS
 
-        asked: set[str] = players[0].get("asked_questions", set()) if players else set()
-        available = [q for q in MAJORITY_QUESTIONS if q["question"] not in asked]
-        reset_cycle = not available
-        prompt = _rng.choice(available or MAJORITY_QUESTIONS)
+        # Custom Question: room_service.handle_submit_custom_question passes
+        # the admin-picked writer's own prompt here instead of drawing from
+        # the shared deck pool — it never touches `asked_questions` or the
+        # no-repeat cycle below, since a one-off custom prompt was never part
+        # of that pool to begin with.
+        if custom_question is not None:
+            prompt = custom_question
+            reset_cycle = False
+        else:
+            asked: set[str] = players[0].get("asked_questions", set()) if players else set()
+            available = [q for q in MAJORITY_QUESTIONS if q["question"] not in asked]
+            reset_cycle = not available
+            prompt = _rng.choice(available or MAJORITY_QUESTIONS)
 
         return {
             "status": "PLAYING",

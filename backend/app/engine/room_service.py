@@ -137,6 +137,16 @@ class RoomService:
                     "tutorial_asset": game_cls.tutorial_asset,
                 }
 
+        # Custom Question: reconnecting (or being re-synced) mid-input needs
+        # to know who's writing, same reasoning as tutorial_fields above — the
+        # FSM_TRANSITION broadcast that normally carries writer_id is long
+        # gone by the time a later ROOM_STATE goes out.
+        custom_question_fields: dict = {}
+        if state == RoomState.CUSTOM_QUESTION_INPUT:
+            custom_question_fields = {
+                "writer_id": await redis.hget(f"room:{code}", "custom_question_writer_id"),
+            }
+
         return {
             "type": "ROOM_STATE",
             "state": state,
@@ -151,6 +161,7 @@ class RoomService:
             # on this canonical payload (see this method's own docstring).
             "next_game_id": await deck.peek_next_game(code),
             **tutorial_fields,
+            **custom_question_fields,
         }
 
     async def _pubsub_listener(self, code: str) -> None:
@@ -755,6 +766,111 @@ class RoomService:
                 asyncio.create_task(
                     self._run_bot_action(code, delay_ms, bot_id, bot_payload, fingerprint)
                 )
+
+    # Custom Question games (majority/minority only) — admin-gated pair that
+    # lets the room write its own prompt instead of drawing one from the deck
+    # pool. See RoomState.CUSTOM_QUESTION_INPUT.
+    _CUSTOM_QUESTION_GAME_IDS = ("majority", "minority")
+
+    async def handle_start_custom_question(
+        self, code: str, player_id: str | None, writer_id: str
+    ) -> None:
+        """Admin-only, TUTORIAL-only: instead of handle_tutorial_done's
+        random draw from the deck pool, hands one connected player the pen.
+        Transitions to CUSTOM_QUESTION_INPUT and broadcasts who's writing so
+        every other client can render its own waiting screen naming them."""
+        admin_id = await redis.hget(f"room:{code}", "admin_id")
+        if player_id != admin_id:
+            return
+        if await redis.hget(f"room:{code}", "state") != RoomState.TUTORIAL:
+            return
+
+        game_id = await redis.hget(f"room:{code}", "active_game")
+        if game_id not in self._CUSTOM_QUESTION_GAME_IDS:
+            return
+
+        writer_raw = await redis.hget(f"room:{code}:players", writer_id)
+        if writer_raw is None:
+            return
+        writer_record = json.loads(writer_raw)
+        # Late Join: a player still waiting_for_next_game is excluded from
+        # this round's own players_list (see handle_submit_custom_question)
+        # and has no route to the writer's input screen — picking them would
+        # strand the room in CUSTOM_QUESTION_INPUT with no one able to submit.
+        if not writer_record.get("connected", True) or writer_record.get("waiting_for_next_game"):
+            return
+
+        try:
+            await fsm.transition(code, RoomState.CUSTOM_QUESTION_INPUT)
+        except ValueError:
+            return
+
+        await redis.hset(f"room:{code}", "custom_question_writer_id", writer_id)
+        await self.broadcast(code, {
+            "type": "FSM_TRANSITION",
+            "new_state": RoomState.CUSTOM_QUESTION_INPUT.value,
+            "writer_id": writer_id,
+        })
+
+    async def handle_submit_custom_question(
+        self, code: str, player_id: str | None, question_data: dict
+    ) -> None:
+        """Writer-only, CUSTOM_QUESTION_INPUT-only: seeds the round from the
+        submitted question/options — via MajorityGame.get_initial_state's
+        `custom_question` param — instead of a random deck draw, then
+        proceeds exactly like handle_tutorial_done from there (same FSM
+        target, same GAME_STATE broadcast, same timeout scheduling)."""
+        if player_id is None:
+            return
+        if await redis.hget(f"room:{code}", "state") != RoomState.CUSTOM_QUESTION_INPUT:
+            return
+        writer_id = await redis.hget(f"room:{code}", "custom_question_writer_id")
+        if player_id != writer_id:
+            return
+
+        question = str(question_data.get("question", "")).strip()
+        option_a = str(question_data.get("option_a", "")).strip()
+        option_b = str(question_data.get("option_b", "")).strip()
+        if not question or not option_a or not option_b:
+            return
+
+        game_id = await redis.hget(f"room:{code}", "active_game")
+        if game_id not in self._CUSTOM_QUESTION_GAME_IDS:
+            return
+        game = load_game(game_id)
+
+        players_raw = await redis.hgetall(f"room:{code}:players")
+        players_list = [
+            {"player_id": pid, **json.loads(d)}
+            for pid, d in players_raw.items()
+            if not json.loads(d).get("waiting_for_next_game")
+        ]
+        initial_state = game.get_initial_state(
+            players_list,
+            custom_question={"question": question, "option_a": option_a, "option_b": option_b},
+        )
+
+        await self._set_game_state(code, initial_state)
+        await redis.hdel(f"room:{code}", "custom_question_writer_id")
+
+        try:
+            await fsm.transition(code, RoomState.PLAYING)
+        except ValueError:
+            return
+
+        await self.broadcast(code, {
+            "type": "FSM_TRANSITION",
+            "new_state": RoomState.PLAYING.value,
+        })
+        await self.broadcast(code, {
+            "type": "GAME_STATE",
+            "game_id": game_id,
+            "state": initial_state,
+        })
+
+        timeout_at: int | None = initial_state.get("timeout_at")
+        if timeout_at:
+            asyncio.create_task(self._game_timeout(code, timeout_at))
 
     async def handle_next_round(self, code: str, player_id: str | None) -> None:
         admin_id = await redis.hget(f"room:{code}", "admin_id")

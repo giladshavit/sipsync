@@ -64,6 +64,10 @@ export interface RoomSnapshot {
    * that draws it actually starts. Null once the deck itself is empty (no
    * games selected). */
   nextGameId?: string | null;
+  /** Custom Question (majority/minority only): the player_id currently
+   * writing the room's own question, present whenever `state` is
+   * 'CUSTOM_QUESTION_INPUT' — see app/room/[code]/custom-question.tsx. */
+  writerId?: string | null;
 }
 
 export interface PlayerOutcome {
@@ -225,6 +229,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
               ...(msg.tutorial_type
                 ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
                 : {}),
+              ...(msg.writer_id !== undefined ? { writerId: msg.writer_id } : {}),
               justPromoted,
               nextGameId: msg.next_game_id ?? null,
             });
@@ -329,6 +334,9 @@ export function useRoomSocket(code: string): UseRoomSocket {
                     ...(msg.tutorial_type
                       ? { tutorialType: msg.tutorial_type, tutorialAsset: msg.tutorial_asset }
                       : {}),
+                    // Only handle_start_custom_question's transition into
+                    // CUSTOM_QUESTION_INPUT carries this.
+                    ...(msg.writer_id !== undefined ? { writerId: msg.writer_id } : {}),
                     // Only the PODIUM transition carries this — see
                     // room_service's handle_goto_podium / _summary_timeout.
                     ...(msg.next_game_id !== undefined ? { nextGameId: msg.next_game_id } : {}),
