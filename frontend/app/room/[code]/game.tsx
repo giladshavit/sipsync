@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { usePracticeExit } from '@/hooks/usePracticeExit';
+import { PracticeExitButton } from '@/components/PracticeExitButton';
 import { ActiveGameScreen, getEndHoldMs, TIE_END_HOLD_MS } from '@/components/ActiveGameScreen';
 
 // Generous grace window between this client seeing its own round resolve
@@ -21,6 +23,7 @@ export default function GameScreen() {
   const { snapshot, send, outcomesRef, reconnect } = useRoomSocket(code);
   const insets = useSafeAreaInsets();
   const [showContinue, setShowContinue] = useState(false);
+  const exitPractice = usePracticeExit(send, snapshot?.activeGameId);
 
   // Our clock offset is stored server-side and echoed back in ROOM_STATE players
   const clockOffset =
@@ -77,6 +80,7 @@ export default function GameScreen() {
 
   return (
     <View className="flex-1">
+      {snapshot?.isPractice && <PracticeExitButton onPress={exitPractice} />}
       <ActiveGameScreen
         gameId={snapshot?.activeGameId ?? null}
         gameState={snapshot?.gameState}
