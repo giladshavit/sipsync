@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, ScrollView, TextStyle } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { Award, Check, Copy, Crown, FastForward, GlassWater, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
+import { Award, Check, Copy, Crown, DoorOpen, FastForward, GlassWater, LogOut, Pencil, Share2, Skull, X } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, {
   FadeInDown,
@@ -827,6 +827,16 @@ export default function PodiumScreen() {
 
   const isAdmin = !!snapshot && snapshot.admin_id === playerId;
 
+  // Leave Room: personal, permanent departure — available to every player
+  // here, not just the admin (see handleEndNight for the admin-only "end
+  // the whole night" action, a distinct control further down). Same
+  // confirmation overlay pattern as lobby.tsx's own confirmingLeave.
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  function handleLeave() {
+    send({ type: 'LEAVE_ROOM' });
+    router.replace('/');
+  }
+
   // Up Next preview — the deck's peeked (not popped) next game, shown to
   // everyone in the header; only the admin gets the Skip control next to it.
   const nextGame = snapshot?.nextGameId ? getGameById(snapshot.nextGameId) : undefined;
@@ -879,7 +889,11 @@ export default function PodiumScreen() {
   // instead of needing an onLayout measurement round-trip.
   const showChasersBtn = chasersRows.length > 0 || totalChaserRows.length > 0;
   const ICON_BTN = 40;
-  const iconRowWidth = showChasersBtn ? ICON_BTN * 2 + 8 : ICON_BTN;
+  // Share + Leave always render; Chasers joins them whenever there's
+  // something to show — one more button than before now that Leave Room
+  // lives in this row too.
+  const headerIconCount = showChasersBtn ? 3 : 2;
+  const iconRowWidth = headerIconCount * ICON_BTN + (headerIconCount - 1) * 8;
 
   // Let the podium's own reveal play out first — the before→after standings
   // swap and the score count-up (REVEAL_DELAY_MS + SCORE_ROLL_MS ≈ 2.8s) are
@@ -985,6 +999,15 @@ export default function PodiumScreen() {
   function handleNextRound() { send({ type: 'NEXT_ROUND' }); }
   function handleEndNight()  { send({ type: 'END_NIGHT' }); }
 
+  // End Night is destructive for the whole room (dissolves it for every
+  // player, not just this one admin — unlike Leave Room above), so it gets
+  // its own confirmation gate rather than firing straight off the icon tap.
+  const [confirmingEndNight, setConfirmingEndNight] = useState(false);
+  function confirmEndNight() {
+    setConfirmingEndNight(false);
+    handleEndNight();
+  }
+
   // Share Invite: available to every player here (not just admin) — anyone
   // on the podium between rounds is a natural moment to pull in someone who
   // couldn't make the start (see Late Join / waiting.tsx for what happens
@@ -1070,6 +1093,19 @@ export default function PodiumScreen() {
                   <GlassWater size={18} color={INK} strokeWidth={2} />
                 </Pressable>
               )}
+
+              {/* Leave Room — personal, permanent departure, available to
+                  every player here (unlike End Night further down, which is
+                  admin-only and ends the whole session). Stop-colored,
+                  distinct from the neutral Share/Chasers buttons beside it,
+                  so it doesn't read as just another utility action. */}
+              <Pressable
+                onPress={() => setConfirmingLeave(true)}
+                style={{ width: ICON_BTN, height: ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
+                className="active:opacity-60"
+              >
+                <DoorOpen size={18} color={STOP} strokeWidth={2} />
+              </Pressable>
             </View>
 
             {/* Up Next preview — same width as the icon-button row above it,
@@ -1363,7 +1399,7 @@ export default function PodiumScreen() {
               </Pressable>
 
               <Pressable
-                onPress={handleEndNight}
+                onPress={() => setConfirmingEndNight(true)}
                 style={{
                   width: ADMIN_ROW_ICON_BTN,
                   height: ADMIN_ROW_ICON_BTN,
@@ -1409,6 +1445,115 @@ export default function PodiumScreen() {
 
       {showPromotionToast && (
         <PromotionToast topInset={insets.top} onDismiss={() => setShowPromotionToast(false)} />
+      )}
+
+      {/* Leave confirmation overlay — same layout/copy as lobby.tsx's own
+          confirmingLeave overlay, just wired to this screen's local colors. */}
+      {confirmingLeave && (
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          style={{
+            position: 'absolute',
+            top: 0, bottom: 0, left: 0, right: 0,
+            backgroundColor: 'rgba(10,10,15,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          }}
+        >
+          <View
+            style={{
+              alignSelf: 'stretch',
+              backgroundColor: BG,
+              borderWidth: 2,
+              borderColor: INK,
+              padding: 24,
+            }}
+          >
+            <Text style={{ fontWeight: '900', color: INK, fontSize: 24, letterSpacing: -0.5, marginBottom: 8 }}>
+              Leave the room?
+            </Text>
+            <Text style={{ color: MUTED, fontSize: 14, lineHeight: 20, marginBottom: 20 }}>
+              {isAdmin
+                ? 'Hosting passes to a random player. You can rejoin with the code.'
+                : 'You can rejoin anytime with the code.'}
+            </Text>
+
+            <View style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => setConfirmingLeave(false)}
+                className="bg-amber py-4 items-center rounded-none active:opacity-80"
+              >
+                <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
+                  Stay
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleLeave}
+                style={{ borderWidth: 2, borderColor: STOP }}
+                className="py-4 items-center rounded-none active:opacity-60"
+              >
+                <Text style={{ color: STOP }} className="text-sm font-bold tracking-[0.18em] uppercase">
+                  Leave room
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      )}
+
+      {/* End Night confirmation overlay — same visual language as the Leave
+          overlay above, but for the admin-only action that dissolves the
+          room for every player, not just this one device. */}
+      {confirmingEndNight && (
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          style={{
+            position: 'absolute',
+            top: 0, bottom: 0, left: 0, right: 0,
+            backgroundColor: 'rgba(10,10,15,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingHorizontal: 32,
+          }}
+        >
+          <View
+            style={{
+              alignSelf: 'stretch',
+              backgroundColor: BG,
+              borderWidth: 2,
+              borderColor: INK,
+              padding: 24,
+            }}
+          >
+            <Text style={{ fontWeight: '900', color: INK, fontSize: 24, letterSpacing: -0.5, marginBottom: 8 }}>
+              End the night?
+            </Text>
+            <Text style={{ color: MUTED, fontSize: 14, lineHeight: 20, marginBottom: 20 }}>
+              This closes the room for everyone — no one will be able to rejoin.
+            </Text>
+
+            <View style={{ gap: 10 }}>
+              <Pressable
+                onPress={() => setConfirmingEndNight(false)}
+                className="bg-amber py-4 items-center rounded-none active:opacity-80"
+              >
+                <Text className="text-ink text-sm font-bold tracking-[0.18em] uppercase">
+                  Keep playing
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmEndNight}
+                style={{ borderWidth: 2, borderColor: STOP }}
+                className="py-4 items-center rounded-none active:opacity-60"
+              >
+                <Text style={{ color: STOP }} className="text-sm font-bold tracking-[0.18em] uppercase">
+                  End night
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
       )}
     </View>
   );
