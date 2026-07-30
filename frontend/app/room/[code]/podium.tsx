@@ -1122,7 +1122,7 @@ export default function PodiumScreen() {
         <View style={{ flex: 1, alignItems: 'flex-start' }}>
           <Pressable
             onPress={() => setConfirmingLeave(true)}
-            style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, alignItems: 'center', justifyContent: 'center' }}
+            style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: STOP, backgroundColor: 'rgba(220,38,38,0.10)', alignItems: 'center', justifyContent: 'center' }}
             className="active:opacity-60"
           >
             <DoorOpen size={18} color={STOP} strokeWidth={2} />
@@ -1142,7 +1142,7 @@ export default function PodiumScreen() {
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable
               onPress={() => setShowSharePopup(true)}
-              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, backgroundColor: 'rgba(245,158,11,0.12)', alignItems: 'center', justifyContent: 'center' }}
               className="active:opacity-60"
             >
               <Share2 size={18} color={INK} strokeWidth={2} />
@@ -1152,7 +1152,7 @@ export default function PodiumScreen() {
                 content, unlike the old conditional Chasers button). */}
             <Pressable
               onPress={() => { setStatsInitialTab('scoreboard'); setShowStats(true); }}
-              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: HEADER_ICON_BTN, height: HEADER_ICON_BTN, borderWidth: 1.5, borderColor: INK, backgroundColor: 'rgba(245,158,11,0.12)', alignItems: 'center', justifyContent: 'center' }}
               className="active:opacity-60"
             >
               <ListOrdered size={18} color={INK} strokeWidth={2} />
@@ -1174,9 +1174,10 @@ export default function PodiumScreen() {
                 flexDirection: 'row',
                 borderWidth: 1.5,
                 borderColor: INK,
-                backgroundColor: CARD,
+                backgroundColor: nextGame.accentColor,
                 paddingHorizontal: 14,
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: 10,
               }}
               className="active:opacity-70"
@@ -1186,18 +1187,18 @@ export default function PodiumScreen() {
                   width: 32,
                   height: 32,
                   borderRadius: 16,
-                  backgroundColor: nextGame.accentColor,
+                  backgroundColor: 'rgba(255,255,255,0.22)',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
                 <nextGame.Icon size={18} color="#FFFFFF" strokeWidth={2} />
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: MUTED }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ ...typography.label, fontSize: 9, letterSpacing: 1.5, color: 'rgba(255,255,255,0.8)' }}>
                   Up next
                 </Text>
-                <Text numberOfLines={1} style={{ color: INK, fontSize: 14, fontWeight: '800' }}>
+                <Text numberOfLines={1} style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>
                   {nextGame.title}
                 </Text>
               </View>
@@ -1239,7 +1240,7 @@ export default function PodiumScreen() {
           >
             <FastForward size={11} color={INK} strokeWidth={2.5} />
             <Text style={{ color: INK, fontSize: 9, fontWeight: '800', letterSpacing: 1 }} className="uppercase">
-              Skip
+              Skip this game
             </Text>
           </Pressable>
         )}
@@ -1273,21 +1274,8 @@ export default function PodiumScreen() {
         )}
 
         {podium.length > 0 && (
-          <View style={{ height: 2, width: 220, backgroundColor: INK, marginBottom: 10 }} />
+          <View style={{ height: 2, width: 220, backgroundColor: INK }} />
         )}
-
-        <Text
-          style={{
-            color: MUTED,
-            ...typography.label,
-            fontSize: 10,
-            letterSpacing: 3,
-            textTransform: 'uppercase',
-            textAlign: 'center',
-          }}
-        >
-          {phase === 'before' ? 'Before this round' : 'After this round'}
-        </Text>
       </View>
 
       {/* Admin actions / non-admin waiting */}
