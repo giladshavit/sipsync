@@ -2,19 +2,23 @@ import { View, Text, Pressable, ScrollView, Image, useWindowDimensions } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft } from 'lucide-react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming, interpolateColor } from 'react-native-reanimated';
 import { colors, typography } from '@/constants/design';
-import { AVATAR_POOL, AVATAR_IMAGES, AVATAR_COLORS } from '@/constants/avatars';
+import { AVATAR_POOL, AVATAR_IMAGES, AVATAR_COLORS, lightenColor } from '@/constants/avatars';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Exactly 4 per row, responsive to screen width — not an indirect "scale a
 // 6-column baseline" guess, which didn't reliably land on 4.
 const COLS = 4;
 const GAP = 10;
 const H_PADDING = 16;
-// Square frame drawn around the avatar the sheet opened with — fixed for
-// the sheet's lifetime, not a moving selection marker (see `isMine` below).
+// Thin ring drawn around the avatar the sheet opened with — fixed for the
+// sheet's lifetime, not a moving selection marker (see `isMine` below). Kept
+// subtle (in the avatar's own color, not a heavy black square) since the
+// press itself now carries the primary feedback via AvatarCell's lighten.
 const FRAME_PADDING = 6;
-const FRAME_BORDER = 3;
+const RING_BORDER = 2;
 // How long a tap sits (as a plain pressed-opacity dim, plus the haptic)
 // before the sheet closes itself — long enough to register as confirmation,
 // short enough not to feel like a stall.
@@ -34,7 +38,7 @@ export function AvatarPickerSheet({ currentAvatar, takenAvatars, onSelect, onClo
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const slotSize = (width - H_PADDING * 2 - GAP * (COLS - 1)) / COLS;
-  const cellSize = slotSize - (FRAME_PADDING + FRAME_BORDER) * 2;
+  const cellSize = slotSize - (FRAME_PADDING + RING_BORDER) * 2;
 
   function handleSelect(avatar: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -93,53 +97,92 @@ export function AvatarPickerSheet({ currentAvatar, takenAvatars, onSelect, onClo
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GAP }}>
             {AVATAR_POOL.map((avatar) => {
               // Reflects only the avatar you had when the sheet opened —
-              // tapping a different one doesn't drag the frame along with
-              // it; the tap itself just gets the same plain press-dim
-              // feedback as any other button (see profile.tsx's own avatar
-              // button), and the sheet closes on its own right after.
+              // tapping a different one doesn't drag the ring along with
+              // it; the tap itself gets its own lighten feedback (see
+              // AvatarCell), and the sheet closes on its own right after.
               const isMine = avatar === currentAvatar;
               const isTaken = takenAvatars.has(avatar) && !isMine;
               return (
-                <View
+                <AvatarCell
                   key={avatar}
-                  style={{
-                    width: slotSize,
-                    height: slotSize,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderWidth: isMine ? FRAME_BORDER : 0,
-                    borderColor: colors.ink,
-                  }}
-                >
-                  <Pressable
-                    disabled={isTaken}
-                    onPress={() => handleSelect(avatar)}
-                    style={{
-                      width: cellSize,
-                      height: cellSize,
-                      borderRadius: cellSize / 2,
-                      borderWidth: 3,
-                      borderColor: AVATAR_COLORS[avatar],
-                      backgroundColor: colors.parchment,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: isTaken ? 0.3 : 1,
-                      overflow: 'hidden',
-                    }}
-                    className="active:opacity-70"
-                  >
-                    <Image
-                      source={AVATAR_IMAGES[avatar]}
-                      style={{ width: cellSize, height: cellSize }}
-                      resizeMode="cover"
-                    />
-                  </Pressable>
-                </View>
+                  avatar={avatar}
+                  isMine={isMine}
+                  isTaken={isTaken}
+                  slotSize={slotSize}
+                  cellSize={cellSize}
+                  onPress={() => handleSelect(avatar)}
+                />
               );
             })}
           </View>
         </ScrollView>
       </View>
     </Animated.View>
+  );
+}
+
+interface AvatarCellProps {
+  avatar: string;
+  isMine: boolean;
+  isTaken: boolean;
+  slotSize: number;
+  cellSize: number;
+  onPress: () => void;
+}
+
+// Button-press gesture: tapping an avatar lightens its own border and fill
+// toward white, in place of a separate highlight color, and holds there
+// (rather than springing back) since the sheet closes itself right after.
+function AvatarCell({ avatar, isMine, isTaken, slotSize, cellSize, onPress }: AvatarCellProps) {
+  const baseColor = AVATAR_COLORS[avatar];
+  const litBorder = lightenColor(baseColor, 0.55);
+  const litBackground = lightenColor(baseColor, 0.8);
+  const pressed = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    borderColor: interpolateColor(pressed.value, [0, 1], [baseColor, litBorder]),
+    backgroundColor: interpolateColor(pressed.value, [0, 1], [colors.parchment, litBackground]),
+  }));
+
+  function handlePress() {
+    pressed.value = withTiming(1, { duration: 180 });
+    onPress();
+  }
+
+  return (
+    <View
+      style={{
+        width: slotSize,
+        height: slotSize,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: isMine ? RING_BORDER : 0,
+        borderColor: baseColor,
+      }}
+    >
+      <AnimatedPressable
+        disabled={isTaken}
+        onPress={handlePress}
+        style={[
+          {
+            width: cellSize,
+            height: cellSize,
+            borderRadius: cellSize / 2,
+            borderWidth: 3,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: isTaken ? 0.3 : 1,
+            overflow: 'hidden',
+          },
+          animatedStyle,
+        ]}
+      >
+        <Image
+          source={AVATAR_IMAGES[avatar]}
+          style={{ width: cellSize, height: cellSize }}
+          resizeMode="cover"
+        />
+      </AnimatedPressable>
+    </View>
   );
 }
