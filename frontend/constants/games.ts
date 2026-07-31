@@ -247,6 +247,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: Target,
     categories: ['luck', 'strategy'], // guessing the room's psychology against an unknown average
     accentColor: '#0EA5E9',
+    minPlayers: 3, // 2 players are both the average, always equidistant from it
     rules: [
       'Everyone secretly picks a number from 0 to 99.',
       'The average of all picks is calculated.',
