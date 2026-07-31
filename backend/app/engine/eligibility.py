@@ -16,6 +16,7 @@ MIN_PLAYERS: dict[str, int] = {
     "auction": 5,
     "black_box": 2,
     "dilemma": 2,
+    "closest_average": 3,
 }
 
 
