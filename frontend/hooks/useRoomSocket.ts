@@ -414,6 +414,11 @@ export function useRoomSocket(code: string): UseRoomSocket {
   // alive to this hook until the next message would have arrived. Checking
   // readyState the instant the tab becomes visible again catches that dead
   // state immediately instead of waiting on a message that will never come.
+  // Only a missing socket or one already CLOSING/CLOSED counts as dead here —
+  // a CONNECTING socket is a handshake already in flight (e.g. kicked off by
+  // the background tab's throttled reconnect timer moments before this fires)
+  // and calling reconnect() on it would abort that near-complete handshake
+  // and restart from scratch instead of just letting it finish.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
 
@@ -421,7 +426,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
       if (unmountedRef.current) return;
       if (document.visibilityState !== 'visible') return;
       const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
         reconnect();
       }
     }
