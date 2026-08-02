@@ -23,16 +23,26 @@ export function useAudio(): AudioContextValue {
   return ctx;
 }
 
-/** Browsers block .play() before a user gesture, rejecting/throwing a
- * DOMException. DOMException isn't guaranteed to exist as a global on
- * native (Hermes), so it's guarded rather than referenced directly.
- * This is the single source of truth for "is this the autoplay-block
- * signal" — reused both by `playSafely`'s defensive branches below and
- * by the `unhandledrejection` listener in `AudioProvider`, which is the
- * mechanism that actually catches this on the installed expo-audio web
- * build (see note on `playSafely`). */
+/** Browsers block .play() before a user gesture by rejecting/throwing a
+ * `DOMException` named `NotAllowedError`. DOMException isn't guaranteed
+ * to exist as a global on native (Hermes), so it's guarded rather than
+ * referenced directly. This is narrowed to that specific error name
+ * (not just "any DOMException") because other, unrelated DOMExceptions
+ * can occur here too and must NOT be treated as an autoplay block: the
+ * placeholder zero-byte SFX/BGM assets make `HTMLMediaElement.play()`
+ * reject with `NotSupportedError`, and a failed `AsyncStorage`/
+ * `localStorage` write can reject with `QuotaExceededError` — both are
+ * also `DOMException`s. This is the single source of truth for "is this
+ * the autoplay-block signal" — reused both by `playSafely`'s defensive
+ * branches below and by the `unhandledrejection` listener in
+ * `AudioProvider`, which is the mechanism that actually catches this on
+ * the installed expo-audio web build (see note on `playSafely`). */
 function isBlockedAutoplayError(error: unknown): boolean {
-  return typeof DOMException !== 'undefined' && error instanceof DOMException;
+  return (
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    error.name === 'NotAllowedError'
+  );
 }
 
 /** Wraps AudioPlayer#play() so that IF a blocked playback attempt were
@@ -81,11 +91,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // point since no screen calls playBGM in this task.
   useEffect(() => {
     let cancelled = false;
-    AsyncStorage.getItem(MUTE_STORAGE_KEY).then((stored) => {
-      if (!cancelled && stored != null) {
-        setIsMuted(stored === 'true');
-      }
-    });
+    AsyncStorage.getItem(MUTE_STORAGE_KEY)
+      .then((stored) => {
+        if (!cancelled && stored != null) {
+          setIsMuted(stored === 'true');
+        }
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -110,18 +122,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   // return value or event. This listener is the only place this library
   // version exposes the failure at all. It's coarse-grained by design —
   // it can't tell which in-flight play() call was blocked — so on a hit
-  // it force-mutes globally and sweeps every currently-tracked SFX
-  // player, since any SFX player mid-play() when autoplay got blocked
-  // will never fire `didJustFinish` and would otherwise leak forever.
-  // The BGM player is deliberately left alone here: it's a persistent,
-  // reused instance, not something to remove.
+  // it force-mutes globally (in-memory only, see below) and sweeps every
+  // currently-tracked SFX player, since any SFX player mid-play() when
+  // autoplay got blocked will never fire `didJustFinish` and would
+  // otherwise leak forever. The BGM player is deliberately left alone
+  // here: it's a persistent, reused instance, not something to remove.
+  //
+  // Deliberately NOT persisted to AsyncStorage: a blocked autoplay is a
+  // transient, per-page-load browser condition, not a choice the user
+  // made. Persisting it would silently mute the app across every future
+  // session until the user manually unmutes again, with no visible
+  // cause. Only `toggleMute`'s user-initiated path persists.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       if (!isBlockedAutoplayError(event.reason)) return;
       event.preventDefault();
       setIsMuted(true);
-      AsyncStorage.setItem(MUTE_STORAGE_KEY, 'true');
       activeSfxRef.current.forEach((player) => player.remove());
       activeSfxRef.current.clear();
     };
@@ -141,6 +158,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     bgmPlayerRef.current = player;
     bgmTrackRef.current = track;
     if (!isMuted) {
+      // Force-mute in-memory only on a blocked autoplay — see the
+      // `unhandledrejection` listener's comment above for why this
+      // isn't persisted.
       playSafely(player, () => setIsMuted(true));
     }
   };
@@ -164,18 +184,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const toggleMute = () => {
+    // User-initiated: this is the one path that persists, since it's an
+    // actual choice the user made (as opposed to the blocked-autoplay
+    // fallback below, which is a transient session-local override —
+    // see the `unhandledrejection` listener's comment above).
     const next = !isMuted;
     setIsMuted(next);
-    AsyncStorage.setItem(MUTE_STORAGE_KEY, String(next));
+    AsyncStorage.setItem(MUTE_STORAGE_KEY, String(next)).catch(() => {});
     const bgm = bgmPlayerRef.current;
     if (!bgm) return;
     if (next) {
       bgm.pause();
     } else {
-      playSafely(bgm, () => {
-        setIsMuted(true);
-        AsyncStorage.setItem(MUTE_STORAGE_KEY, 'true');
-      });
+      playSafely(bgm, () => setIsMuted(true));
     }
   };
 
