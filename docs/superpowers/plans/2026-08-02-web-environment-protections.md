@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- All new/changed logic must be gated by `Platform.OS === 'web'` (`import { Platform } from 'react-native'`) — none of this may run or affect native iOS/Android builds. Matches the existing pattern in `frontend/contexts/AudioContext.tsx:137`.
+- All new/changed logic must be gated by `Platform.OS === 'web'` (`import { Platform } from 'react-native'`) — none of this may run or affect native iOS/Android builds. Matches the existing pattern in `frontend/lib/secureStorage.ts:10`.
 - TypeScript strict mode is on. No `any`.
 - No REST endpoints, no backend changes — this is frontend-only, browser-API behavior.
 - Do not modify `frontend/global.css` for the pull-to-refresh CSS — use runtime `<style>` injection instead (see spec's rationale: avoids the NativeWind/PostCSS pipeline that also feeds the native build).

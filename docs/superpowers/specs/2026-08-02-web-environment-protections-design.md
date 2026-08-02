@@ -19,7 +19,7 @@ disrupt an in-progress room:
 
 Three independent, additive pieces. No backend changes, no new dependencies.
 All web-only — gated by `Platform.OS === 'web'`, matching the existing pattern in
-`frontend/contexts/AudioContext.tsx`.
+`frontend/lib/secureStorage.ts`.
 
 ## 1. Disable pull-to-refresh (global, web-only)
 
