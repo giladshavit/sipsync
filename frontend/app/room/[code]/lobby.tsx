@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { View, Text, Pressable, Share, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { ArrowLeft, Check, Copy, Eye, Pencil, Share2 } from 'lucide-react-native';
+import { ArrowLeft, Check, Copy, Eye, Pencil, Share2, Volume2, VolumeX } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
+import { useAudio } from '@/contexts/AudioContext';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { VIBE_ICONS } from '@/constants/vibes';
 import { colors, typography } from '@/constants/design';
@@ -20,6 +21,7 @@ const AVATAR_SIZE = 78;
 export default function LobbyScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
   const { playerId } = usePlayerIdentity();
+  const { isMuted, toggleMute } = useAudio();
   const { snapshot, send } = useRoomSocket(code);
   const [copied, setCopied] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
@@ -138,22 +140,49 @@ export default function LobbyScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }} className="px-6 pt-16 pb-14">
 
-      {/* Back to home */}
-      <Pressable
-        onPress={() => setConfirmingLeave(true)}
+      {/* Top bar: back to home + mute toggle */}
+      <View
         style={{
-          width: 42,
-          height: 42,
-          borderWidth: 2,
-          borderColor: colors.ink,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
           alignItems: 'center',
-          justifyContent: 'center',
           marginBottom: 18,
         }}
-        className="active:opacity-60"
       >
-        <ArrowLeft size={20} color={colors.ink} />
-      </Pressable>
+        <Pressable
+          onPress={() => setConfirmingLeave(true)}
+          style={{
+            width: 42,
+            height: 42,
+            borderWidth: 2,
+            borderColor: colors.ink,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          className="active:opacity-60"
+        >
+          <ArrowLeft size={20} color={colors.ink} />
+        </Pressable>
+
+        <Pressable
+          onPress={toggleMute}
+          style={{
+            width: 42,
+            height: 42,
+            borderWidth: 2,
+            borderColor: colors.ink,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          className="active:opacity-60"
+        >
+          {isMuted ? (
+            <VolumeX size={20} color={colors.ink} />
+          ) : (
+            <Volume2 size={20} color={colors.ink} />
+          )}
+        </Pressable>
+      </View>
 
       {/* Header */}
       <View className="mb-6">
