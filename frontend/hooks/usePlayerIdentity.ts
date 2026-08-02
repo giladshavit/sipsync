@@ -36,6 +36,7 @@ interface PlayerIdentity {
   isOnboarded: boolean;
   setIdentity: (name: string, vibe: string | null) => Promise<void>;
   setPreferredAvatar: (avatar: string) => Promise<void>;
+  clearIdentity: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -85,14 +86,22 @@ export function usePlayerIdentity(): PlayerIdentity {
     setPreferredAvatarState(avatar);
   }, []);
 
+  const clearIdentity = useCallback(async () => {
+    await SecureStore.removeItemAsync(KEY_DISPLAY_NAME);
+    await SecureStore.removeItemAsync(KEY_PREFERRED_AVATAR);
+    setDisplayNameState(null);
+    setPreferredAvatarState(null);
+  }, []);
+
   return {
     playerId,
     displayName,
     vibe,
     preferredAvatar,
-    isOnboarded: displayName !== null,
+    isOnboarded: displayName !== null && preferredAvatar !== null,
     setIdentity,
     setPreferredAvatar,
+    clearIdentity,
     isLoading,
   };
 }
