@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { BGM_TRACKS, SFX_SOURCES, type BGMTrack, type SFXName } from '@/constants/sounds';
@@ -24,14 +25,36 @@ export function useAudio(): AudioContextValue {
 
 /** Browsers block .play() before a user gesture, rejecting/throwing a
  * DOMException. DOMException isn't guaranteed to exist as a global on
- * native (Hermes), so it's guarded rather than referenced directly. */
+ * native (Hermes), so it's guarded rather than referenced directly.
+ * This is the single source of truth for "is this the autoplay-block
+ * signal" — reused both by `playSafely`'s defensive branches below and
+ * by the `unhandledrejection` listener in `AudioProvider`, which is the
+ * mechanism that actually catches this on the installed expo-audio web
+ * build (see note on `playSafely`). */
 function isBlockedAutoplayError(error: unknown): boolean {
   return typeof DOMException !== 'undefined' && error instanceof DOMException;
 }
 
-/** Wraps AudioPlayer#play() so a blocked web autoplay attempt can never
- * crash or leave playback in an inconsistent state — it just falls back
- * to `onBlocked` (which the callers below use to force isMuted back on). */
+/** Wraps AudioPlayer#play() so that IF a blocked playback attempt were
+ * ever surfaced through the call itself — either thrown synchronously or
+ * via a returned promise's rejection — it can't crash or leave playback
+ * in an inconsistent state; it would fall back to `onBlocked` (which the
+ * callers below use to force isMuted back on).
+ *
+ * On the currently-installed expo-audio web build (0.3.5), this never
+ * actually fires: `AudioPlayerWeb.play()` is declared to return `void`
+ * and internally calls `HTMLMediaElement.play()` without awaiting,
+ * catching, or otherwise propagating the promise it returns, so a
+ * blocked-autoplay rejection is never thrown synchronously and never
+ * observable through this function's return value — `result` here is
+ * always `undefined`, and the try/catch never sees the rejection. That
+ * rejection instead escapes as a browser-level `unhandledrejection`
+ * event, which is the actual, currently-effective detection mechanism —
+ * see the `unhandledrejection` listener registered in `AudioProvider`.
+ * This function's try/catch and `.catch()` branches are kept as
+ * defensive-only dead code for this library version: harmless, and
+ * would matter if a future expo-audio version or another platform ever
+ * does throw/reject through the return value instead. */
 function playSafely(player: AudioPlayer, onBlocked: () => void): void {
   try {
     const result: unknown = player.play();
@@ -76,6 +99,35 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       bgmPlayerRef.current?.remove();
       activeSfxRef.current.forEach((player) => player.remove());
       activeSfxRef.current.clear();
+    };
+  }, []);
+
+  // Web-only: catch blocked-autoplay rejections at the browser level.
+  // The installed expo-audio web build never awaits or catches the
+  // underlying HTMLMediaElement.play() promise it creates internally
+  // (see the note on `playSafely` above), so a blocked play() surfaces
+  // only as an unhandled promise rejection, not through any expo-audio
+  // return value or event. This listener is the only place this library
+  // version exposes the failure at all. It's coarse-grained by design —
+  // it can't tell which in-flight play() call was blocked — so on a hit
+  // it force-mutes globally and sweeps every currently-tracked SFX
+  // player, since any SFX player mid-play() when autoplay got blocked
+  // will never fire `didJustFinish` and would otherwise leak forever.
+  // The BGM player is deliberately left alone here: it's a persistent,
+  // reused instance, not something to remove.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (!isBlockedAutoplayError(event.reason)) return;
+      event.preventDefault();
+      setIsMuted(true);
+      AsyncStorage.setItem(MUTE_STORAGE_KEY, 'true');
+      activeSfxRef.current.forEach((player) => player.remove());
+      activeSfxRef.current.clear();
+    };
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+    return () => {
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
     };
   }, []);
 
