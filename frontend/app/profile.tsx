@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Image, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { ArrowLeft, Pencil, Sparkles } from 'lucide-react-native';
+import { ArrowLeft, LogOut, Pencil, Sparkles } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -99,7 +99,7 @@ function AvatarHero({ avatar, onPress }: { avatar: string | null; onPress: () =>
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { isLoading, displayName, vibe, preferredAvatar, setIdentity, setPreferredAvatar } = usePlayerIdentity();
+  const { isLoading, displayName, vibe, preferredAvatar, setIdentity, setPreferredAvatar, clearIdentity } = usePlayerIdentity();
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -119,6 +119,24 @@ export default function ProfileScreen() {
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
+  }
+
+  function handleSignOut() {
+    Alert.alert(
+      'Sign out?',
+      "You'll need to enter your name and pick an avatar again next time.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            await clearIdentity();
+            router.replace('/onboarding');
+          },
+        },
+      ],
+    );
   }
 
   if (isLoading) {
@@ -238,6 +256,26 @@ export default function ProfileScreen() {
               {saved ? 'Saved' : 'Save'}
             </Text>
           )}
+        </Pressable>
+
+        <Pressable
+          onPress={handleSignOut}
+          style={{
+            marginTop: 14,
+            borderWidth: 2,
+            borderColor: colors.rim,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            paddingVertical: 16,
+          }}
+          className="active:opacity-60"
+        >
+          <LogOut size={16} color={colors.dune} strokeWidth={2} />
+          <Text style={{ color: colors.dune, fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }} className="uppercase">
+            Sign Out
+          </Text>
         </Pressable>
       </ScrollView>
 
