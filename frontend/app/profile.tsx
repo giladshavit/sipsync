@@ -132,6 +132,7 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             await clearIdentity();
+            router.dismissAll();
             router.replace('/onboarding');
           },
         },
@@ -263,7 +264,7 @@ export default function ProfileScreen() {
           style={{
             marginTop: 14,
             borderWidth: 2,
-            borderColor: colors.rim,
+            borderColor: colors.ink,
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'center',
@@ -272,8 +273,8 @@ export default function ProfileScreen() {
           }}
           className="active:opacity-60"
         >
-          <LogOut size={16} color={colors.dune} strokeWidth={2} />
-          <Text style={{ color: colors.dune, fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }} className="uppercase">
+          <LogOut size={16} color={colors.ink} strokeWidth={2} />
+          <Text style={{ color: colors.ink, fontSize: 13, fontWeight: '700', letterSpacing: 1.5 }} className="uppercase">
             Sign Out
           </Text>
         </Pressable>

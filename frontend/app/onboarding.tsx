@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -21,20 +21,28 @@ const AVATAR_SIZE = 64;
 const AVATAR_GAP = 14;
 
 export default function OnboardingScreen() {
-  const { setIdentity, setPreferredAvatar } = usePlayerIdentity();
+  const { displayName, isLoading, setIdentity, setPreferredAvatar } = usePlayerIdentity();
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
   const [focused, setFocused] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setName(displayName ?? '');
+  }, [displayName]);
 
   const canContinue = name.trim().length >= 2 && avatar !== null;
 
   async function handleContinue() {
     if (!canContinue || saving || !avatar) return;
     setSaving(true);
-    await setIdentity(name.trim(), null);
-    await setPreferredAvatar(avatar);
-    router.replace('/');
+    try {
+      await setIdentity(name.trim(), null);
+      await setPreferredAvatar(avatar);
+      router.replace('/');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
