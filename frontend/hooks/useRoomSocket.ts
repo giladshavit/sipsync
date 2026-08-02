@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback, MutableRefObject } from 'react';
+import { Platform } from 'react-native';
 import { usePlayerIdentity } from './usePlayerIdentity';
 import { API_BASE } from '@/constants/api';
 
@@ -407,6 +408,32 @@ export function useRoomSocket(code: string): UseRoomSocket {
     setIsConnected(false);
     connectRef.current();
   }, []);
+
+  // Mobile browsers throttle or silently kill WebSockets when a tab is
+  // backgrounded, often without ever firing `onclose` — the socket looks
+  // alive to this hook until the next message would have arrived. Checking
+  // readyState the instant the tab becomes visible again catches that dead
+  // state immediately instead of waiting on a message that will never come.
+  // Only a missing socket or one already CLOSING/CLOSED counts as dead here —
+  // a CONNECTING socket is a handshake already in flight (e.g. kicked off by
+  // the background tab's throttled reconnect timer moments before this fires)
+  // and calling reconnect() on it would abort that near-complete handshake
+  // and restart from scratch instead of just letting it finish.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    function handleVisibilityChange() {
+      if (unmountedRef.current) return;
+      if (document.visibilityState !== 'visible') return;
+      const ws = wsRef.current;
+      if (!ws || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+        reconnect();
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [reconnect]);
 
   const dismissPromotion = useCallback(() => {
     setSnapshot((prev) => (prev ? { ...prev, justPromoted: false } : prev));
