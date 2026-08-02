@@ -40,7 +40,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AudioProvider } from '@/contexts/AudioContext';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -56,16 +55,14 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <AudioProvider>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#0A0A0F' },
-              animation: 'fade',
-            }}
-          />
-        </AudioProvider>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#0A0A0F' },
+            animation: 'fade',
+          }}
+        />
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );
@@ -73,6 +70,8 @@ export default function RootLayout() {
 ```
 
 `RootLayout` only ever mounts once for the app's lifetime, so the cleanup function is dead code in practice — but it's cheap and correct to include, and avoids a duplicate `<style>` tag if Fast Refresh ever remounts this component during development.
+
+**Correction (post-dispatch):** the spec/plan were originally drafted against a checkout with an in-progress, unrelated `AudioProvider`/`@/contexts/AudioContext` feature from a separate, unmerged branch. This branch is cut from `main`, which doesn't have that file — the snippet above is corrected to match `main`'s actual `_layout.tsx`. No other task's file targets were affected.
 
 - [ ] **Step 2: Typecheck**
 
