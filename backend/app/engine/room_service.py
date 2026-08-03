@@ -84,6 +84,45 @@ _DISCONNECT_GRACE_MS = 60_000
 # _admin_migration_timeout, spawned from handle_disconnect.
 _ADMIN_MIGRATION_GRACE_MS = 10_000
 
+# Room Garbage Collection: Redis TTL applied to every room-scoped key.
+# Refreshed to this value on room creation and on every WebSocket
+# HANDSHAKE (join or reconnect) — see refresh_room_ttl, called from
+# rooms.create_room and handle_handshake.
+_ACTIVE_ROOM_TTL_SECONDS = 86_400
+
+# Practice rooms (solo vs. bots) keep this much shorter ceiling instead —
+# refreshed the same way as _ACTIVE_ROOM_TTL_SECONDS, so a *live* practice
+# session doesn't expire mid-play, but a room is never promoted from this
+# short-lived sandbox lifetime to the full 24h one.
+_PRACTICE_ROOM_TTL_SECONDS = 1_800
+
+# Grace period applied to every room-scoped key once the last WebSocket
+# connection to the room closes (room:{code}:conns reaches empty) — see
+# _apply_empty_room_ttl. If nobody reconnects in time, Redis deletes the
+# room's keys natively; a reconnect within the window (handle_handshake)
+# restores _ACTIVE_ROOM_TTL_SECONDS / _PRACTICE_ROOM_TTL_SECONDS instead.
+# This is a backstop for the explicit room-teardown paths below
+# (handle_end_night, _finalize_departure) — not a replacement for them.
+_EMPTY_ROOM_TTL_SECONDS = 60
+
+
+def _room_redis_keys(code: str) -> tuple[str, ...]:
+    """Every Redis key scoped to a single room. Single source of truth for
+    TTL refresh (refresh_room_ttl / _apply_empty_room_ttl) and explicit
+    teardown (handle_end_night, _finalize_departure) alike — previously
+    each of those listed keys inline and both omitted
+    room:{code}:asked_questions, leaking it on every room teardown."""
+    return (
+        f"room:{code}",
+        f"room:{code}:players",
+        f"room:{code}:deck",
+        f"room:{code}:game_ids",
+        f"room:{code}:admin_game_ids",
+        f"room:{code}:game",
+        f"room:{code}:asked_questions",
+        f"room:{code}:conns",
+    )
+
 
 class RoomService:
     def __init__(self) -> None:
@@ -95,6 +134,33 @@ class RoomService:
         if code not in self._room_locks:
             self._room_locks[code] = asyncio.Lock()
         return self._room_locks[code]
+
+    async def refresh_room_ttl(self, code: str) -> None:
+        """Sets every room-scoped Redis key's TTL to the active-room value
+        (or the shorter practice-room one) — called on room creation
+        (rooms.create_room) and on every HANDSHAKE, i.e. every join or
+        reconnect (handle_handshake). EXPIRE on a key that doesn't exist
+        yet (e.g. room:{code}:asked_questions before any custom question)
+        is a no-op, so this is safe to call unconditionally."""
+        is_practice = await redis.hget(f"room:{code}", "practice") == "1"
+        ttl = _PRACTICE_ROOM_TTL_SECONDS if is_practice else _ACTIVE_ROOM_TTL_SECONDS
+        async with redis.pipeline(transaction=True) as pipe:
+            for key in _room_redis_keys(code):
+                pipe.expire(key, ttl)
+            await pipe.execute()
+
+    async def _apply_empty_room_ttl(self, code: str) -> None:
+        """Room Garbage Collection: called once room:{code}:conns drops
+        to empty (the last WebSocket connection to the room closed, from
+        either handle_disconnect or handle_leave). Gives a departed room
+        _EMPTY_ROOM_TTL_SECONDS to be reclaimed by a reconnect
+        (refresh_room_ttl) before Redis deletes its keys natively — a
+        backstop for handle_end_night / _finalize_departure's own explicit,
+        immediate deletes."""
+        async with redis.pipeline(transaction=True) as pipe:
+            for key in _room_redis_keys(code):
+                pipe.expire(key, _EMPTY_ROOM_TTL_SECONDS)
+            await pipe.execute()
 
     async def _get_game_state(self, code: str) -> dict:
         raw = await redis.get(f"room:{code}:game")
@@ -540,6 +606,16 @@ class RoomService:
 
         self._connections.setdefault(code, {})[player_id] = websocket
 
+        # Room Garbage Collection: room:{code}:conns is the cross-worker
+        # set of currently-registered player_ids (self._connections above
+        # is per-process only) — see refresh_room_ttl / _apply_empty_room_ttl.
+        # SADD is idempotent, so a screen transition's HANDSHAKE landing
+        # before the old socket's disconnect is detected (see the ordering
+        # note in _admin_migration_timeout's docstring below) never inflates
+        # this set — the same player_id being added twice is a no-op.
+        await redis.sadd(f"room:{code}:conns", player_id)
+        await self.refresh_room_ttl(code)
+
         if code not in self._subscriptions:
             self._subscriptions.add(code)
             asyncio.create_task(self._pubsub_listener(code))
@@ -907,14 +983,7 @@ class RoomService:
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if player_id != admin_id:
             return
-        await redis.delete(
-            f"room:{code}",
-            f"room:{code}:players",
-            f"room:{code}:deck",
-            f"room:{code}:game_ids",
-            f"room:{code}:admin_game_ids",
-            f"room:{code}:game",
-        )
+        await redis.delete(*_room_redis_keys(code))
         await self.broadcast(code, {"type": "ROOM_DISSOLVED"})
 
     async def handle_skip_game(self, code: str, player_id: str | None) -> None:
@@ -1005,14 +1074,7 @@ class RoomService:
         players_raw = await redis.hgetall(f"room:{code}:players")
         if not players_raw:
             # Host left an empty room — nothing to hand over, clean up
-            await redis.delete(
-                f"room:{code}",
-                f"room:{code}:players",
-                f"room:{code}:deck",
-                f"room:{code}:game_ids",
-                f"room:{code}:admin_game_ids",
-                f"room:{code}:game",
-            )
+            await redis.delete(*_room_redis_keys(code))
             return
 
         new_admin = _select_new_admin(players_raw)
@@ -1032,6 +1094,13 @@ class RoomService:
         async with self._room_lock(code):
             await redis.hdel(f"room:{code}:players", player_id)
             self._connections.get(code, {}).pop(player_id, None)
+
+            # Room Garbage Collection: mirrors the decrement in
+            # handle_disconnect — this is the other place a player is
+            # actually removed from self._connections.
+            removed = await redis.srem(f"room:{code}:conns", player_id)
+            if removed and await redis.scard(f"room:{code}:conns") == 0:
+                await self._apply_empty_room_ttl(code)
 
         await self._finalize_departure(code, player_id)
 
@@ -1067,6 +1136,17 @@ class RoomService:
         if room_conns.get(player_id) is not websocket:
             return
         room_conns.pop(player_id, None)
+
+        # Room Garbage Collection: this is the same identity-checked
+        # "really disconnected, not mid screen-transition" branch the
+        # early-return above already guards. Check SREM's own return value
+        # before consulting the set's size — a room that existed before
+        # this feature was deployed (so this player_id was never SADD'd)
+        # must not read as "empty" just because SCARD happens to be 0 for
+        # unrelated reasons.
+        removed = await redis.srem(f"room:{code}:conns", player_id)
+        if removed and await redis.scard(f"room:{code}:conns") == 0:
+            await self._apply_empty_room_ttl(code)
 
         disconnected_at = int(time.time() * 1000)
         was_admin = False

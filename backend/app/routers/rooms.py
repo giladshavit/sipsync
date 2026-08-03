@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.engine import bot_engine
 from app.engine.deck import deck
+from app.engine.room_service import room_service
 from app.models.room import CreateRoomRequest, CreateRoomResponse, RoomInfoResponse
 from app.redis_client import redis
 
@@ -15,8 +16,6 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 _CODE_ALPHABET = string.ascii_uppercase.replace("O", "").replace("I", "") + string.digits.replace("0", "").replace("1", "")
 _CODE_LENGTH = 6
 _MAX_RETRIES = 10
-_ROOM_TTL_SECONDS = 86_400
-_PRACTICE_TTL_SECONDS = 1_800
 
 
 def _generate_code() -> str:
@@ -41,7 +40,6 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
             if body.practice and body.practice_role:
                 room_fields["practice_role_hint"] = body.practice_role
             await redis.hset(key, mapping=room_fields)
-            await redis.expire(key, _PRACTICE_TTL_SECONDS if body.practice else _ROOM_TTL_SECONDS)
             await deck.initialize(code, body.game_ids)
             # Minimum Players: the admin's real intent, tracked separately
             # from deck.py's own game_ids so a game later auto-pruned by
@@ -60,6 +58,10 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
                         f"room:{code}:players",
                         mapping={bid: json.dumps(rec) for bid, rec in bot_records.items()},
                     )
+
+            # Room Garbage Collection: applied last, after every room-scoped
+            # key above has been written — see room_service.refresh_room_ttl.
+            await room_service.refresh_room_ttl(code)
 
             return CreateRoomResponse(
                 code=code,
