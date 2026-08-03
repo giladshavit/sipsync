@@ -28,7 +28,6 @@ def patch_redis_and_broadcast(monkeypatch):
         captured.append(message)
 
     monkeypatch.setattr(_svc, "broadcast", _mock_broadcast)
-    monkeypatch.setattr(_svc, "_room_locks", {})
     return r, captured
 
 

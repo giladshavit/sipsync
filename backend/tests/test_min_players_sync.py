@@ -27,7 +27,6 @@ def patch_redis_and_broadcast(monkeypatch):
     r = fakeredis.FakeAsyncRedis(decode_responses=True)
     monkeypatch.setattr(rs_module, "redis", r)
     monkeypatch.setattr(deck_singleton, "_redis", r)
-    monkeypatch.setattr(_svc, "_room_locks", {})
     monkeypatch.setattr(_svc, "_connections", {})
 
     captured: list[dict] = []
