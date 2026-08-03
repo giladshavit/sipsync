@@ -751,7 +751,14 @@ class RoomService:
         action, even on the rare edit where the effective set doesn't
         actually change — unlike _sync_eligible_games's own no-op-if-
         unchanged guard, which exists only to keep automatic join/leave syncs
-        from spamming reshuffles."""
+        from spamming reshuffles.
+
+        Runs its writes under the room lock: an admin's explicit edit here
+        and a concurrent _sync_eligible_games (triggered by another player
+        joining or leaving at the same instant) both read player headcount
+        and then rewrite room:{code}:game_ids / room:{code}:deck from it —
+        without the lock, whichever write lands second silently discards
+        the other's, including the admin's own edit."""
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if player_id != admin_id:
             return
@@ -762,17 +769,19 @@ class RoomService:
         except ValueError:
             return
 
-        await redis.delete(f"room:{code}:admin_game_ids")
-        await redis.rpush(f"room:{code}:admin_game_ids", *normalized)
+        async with self._room_lock(code):
+            await redis.delete(f"room:{code}:admin_game_ids")
+            await redis.rpush(f"room:{code}:admin_game_ids", *normalized)
 
-        active_count = await count_active_players(redis, code)
-        effective = (
-            normalized
-            if active_count is None
-            else resolve_effective_games(normalized, active_count, fallback=normalized)
-        )
+            active_count = await count_active_players(redis, code)
+            effective = (
+                normalized
+                if active_count is None
+                else resolve_effective_games(normalized, active_count, fallback=normalized)
+            )
 
-        await deck.initialize(code, effective)
+            await deck.initialize(code, effective)
+
         await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": effective})
 
     async def handle_set_avatar(self, code: str, player_id: str | None, avatar: str) -> None:
