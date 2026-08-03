@@ -566,6 +566,7 @@ class RoomService:
 
             await deck.initialize(code, new_ids)
 
+        assert new_ids is not None
         await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
 
     # ── Public handle_* interface ─────────────────────────────────────────────

@@ -25,7 +25,7 @@ def patch_redis(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_unexpected_pubsub_error_is_logged_not_swallowed(patch_redis, caplog):
+async def test_unexpected_pubsub_error_is_logged_not_swallowed(patch_redis, caplog, monkeypatch):
     class _ExplodingPubSub:
         async def subscribe(self, channel):
             pass
@@ -45,15 +45,10 @@ async def test_unexpected_pubsub_error_is_logged_not_swallowed(patch_redis, capl
 
     monkeypatch_redis = _ExplodingRedis()
 
-    import app.engine.room_service as rs
-    original_redis = rs.redis
-    rs.redis = monkeypatch_redis
-    try:
-        _svc._subscriptions.add(CODE)
-        with caplog.at_level(logging.ERROR, logger="app.engine.room_service"):
-            await _svc._pubsub_listener(CODE)
-    finally:
-        rs.redis = original_redis
+    monkeypatch.setattr(rs_module, "redis", monkeypatch_redis)
+    _svc._subscriptions.add(CODE)
+    with caplog.at_level(logging.ERROR, logger="app.engine.room_service"):
+        await _svc._pubsub_listener(CODE)
 
     assert CODE not in _svc._subscriptions
     assert any(

@@ -21,9 +21,11 @@ import logging
 import uuid
 from typing import Any
 
+import redis.exceptions as redis_exceptions
+
 logger = logging.getLogger(__name__)
 
-_POLL_INTERVAL_SECONDS = 0.05
+_POLL_INTERVAL_SECONDS = 0.005
 
 
 class RedisLockError(Exception):
@@ -47,7 +49,7 @@ class RedisLock:
 
     async def acquire(self) -> None:
         token = uuid.uuid4().hex
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         deadline = (
             loop.time() + self._blocking_timeout_seconds
             if self._blocking_timeout_seconds is not None
@@ -80,6 +82,14 @@ class RedisLock:
                 pipe.multi()
                 pipe.delete(self._name)
                 await pipe.execute()
+        except redis_exceptions.WatchError:
+            # Expected, harmless: the key changed between our GET check and
+            # EXEC (e.g. it expired and was legitimately re-acquired by
+            # someone else) — a correct no-op, not a real failure.
+            logger.debug(
+                "Watched key changed while releasing Redis lock %r; "
+                "already expired/reacquired by someone else", self._name
+            )
         except Exception:
             logger.exception("Failed to release Redis lock %r", self._name)
 
