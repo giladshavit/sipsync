@@ -11,7 +11,7 @@ app = FastAPI(title="Quickle", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://quicklegame.com", "https://www.quicklegame.com"],
-    allow_origin_regex=r"http://localhost:\d+",
+    allow_origin_regex=r"http://localhost:\d+|https://.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
