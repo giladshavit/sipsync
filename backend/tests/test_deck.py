@@ -60,6 +60,35 @@ async def test_initialize_overwrites_previous_deck(fake_redis):
     assert results == {"new_a", "new_b"}
 
 
+@pytest.mark.asyncio
+async def test_initialize_never_leaves_game_ids_and_deck_out_of_sync(fake_redis):
+    """Regression test for the Council Audit Report's CRITICAL #2: the old
+    implementation did `delete` then two separate `rpush` calls with no
+    pipeline, so a crash (or, in production, an interleaved concurrent call)
+    between them could leave room:{code}:game_ids populated while
+    room:{code}:deck was still empty (or vice versa). Asserting both keys
+    always have the same length after initialize() is a proxy for "the
+    three writes landed as one atomic unit"."""
+    deck = Deck(redis_client=fake_redis)
+    await deck.initialize("ATOMIC", ["game_a", "game_b", "game_c"])
+
+    game_ids = await fake_redis.lrange("room:ATOMIC:game_ids", 0, -1)
+    shuffled_deck = await fake_redis.lrange("room:ATOMIC:deck", 0, -1)
+
+    assert sorted(game_ids) == ["game_a", "game_b", "game_c"]
+    assert sorted(shuffled_deck) == ["game_a", "game_b", "game_c"]
+
+
+@pytest.mark.asyncio
+async def test_initialize_with_empty_game_ids_deletes_both_keys(fake_redis):
+    deck = Deck(redis_client=fake_redis)
+    await deck.initialize("EMPTIED", ["game_a"])
+    await deck.initialize("EMPTIED", [])
+
+    assert await fake_redis.exists("room:EMPTIED:game_ids") == 0
+    assert await fake_redis.exists("room:EMPTIED:deck") == 0
+
+
 # ── Minimum Players safety net (see room_service._sync_eligible_games for the
 # primary enforcement — this is the last-resort net for a game already
 # shuffled into the deck before a player-count change pruned it) ───────────
