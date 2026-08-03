@@ -102,11 +102,22 @@ not guessed at here.
 - **`vercel.json` update:** the current catch-all rewrite would swallow a
   request for `/ads.txt` and serve the SPA shell instead. Needs an
   exception carved out so `/ads.txt` is served as the static file.
-- **Account-side steps (user's responsibility, not code — a checklist will
-  be handed over at implementation time):** enable Vignette (optionally
-  Anchor) under Auto ads for the site; confirm the production domain is
-  verified; retrieve the publisher ID for `ads.txt`; enable the Privacy &
-  messaging consent tool once `/privacy` is live and paste its URL in.
+- **Account-side steps, in order (user's responsibility, not code — a
+  checklist will be handed over at implementation time):**
+  1. Retrieve the publisher ID for `ads.txt` (available immediately,
+     doesn't require a site to be added first).
+  2. Under "Sites," add the production domain — as of this design, no site
+     has been added to the AdSense account yet, confirmed by checking the
+     dashboard. This step is **blocked on the code being deployed first**:
+     AdSense verifies the site by finding its own connection-code
+     `<script>` snippet live on the domain — the same script tag this
+     design already puts in `app/+html.tsx`. So the real order is: deploy
+     the code (flag on) → then add the site in AdSense → verification
+     succeeds because the script is already live.
+  3. Once the site verifies, enable Vignette (optionally Anchor) under
+     Auto ads for it.
+  4. Enable the Privacy & messaging consent tool once `/privacy` is live,
+     and paste its URL in.
 
 ## Testing & verification
 
