@@ -1,7 +1,7 @@
 import '../global.css';
 
 import { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, useWindowDimensions } from 'react-native';
 import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,6 +11,17 @@ import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
 
 export default function RootLayout() {
+  // Web-only: `height: 100%` on html/body/#root (or `100vh`) both resolve
+  // against the browser's *layout* viewport, which iOS Safari doesn't
+  // shrink/grow live as its address bar collapses — the result is content
+  // sized for a viewport that doesn't match what's actually visible,
+  // rendering as a squashed top strip. useWindowDimensions gives a
+  // JS-measured height that updates on the resize event Safari fires when
+  // the address bar shows/hides, so we size the root explicitly instead of
+  // trusting the inherited percentage chain.
+  const { height } = useWindowDimensions();
+  const rootStyle = Platform.OS === 'web' ? { height, width: '100%' as const } : { flex: 1 as const };
+
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const style = document.createElement('style');
@@ -23,7 +34,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={rootStyle}>
         <AudioProvider>
           <StatusBar style="light" />
           <Stack

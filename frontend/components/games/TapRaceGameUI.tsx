@@ -223,7 +223,7 @@ export const TapRaceGameUI: React.FC<MiniGameProps> = ({
   // ── Race + locked end state share the tinted background ─────────────────
   return (
     <Pressable className="flex-1" onPress={handleTap} disabled={phase === 'done'}>
-      <Animated.View className="flex-1" style={bgStyle}>
+      <Animated.View style={[{ flex: 1 }, bgStyle]}>
         {/* Time bar + seconds, pinned top */}
         <View style={{ paddingTop: 64, paddingHorizontal: 24 }}>
           <View

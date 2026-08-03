@@ -98,7 +98,9 @@ export const ReflexGameUI: React.FC<MiniGameProps> = ({
 
   return (
     <Pressable className="flex-1" onPress={handleTap}>
-      <Animated.View className="flex-1 items-center justify-center" style={bgStyle}>
+      <Animated.View
+        style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, bgStyle]}
+      >
         <Text
           className="text-white text-5xl font-bold"
           style={{ letterSpacing: 4 }}

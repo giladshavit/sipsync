@@ -7,7 +7,7 @@
 // web build right now. Before a real production web deploy — or once real
 // AdSense wiring replaces this mock layer — flip these to `false` (or wire
 // them to actual ad-network config) so real users never see test inventory.
-export const ENABLE_ALL_ADS = true;
+export const ENABLE_ALL_ADS = false;
 export const ENABLE_LOBBY_AD = true;
 export const ENABLE_PODIUM_AD = true;
 

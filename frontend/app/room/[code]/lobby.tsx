@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { ArrowLeft, Check, Copy, Eye, Pencil, Share2, Volume2, VolumeX } from 'lucide-react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useAudio } from '@/contexts/AudioContext';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
@@ -23,6 +24,7 @@ const AVATAR_SIZE = 78;
 
 export default function LobbyScreen() {
   const { code } = useLocalSearchParams<{ code: string }>();
+  const insets = useSafeAreaInsets();
   const { playerId } = usePlayerIdentity();
   const { isMuted, toggleMute } = useAudio();
   const { snapshot, send } = useRoomSocket(code);
@@ -143,7 +145,15 @@ export default function LobbyScreen() {
     : ['Ready to', 'play!'];
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.cream }} className="px-6 pt-16 pb-14">
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: colors.cream,
+        paddingTop: insets.top + 20,
+        paddingBottom: insets.bottom + 20,
+      }}
+      className="px-6"
+    >
 
       {/* Top bar: back to home + mute toggle */}
       <View
