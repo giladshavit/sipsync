@@ -163,12 +163,17 @@ async def test_leave_room_decrements_and_can_trigger_the_empty_room_ttl(patch_re
     r, _ = patch_redis_and_broadcast
     OTHER = "player-b-uuid"
     await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN})
-    await _join(CODE, ADMIN)
+    ws_admin = await _join(CODE, ADMIN)
     await _join(CODE, OTHER)
 
-    # Non-admin player leaves — conn_count decremented but room not dissolved
-    # since admin is still present.
+    # Admin disconnects (conn_count 2→1, handle_disconnect does not call
+    # _finalize_departure so room is not cleaned up)
+    await _svc.handle_disconnect(CODE, ADMIN, ws_admin)
+
+    # Non-admin player leaves while as last connection (conn_count 1→0,
+    # _apply_empty_room_ttl called inside handle_leave; _finalize_departure
+    # returns early since OTHER is not admin_id, so empty TTL survives)
     await _svc.handle_leave(CODE, OTHER)
 
-    assert await r.get(f"room:{CODE}:conn_count") == "1"
-    assert await r.ttl(f"room:{CODE}") == rs_module._ACTIVE_ROOM_TTL_SECONDS
+    assert await r.get(f"room:{CODE}:conn_count") == "0"
+    assert await r.ttl(f"room:{CODE}") == rs_module._EMPTY_ROOM_TTL_SECONDS
