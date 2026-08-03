@@ -1,10 +1,27 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import { BGM_TRACKS, SFX_SOURCES, type BGMTrack, type SFXName } from '@/constants/sounds';
 
 const MUTE_STORAGE_KEY = 'sipsync.audio_muted';
+
+// expo-audio's native module is evaluated eagerly the moment anything imports
+// it (AudioModule.js calls requireNativeModule at module scope), and it isn't
+// bundled into Expo Go (still-beta package — see expo/expo#32982). A static
+// `import { createAudioPlayer } from 'expo-audio'` would crash that eager
+// evaluation before this file even finishes loading, taking down every route
+// that (transitively) imports AudioProvider/useAudio with it. Routing it
+// through `require` inside a try/catch defers evaluation to here, where the
+// failure can be caught — audio then simply no-ops in Expo Go instead of
+// crashing the app. Works fine on web/dev-client too, where the module loads
+// normally and this just resolves the real function.
+let createAudioPlayer: typeof import('expo-audio').createAudioPlayer | null = null;
+try {
+  createAudioPlayer = (require('expo-audio') as typeof import('expo-audio')).createAudioPlayer;
+} catch {
+  createAudioPlayer = null;
+}
 
 interface AudioContextValue {
   isMuted: boolean;
@@ -149,6 +166,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const playBGM = (track: BGMTrack) => {
+    if (!createAudioPlayer) return;
     if (bgmTrackRef.current === track && bgmPlayerRef.current) {
       return;
     }
@@ -166,7 +184,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   };
 
   const playSFX = (name: SFXName) => {
-    if (isMuted) return;
+    if (isMuted || !createAudioPlayer) return;
     const player = createAudioPlayer(SFX_SOURCES[name]);
     activeSfxRef.current.add(player);
     const subscription = player.addListener('playbackStatusUpdate', (status) => {
