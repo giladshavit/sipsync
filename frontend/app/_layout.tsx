@@ -6,6 +6,7 @@ import { Stack, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Analytics, SpeedInsights } from '@/lib/vercelInsights';
 import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
 
@@ -32,6 +33,8 @@ export default function RootLayout() {
               animation: 'fade',
             }}
           />
+          {Platform.OS === 'web' && <Analytics />}
+          {Platform.OS === 'web' && <SpeedInsights />}
         </AudioProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
