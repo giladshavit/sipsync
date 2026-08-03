@@ -25,6 +25,8 @@ import { GAME_CATALOG, getGameById, type GameMeta, type RuleLine } from '@/const
 import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
 import { GamesSheet } from '@/components/GamesSheet';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
+import { usePodiumAd } from '@/hooks/useMockAd';
+import MockAdOverlay from '@/components/MockAdOverlay';
 
 // Same light/cream/amber register as the home screen — this is a results
 // moment, not a between-rounds holding screen, so it borrows the app's
@@ -921,6 +923,8 @@ export default function PodiumScreen() {
 
   const isAdmin = !!snapshot && snapshot.admin_id === playerId;
 
+  const { visible: podiumAdVisible, dismiss: dismissPodiumAd } = usePodiumAd();
+
   // Leave Room: personal, permanent departure — available to every player
   // here, not just the admin (see handleEndNight for the admin-only "end
   // the whole night" action, a distinct control further down). Same
@@ -1374,6 +1378,8 @@ export default function PodiumScreen() {
       {showSharePopup && (
         <SharePopup code={code ?? ''} onDismiss={() => setShowSharePopup(false)} />
       )}
+
+      {podiumAdVisible && <MockAdOverlay type="podium" onClose={dismissPodiumAd} />}
 
       {showNextGameModal && nextGame && (
         <NextGameRulesModal game={nextGame} onDismiss={() => setShowNextGameModal(false)} />
