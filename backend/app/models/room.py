@@ -49,7 +49,7 @@ class CreateRoomRequest(BaseModel):
 class CreateRoomResponse(BaseModel):
     code: str = Field(..., description="6-char uppercase room code")
     room_id: str = Field(..., description="Internal UUID for the room")
-    share_url: str = Field(..., description="Deep-link: sipsync://room/{code}")
+    share_url: str = Field(..., description="Deep-link: https://quicklegame.com/room/{code}")
 
 
 class RoomInfoResponse(BaseModel):

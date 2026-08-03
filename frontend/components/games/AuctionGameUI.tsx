@@ -29,7 +29,7 @@ const EXPIRE_RETRY_MS = 1_000;
 // A real felt table, not another recolored near-black: deep billiard-green
 // underfoot, dark brass shadow in the recesses, warm old-coin gold for the
 // currency itself. Chasers stay on the app's shared danger red (colors.stop)
-// — that meaning is established everywhere else in SipSync, so it's kept,
+// — that meaning is established everywhere else in Quickle, so it's kept,
 // not reinvented.
 const FELT_DEEP = '#0B3D24';
 const FELT_SHADOW = '#062015';

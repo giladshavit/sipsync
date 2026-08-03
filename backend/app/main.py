@@ -6,7 +6,7 @@ from app.routers import rooms, ws
 
 configure_logging()
 
-app = FastAPI(title="SipSync", version="0.1.0")
+app = FastAPI(title="Quickle", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
