@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.logging_config import configure_logging
 from app.routers import rooms, ws
+
+configure_logging()
 
 app = FastAPI(title="SipSync", version="0.1.0")
 

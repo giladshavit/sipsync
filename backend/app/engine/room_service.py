@@ -284,7 +284,10 @@ class RoomService:
                         try:
                             await ws.send_text(text)
                         except Exception:
-                            pass
+                            logger.debug(
+                                "Failed to forward pubsub message to a socket in room %s",
+                                code, exc_info=True,
+                            )
 
                 except (TimeoutError, redis_exceptions.TimeoutError):
                     await asyncio.sleep(0.1)
@@ -292,13 +295,30 @@ class RoomService:
                 except asyncio.CancelledError:
                     break
                 except Exception:
+                    # Previously silent (bare `except Exception: break`) —
+                    # this used to kill this worker's broadcast forwarding
+                    # for the room permanently with zero trace anywhere,
+                    # since the backend had no logging at all (Council Audit
+                    # Report, Silent Failures #1). The `finally` block below
+                    # still discards `code` from self._subscriptions, so the
+                    # next HANDSHAKE on this worker spawns a fresh listener —
+                    # this log is what makes the failure that triggered that
+                    # recovery actually visible.
+                    logger.exception(
+                        "Unexpected error in pubsub listener for room %s; "
+                        "forwarding stopped for this worker until the next "
+                        "HANDSHAKE respawns it.", code,
+                    )
                     break
         finally:
             try:
                 await pubsub.unsubscribe(channel)
                 await pubsub.aclose()
             except Exception:
-                pass
+                logger.debug(
+                    "Error cleaning up pubsub subscription for room %s",
+                    code, exc_info=True,
+                )
             self._subscriptions.discard(code)
 
     async def broadcast(self, code: str, message: dict) -> None:
