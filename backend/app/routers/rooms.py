@@ -66,7 +66,7 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
             return CreateRoomResponse(
                 code=code,
                 room_id=room_id,
-                share_url=f"sipsync://room/{code}",
+                share_url=f"https://quicklegame.com/room/{code}",
             )
 
     raise HTTPException(status_code=503, detail="Could not allocate a unique room code")

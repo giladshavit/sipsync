@@ -99,7 +99,7 @@ export default function OnboardingScreen() {
                   fontSize: 40,
                 }}
               >
-                SipSync
+                Quickle
               </Text>
             </View>
 

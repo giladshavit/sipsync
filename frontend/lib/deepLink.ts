@@ -12,5 +12,5 @@ export function buildRoomShareUrl(code: string): string {
 }
 
 export function buildRoomShareMessage(code: string): string {
-  return `Join my Sipsync party! Click here: ${buildRoomShareUrl(code)}`;
+  return `Join my Quickle party! Click here: ${buildRoomShareUrl(code)}`;
 }

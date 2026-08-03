@@ -119,12 +119,9 @@ export default function HomeScreen() {
             Real-time party game
           </Text>
 
-          {/* Signature: two-line split — thin dark / heavy amber */}
-          <Text style={{ fontWeight: '200', color: '#0A0A0F', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
-            Sip
-          </Text>
+          {/* Signature: single-line wordmark, heavy amber */}
           <Text style={{ fontWeight: '900', color: '#F59E0B', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
-            Sync
+            Quickle
           </Text>
 
           {displayName && (
