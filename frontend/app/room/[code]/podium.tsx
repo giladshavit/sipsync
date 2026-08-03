@@ -19,6 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { buildRoomShareMessage } from '@/lib/deepLink';
 import { typography } from '@/constants/design';
 import { AVATAR_COLORS } from '@/constants/avatars';
 import { GAME_CATALOG, getGameById, type GameMeta, type RuleLine } from '@/constants/games';
@@ -514,7 +515,7 @@ function SharePopup({ code, onDismiss }: { code: string; onDismiss: () => void }
   }
 
   async function handleShareLink() {
-    await Share.share({ message: `Join my SipSync room! Code: ${code}` });
+    await Share.share({ message: buildRoomShareMessage(code) });
     onDismiss();
   }
 
