@@ -25,19 +25,26 @@ class Deck:
         return f"room:{room_code}:game_ids"
 
     async def initialize(self, room_code: str, game_ids: list[str]) -> None:
-        """Persist the game catalogue and push a shuffled deck into Redis."""
+        """Persist the game catalogue and push a shuffled deck into Redis,
+        as a single atomic MULTI/EXEC transaction — a concurrent reader
+        (get_game_ids / peek_next_game / pop_next_game, possibly racing
+        from another worker) must never observe game_ids and deck rebuilt
+        out of step with each other."""
         ids_key = self._game_ids_key(room_code)
         deck_key = self._deck_key(room_code)
 
-        await self._redis.delete(ids_key, deck_key)
         if not game_ids:
+            await self._redis.delete(ids_key, deck_key)
             return
-
-        await self._redis.rpush(ids_key, *game_ids)
 
         shuffled = game_ids.copy()
         random.shuffle(shuffled)
-        await self._redis.rpush(deck_key, *shuffled)
+
+        async with self._redis.pipeline(transaction=True) as pipe:
+            pipe.delete(ids_key, deck_key)
+            pipe.rpush(ids_key, *game_ids)
+            pipe.rpush(deck_key, *shuffled)
+            await pipe.execute()
 
     async def get_game_ids(self, room_code: str) -> list[str]:
         """Read the room's stored game catalogue (selection order), no mutation."""

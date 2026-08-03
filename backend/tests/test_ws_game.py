@@ -127,7 +127,6 @@ def patch_redis_and_broadcast(monkeypatch):
 
     monkeypatch.setattr(_svc, "broadcast", _mock_broadcast)
     monkeypatch.setattr(rs_module, "load_game", lambda _: _CountdownGame())
-    monkeypatch.setattr(_svc, "_room_locks", {})
 
     return r, captured
 

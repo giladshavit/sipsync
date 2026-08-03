@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import random
 import time
 
@@ -14,6 +15,9 @@ from app.engine.avatar_pool import AVATAR_POOL, pick_avatar
 from app.engine.game_loader import GAME_REGISTRY, load_game
 from app.models.room import normalize_game_ids
 from app.redis_client import redis
+from app.redis_lock import RedisLock
+
+logger = logging.getLogger(__name__)
 
 _bot_rng = random.Random()
 
@@ -124,16 +128,27 @@ def _room_redis_keys(code: str) -> tuple[str, ...]:
     )
 
 
+# How long a room's Redis-backed mutation lock is allowed to be held before
+# it auto-expires — the safety net against a crashed holder under multiple
+# Uvicorn workers (see app/redis_lock.py). Every critical section this lock
+# guards is a handful of Redis calls with no external I/O, so this is a
+# generous ceiling, not a realistic duration.
+_ROOM_LOCK_TIMEOUT_SECONDS = 10.0
+
+
 class RoomService:
     def __init__(self) -> None:
         self._connections: dict[str, dict[str, WebSocket]] = {}
         self._subscriptions: set[str] = set()
-        self._room_locks: dict[str, asyncio.Lock] = {}
 
-    def _room_lock(self, code: str) -> asyncio.Lock:
-        if code not in self._room_locks:
-            self._room_locks[code] = asyncio.Lock()
-        return self._room_locks[code]
+    def _room_lock(self, code: str) -> RedisLock:
+        """Cross-worker room mutation lock (see CLAUDE.md: 'Do not use
+        in-process Python dicts as a substitute for Redis state — it will
+        break under multiple Uvicorn workers.'). A fresh RedisLock is
+        constructed per acquisition — its actual state lives in Redis, not
+        in this object, so there's nothing to cache per room code the way
+        the old per-process asyncio.Lock needed to be."""
+        return RedisLock(redis, f"lock:room:{code}", timeout_seconds=_ROOM_LOCK_TIMEOUT_SECONDS)
 
     async def refresh_room_ttl(self, code: str) -> None:
         """Sets every room-scoped Redis key's TTL to the active-room value
@@ -269,7 +284,10 @@ class RoomService:
                         try:
                             await ws.send_text(text)
                         except Exception:
-                            pass
+                            logger.debug(
+                                "Failed to forward pubsub message to a socket in room %s",
+                                code, exc_info=True,
+                            )
 
                 except (TimeoutError, redis_exceptions.TimeoutError):
                     await asyncio.sleep(0.1)
@@ -277,13 +295,30 @@ class RoomService:
                 except asyncio.CancelledError:
                     break
                 except Exception:
+                    # Previously silent (bare `except Exception: break`) —
+                    # this used to kill this worker's broadcast forwarding
+                    # for the room permanently with zero trace anywhere,
+                    # since the backend had no logging at all (Council Audit
+                    # Report, Silent Failures #1). The `finally` block below
+                    # still discards `code` from self._subscriptions, so the
+                    # next HANDSHAKE on this worker spawns a fresh listener —
+                    # this log is what makes the failure that triggered that
+                    # recovery actually visible.
+                    logger.exception(
+                        "Unexpected error in pubsub listener for room %s; "
+                        "forwarding stopped for this worker until the next "
+                        "HANDSHAKE respawns it.", code,
+                    )
                     break
         finally:
             try:
                 await pubsub.unsubscribe(channel)
                 await pubsub.aclose()
             except Exception:
-                pass
+                logger.debug(
+                    "Error cleaning up pubsub subscription for room %s",
+                    code, exc_info=True,
+                )
             self._subscriptions.discard(code)
 
     async def broadcast(self, code: str, message: dict) -> None:
@@ -511,18 +546,27 @@ class RoomService:
         handle_set_games writes admin_game_ids itself and recomputes the
         effective list inline rather than calling this, since an explicit
         admin edit should always reshuffle/broadcast even when the effective
-        set happens not to change — see that method."""
-        admin_ids = await redis.lrange(f"room:{code}:admin_game_ids", 0, -1)
-        if not admin_ids:
-            return  # room hasn't had its games set yet
+        set happens not to change — see that method.
 
-        current_ids = await deck.get_game_ids(code)
-        new_ids = resolve_effective_games(admin_ids, active_player_count, fallback=admin_ids)
+        Runs under the room lock: two joins landing in the same instant
+        (possibly on different workers) must not both read the same stale
+        current_ids and each call deck.initialize with a different
+        new_ids — the second write would silently discard the first."""
+        new_ids: list[str] | None = None
+        async with self._room_lock(code):
+            admin_ids = await redis.lrange(f"room:{code}:admin_game_ids", 0, -1)
+            if not admin_ids:
+                return  # room hasn't had its games set yet
 
-        if new_ids == current_ids:
-            return  # no actual change — don't reshuffle the deck or broadcast for nothing
+            current_ids = await deck.get_game_ids(code)
+            new_ids = resolve_effective_games(admin_ids, active_player_count, fallback=admin_ids)
 
-        await deck.initialize(code, new_ids)
+            if new_ids == current_ids:
+                return  # no actual change — don't reshuffle the deck or broadcast for nothing
+
+            await deck.initialize(code, new_ids)
+
+        assert new_ids is not None
         await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
 
     # ── Public handle_* interface ─────────────────────────────────────────────
