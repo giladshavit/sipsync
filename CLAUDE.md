@@ -14,6 +14,18 @@ SipSync is a real-time BYOD party drinking game. See [ARCHITECTURE.md](ARCHITECT
 
 ---
 
+## Deployment & Environments
+
+**Production (live):**
+- Frontend: https://www.quicklegame.com — Vercel project, auto-deploys from `main` (Root Directory=`frontend`, build command `npm run build`, output `dist`).
+- Backend: https://backend-production-f4b22.up.railway.app — Railway project `quickle-backend`, auto-deploys from `main` (Root Directory=`backend`, Dockerfile builder). Redis runs as a separate service in the same project.
+
+**Local development still uses `localhost`.** The frontend defaults to `http://localhost:8000` in dev builds (via `__DEV__` in `frontend/constants/api.ts`), overridable with `EXPO_PUBLIC_API_URL` for LAN/physical-device testing. The production URLs above are the already-deployed live app — they don't reflect uncommitted local changes, so use `localhost` for iterating on code, not the production URLs.
+
+Backend CORS allows: `https://quicklegame.com`, `https://www.quicklegame.com`, any `*.vercel.app` origin, and `http://localhost:\d+`.
+
+---
+
 ## Hard Constraints
 
 ### Package Management
