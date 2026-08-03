@@ -1076,17 +1076,7 @@ class RoomService:
 
         players_raw = await redis.hgetall(f"room:{code}:players")
         if not players_raw:
-            # Host left an empty room — with Room Garbage Collection,
-            # check if conn_count has already been decremented to 0
-            # (from handle_leave or handle_disconnect). If so, TTL is
-            # already managing cleanup; skip the immediate delete.
-            conn_count = await redis.get(f"room:{code}:conn_count")
-            if conn_count == "0" or conn_count is None:
-                # TTL-based GC is handling cleanup, or conn_count never
-                # existed (e.g., old rooms created before Task 1).
-                return
-            # Otherwise (conn_count > 0 or > 0), room never had conn_count
-            # management; fall through to immediate cleanup below (for backward compat).
+            # Host left an empty room — nothing to hand over, clean up
             await redis.delete(
                 f"room:{code}",
                 f"room:{code}:players",

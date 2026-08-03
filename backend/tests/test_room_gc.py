@@ -161,10 +161,14 @@ async def test_reconnect_within_the_window_restores_the_active_ttl(patch_redis_a
 
 async def test_leave_room_decrements_and_can_trigger_the_empty_room_ttl(patch_redis_and_broadcast):
     r, _ = patch_redis_and_broadcast
+    OTHER = "player-b-uuid"
     await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN})
     await _join(CODE, ADMIN)
+    await _join(CODE, OTHER)
 
-    await _svc.handle_leave(CODE, ADMIN)
+    # Non-admin player leaves — conn_count decremented but room not dissolved
+    # since admin is still present.
+    await _svc.handle_leave(CODE, OTHER)
 
-    assert await r.get(f"room:{CODE}:conn_count") == "0"
-    assert await r.ttl(f"room:{CODE}") == rs_module._EMPTY_ROOM_TTL_SECONDS
+    assert await r.get(f"room:{CODE}:conn_count") == "1"
+    assert await r.ttl(f"room:{CODE}") == rs_module._ACTIVE_ROOM_TTL_SECONDS
