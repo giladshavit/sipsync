@@ -979,14 +979,7 @@ class RoomService:
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if player_id != admin_id:
             return
-        await redis.delete(
-            f"room:{code}",
-            f"room:{code}:players",
-            f"room:{code}:deck",
-            f"room:{code}:game_ids",
-            f"room:{code}:admin_game_ids",
-            f"room:{code}:game",
-        )
+        await redis.delete(*_room_redis_keys(code))
         await self.broadcast(code, {"type": "ROOM_DISSOLVED"})
 
     async def handle_skip_game(self, code: str, player_id: str | None) -> None:
@@ -1077,14 +1070,7 @@ class RoomService:
         players_raw = await redis.hgetall(f"room:{code}:players")
         if not players_raw:
             # Host left an empty room — nothing to hand over, clean up
-            await redis.delete(
-                f"room:{code}",
-                f"room:{code}:players",
-                f"room:{code}:deck",
-                f"room:{code}:game_ids",
-                f"room:{code}:admin_game_ids",
-                f"room:{code}:game",
-            )
+            await redis.delete(*_room_redis_keys(code))
             return
 
         new_admin = _select_new_admin(players_raw)

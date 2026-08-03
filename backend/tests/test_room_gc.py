@@ -177,3 +177,27 @@ async def test_leave_room_decrements_and_can_trigger_the_empty_room_ttl(patch_re
 
     assert await r.get(f"room:{CODE}:conn_count") == "0"
     assert await r.ttl(f"room:{CODE}") == rs_module._EMPTY_ROOM_TTL_SECONDS
+
+
+async def test_end_night_deletes_asked_questions_and_conn_count_too(patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN})
+    await _join(CODE, ADMIN)
+    await r.sadd(f"room:{CODE}:asked_questions", "some question")
+
+    await _svc.handle_end_night(CODE, ADMIN)
+
+    for key in rs_module._room_redis_keys(CODE):
+        assert await r.exists(key) == 0, key
+
+
+async def test_host_leaving_an_empty_room_deletes_asked_questions_and_conn_count_too(patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN})
+    await _join(CODE, ADMIN)
+    await r.sadd(f"room:{CODE}:asked_questions", "some question")
+
+    await _svc.handle_leave(CODE, ADMIN)
+
+    for key in rs_module._room_redis_keys(CODE):
+        assert await r.exists(key) == 0, key
