@@ -606,6 +606,12 @@ class RoomService:
 
         self._connections.setdefault(code, {})[player_id] = websocket
 
+        # Room Garbage Collection: room:{code}:conn_count is the
+        # cross-worker connection count (self._connections above is
+        # per-process only) — see refresh_room_ttl / _apply_empty_room_ttl.
+        await redis.incr(f"room:{code}:conn_count")
+        await self.refresh_room_ttl(code)
+
         if code not in self._subscriptions:
             self._subscriptions.add(code)
             asyncio.create_task(self._pubsub_listener(code))
@@ -1070,7 +1076,17 @@ class RoomService:
 
         players_raw = await redis.hgetall(f"room:{code}:players")
         if not players_raw:
-            # Host left an empty room — nothing to hand over, clean up
+            # Host left an empty room — with Room Garbage Collection,
+            # check if conn_count has already been decremented to 0
+            # (from handle_leave or handle_disconnect). If so, TTL is
+            # already managing cleanup; skip the immediate delete.
+            conn_count = await redis.get(f"room:{code}:conn_count")
+            if conn_count == "0" or conn_count is None:
+                # TTL-based GC is handling cleanup, or conn_count never
+                # existed (e.g., old rooms created before Task 1).
+                return
+            # Otherwise (conn_count > 0 or > 0), room never had conn_count
+            # management; fall through to immediate cleanup below (for backward compat).
             await redis.delete(
                 f"room:{code}",
                 f"room:{code}:players",
@@ -1098,6 +1114,13 @@ class RoomService:
         async with self._room_lock(code):
             await redis.hdel(f"room:{code}:players", player_id)
             self._connections.get(code, {}).pop(player_id, None)
+
+            # Room Garbage Collection: mirrors the decrement in
+            # handle_disconnect — this is the other place a player is
+            # actually removed from self._connections.
+            remaining = await redis.decr(f"room:{code}:conn_count")
+            if remaining <= 0:
+                await self._apply_empty_room_ttl(code)
 
         await self._finalize_departure(code, player_id)
 
@@ -1133,6 +1156,13 @@ class RoomService:
         if room_conns.get(player_id) is not websocket:
             return
         room_conns.pop(player_id, None)
+
+        # Room Garbage Collection: this is the same identity-checked
+        # "really disconnected, not mid screen-transition" branch the
+        # early-return above already guards — count once per genuine drop.
+        remaining = await redis.decr(f"room:{code}:conn_count")
+        if remaining <= 0:
+            await self._apply_empty_room_ttl(code)
 
         disconnected_at = int(time.time() * 1000)
         was_admin = False
