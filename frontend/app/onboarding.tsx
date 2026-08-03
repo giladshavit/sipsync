@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { colors, typography } from '@/constants/design';
 import { AVATAR_POOL, AVATAR_IMAGES, AVATAR_COLORS } from '@/constants/avatars';
@@ -21,6 +21,7 @@ const AVATAR_SIZE = 64;
 const AVATAR_GAP = 14;
 
 export default function OnboardingScreen() {
+  const { redirectToRoom } = useLocalSearchParams<{ redirectToRoom?: string }>();
   const { displayName, isLoading, setIdentity, setPreferredAvatar } = usePlayerIdentity();
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -39,7 +40,7 @@ export default function OnboardingScreen() {
     try {
       await setIdentity(name.trim(), null);
       await setPreferredAvatar(avatar);
-      router.replace('/');
+      router.replace(redirectToRoom ? `/room/${redirectToRoom}` : '/');
     } finally {
       setSaving(false);
     }

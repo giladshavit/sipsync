@@ -7,6 +7,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useAudio } from '@/contexts/AudioContext';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { buildRoomShareMessage } from '@/lib/deepLink';
 import { VIBE_ICONS } from '@/constants/vibes';
 import { colors, typography } from '@/constants/design';
 import { GAME_CATALOG, getGameById } from '@/constants/games';
@@ -101,7 +102,7 @@ export default function LobbyScreen() {
   }
 
   async function handleShare() {
-    await Share.share({ message: `Join my SipSync room! Code: ${code}` });
+    await Share.share({ message: buildRoomShareMessage(code ?? '') });
   }
 
   function handleStartGame() {
