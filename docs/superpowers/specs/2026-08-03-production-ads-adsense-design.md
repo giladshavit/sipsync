@@ -16,8 +16,14 @@ ever fires on `Platform.OS === 'web'` — there is no `ios/`, `android/`, or
 that mock layer with real Google AdSense **Auto ads (Vignette)** on the web
 build. Native (AdMob) is explicitly out of scope until a native build exists.
 
-The user already holds an **approved** Google AdSense account for the
-production domain (`sipsync-one.vercel.app`).
+The user already holds an **approved** Google AdSense account
+(publisher ID `pub-6248733928314999`). Production domain is
+`https://www.quicklegame.com` (per `CLAUDE.md`'s Deployment & Environments
+section — the `sipsync-one.vercel.app` Vercel subdomain also resolves to the
+same deployment and is allowed by backend CORS, but the custom domain is the
+canonical one). As of this design, dashboard reconnaissance found no site
+registered under "Sites" in this AdSense account yet — see the Rollout
+section's account-side checklist for the add-site sequencing this implies.
 
 ## Why Vignette, not manual ad units
 
@@ -64,9 +70,8 @@ Google's script owns that.
   wants this script in the real initial HTML, not injected client-side via
   `useEffect` the way `lib/vercelInsights.tsx` handles Vercel Analytics.
 - **`public/ads.txt`** — a single line
-  (`google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`) with the
-  real publisher ID supplied by the user. Expo copies `frontend/public/`
-  verbatim into the web build output.
+  (`google.com, pub-6248733928314999, DIRECT, f08c47fec0942fa0`). Expo
+  copies `frontend/public/` verbatim into the web build output.
 - **`frontend/app/privacy.tsx`** (or equivalent route) — hosts a privacy
   policy page. Copy is supplied by the user, not drafted by this plan. Its
   production URL is what gets pasted into AdSense's "Privacy & messaging"
