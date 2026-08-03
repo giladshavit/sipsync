@@ -51,7 +51,7 @@ def _room_redis_keys(code: str) -> tuple[str, ...]:
         f"room:{code}:admin_game_ids",
         f"room:{code}:game",
         f"room:{code}:asked_questions",
-        f"room:{code}:conn_count",
+        f"room:{code}:conns",
     )
 ```
 
@@ -79,25 +79,59 @@ Two helpers:
   promotes it to the 24h normal-room lifetime.
 - `_apply_empty_room_ttl(code)` — same pipeline, fixed `60`.
 
-### 3. Connection counting
+### 3. Connection tracking
 
-A new Redis key, `room:{code}:conn_count`, is the cross-worker source of
-truth for "is anyone connected to this room right now" — not
-`self._connections`, which is per-process only (see CLAUDE.md's constraint
-against in-process dicts standing in for Redis state under multiple Uvicorn
-workers).
+A new Redis key, `room:{code}:conns`, is a **set of currently-registered
+player_ids** — not `self._connections`, which is per-process only (see
+CLAUDE.md's constraint against in-process dicts standing in for Redis state
+under multiple Uvicorn workers).
 
-- **Increment:** in `handle_handshake`, at the same point
-  `self._connections[code][player_id]` is registered — `INCR
-  room:{code}:conn_count`, then `_refresh_room_ttl(code)`.
-- **Decrement:** at the two exact points a player is actually removed from
+A raw `INCR`/`DECR` counter was tried first and rejected: it has two failure
+modes that a set doesn't.
+
+1. `DECR` on a key that was never `INCR`'d (e.g. a room that existed in
+   Redis before this feature shipped, so no player in it ever went through
+   the new `handle_handshake` code) returns `-1`, which reads as "empty" —
+   collapsing a live, populated room's entire key set to the 60-second TTL
+   on the very first disconnect.
+2. The increment in `handle_handshake` is unconditional on every HANDSHAKE,
+   but the decrement only runs inside `handle_disconnect`'s
+   identity-checked branch (`room_conns.get(player_id) is websocket`), which
+   exists to skip a *stale* old socket's disconnect during a screen
+   transition (every round transition closes and reopens each client's
+   socket). When a screen transition's new HANDSHAKE happens to register
+   before the old socket's disconnect is detected — an ordering this
+   codebase does not guarantee either way — you get one `INCR` (new
+   handshake) and the old socket's later `DECR` is skipped entirely by the
+   identity check's early return. Net effect: `+1` permanently, every time
+   that ordering happens, over the room's whole lifetime. The identity check
+   only ever suppressed the *decrement* side of a stale disconnect; it never
+   paired with the *increment* side, so nothing kept the counter balanced.
+   A counter that only ever drifts upward never reaches zero again — quietly
+   disabling the room's own empty-room GC forever.
+
+A Redis **set**, driven by `SADD`/`SREM`/`SCARD`, self-corrects both:
+
+- **Add:** in `handle_handshake`, at the same point
+  `self._connections[code][player_id]` is registered — `SADD
+  room:{code}:conns <player_id>`, then `_refresh_room_ttl(code)`. `SADD` is
+  idempotent: the same player_id being added twice (the screen-transition
+  race above) is a no-op on the set's membership, so there is no drift to
+  correct for in the first place — this is what actually makes the race
+  safe, not the identity check. The identity check is still needed on the
+  *removal* side below, to stop a stale disconnect from removing a
+  player_id that a newer socket already re-added.
+- **Remove:** at the two exact points a player is actually removed from
   `self._connections` — inside `handle_disconnect`'s existing
-  identity-checked branch (`room_conns.get(player_id) is websocket`), and
-  inside `handle_leave`. This mirrors the existing screen-transition race
-  guard: a reconnect whose new HANDSHAKE lands before the old socket's close
-  is detected already skips incrementing/decrementing twice today via that
-  same identity check, so conn_count stays paired correctly.
-- If a `DECR` result is `<= 0`, call `_apply_empty_room_ttl(code)`.
+  identity-checked branch, and inside `handle_leave` — `SREM
+  room:{code}:conns <player_id>`.
+- Only if `SREM` reports the player_id was actually a member (return value
+  truthy) do we go on to check `SCARD room:{code}:conns == 0` and call
+  `_apply_empty_room_ttl(code)`. Checking `SREM`'s own return value first is
+  what fixes failure mode 1 above: an untracked room's `SCARD` happening to
+  read `0` for unrelated reasons (or a stale double-removal) can never
+  trigger the empty-room TTL off a false signal — only an actual "last
+  tracked member just left" transition can.
 
 This is purely additive bookkeeping — no changes to what `handle_disconnect`
 or `handle_leave` do for the player's own record.
@@ -116,13 +150,13 @@ constants from `rooms.py` in favor of the single definitions in
 
 ## Data flow summary
 
-| Event | conn_count | Room key TTL |
+| Event | conns (set) | Room key TTL |
 |---|---|---|
 | `POST /rooms` | n/a | 24h (or 1800s practice) |
-| Player HANDSHAKE (join or reconnect) | `+1` | reset to 24h (or 1800s practice) |
-| Player disconnect / LEAVE_ROOM, others still connected | `-1` (> 0) | unchanged |
-| Player disconnect / LEAVE_ROOM, was last connection | `-1` (= 0) | set to 60s |
-| Reconnect within the 60s window | `+1` | restored to 24h (or 1800s practice) |
+| Player HANDSHAKE (join or reconnect) | `SADD` (idempotent) | reset to 24h (or 1800s practice) |
+| Player disconnect / LEAVE_ROOM, others still connected | `SREM` removed, `SCARD` > 0 | unchanged |
+| Player disconnect / LEAVE_ROOM, was last connection | `SREM` removed, `SCARD` = 0 | set to 60s |
+| Reconnect within the 60s window | `SADD` (idempotent) | restored to 24h (or 1800s practice) |
 | No reconnect within 60s | — | Redis deletes all room keys natively |
 | `END_NIGHT` / host-leaves-empty-room | — | explicit `DEL` via `_room_redis_keys`, immediate |
 
@@ -138,4 +172,10 @@ constants from `rooms.py` in favor of the single definitions in
   assert keys are gone.
 - Regression test: `handle_end_night` and the empty-room cleanup path in
   `_finalize_departure` now also delete `room:{code}:asked_questions` and
-  `room:{code}:conn_count`.
+  `room:{code}:conns`.
+- Regression test: a player disconnecting from a room whose `conns` key was
+  never created (simulating a pre-feature room) must not trigger the
+  empty-room TTL.
+- Regression test: the same player_id calling `handle_handshake` twice in a
+  row (simulating the screen-transition race) must leave `SCARD
+  room:{code}:conns` at `1`, not `2`.
