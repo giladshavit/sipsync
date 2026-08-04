@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Analytics, SpeedInsights } from '@/lib/vercelInsights';
+import AdSenseScript from '@/components/AdSenseScript';
 import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
 
@@ -46,6 +47,7 @@ export default function RootLayout() {
           />
           {Platform.OS === 'web' && <Analytics />}
           {Platform.OS === 'web' && <SpeedInsights />}
+          {Platform.OS === 'web' && <AdSenseScript />}
         </AudioProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

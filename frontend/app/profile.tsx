@@ -278,6 +278,16 @@ export default function ProfileScreen() {
             Sign Out
           </Text>
         </Pressable>
+
+        <Pressable
+          onPress={() => router.push('/privacy')}
+          style={{ marginTop: 20, alignItems: 'center' }}
+          className="active:opacity-60"
+        >
+          <Text style={{ color: colors.dune, fontSize: 12, textDecorationLine: 'underline' }}>
+            Privacy Policy
+          </Text>
+        </Pressable>
       </ScrollView>
 
       {/* Cute full-screen avatar picker — same component the in-room lobby

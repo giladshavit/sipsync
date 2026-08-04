@@ -15,8 +15,6 @@ import { GAME_CATALOG, getGameById } from '@/constants/games';
 import { AVATAR_IMAGES, AVATAR_COLORS, avatarFallbackColor } from '@/constants/avatars';
 import { GamesSheet } from '@/components/GamesSheet';
 import { AvatarPickerSheet } from '@/components/AvatarPickerSheet';
-import { useLobbyAd } from '@/hooks/useMockAd';
-import MockAdOverlay from '@/components/MockAdOverlay';
 
 // ~1.4x the original 56px slot — big enough that flex-wrap (not a fixed
 // column count) decides how many fit per row on any given screen width.
@@ -32,8 +30,6 @@ export default function LobbyScreen() {
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [gamesSheetMode, setGamesSheetMode] = useState<'edit' | 'view' | null>(null);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
-
-  const { visible: lobbyAdVisible, dismiss: dismissLobbyAd } = useLobbyAd(code);
 
   const isRoomAdmin = !!snapshot && snapshot.admin_id === playerId;
   const players = Object.entries(snapshot?.players ?? {});
@@ -637,8 +633,6 @@ export default function LobbyScreen() {
           onClose={() => setAvatarPickerOpen(false)}
         />
       )}
-
-      {lobbyAdVisible && <MockAdOverlay type="lobby" onClose={dismissLobbyAd} />}
     </View>
   );
 }
