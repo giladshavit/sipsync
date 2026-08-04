@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { RoundLoader } from './RoundLoader';
 import { AuctionGameUI } from './games/AuctionGameUI';
 import { BlackBoxGameUI, blackBoxRevealEndAt } from './games/BlackBoxGameUI';
 import { SPECTATOR_PRE_HOLD_MS, SPECTATOR_STAGGER_MS } from './games/SharedChaserDistributor';
@@ -157,11 +158,7 @@ export function ActiveGameScreen({
   clockOffset = 0,
 }: Props) {
   if (!gameId) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <Text className="text-slate-500">No active game</Text>
-      </View>
-    );
+    return <RoundLoader />;
   }
 
   const GameComponent = GAME_REGISTRY[gameId];
