@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
@@ -84,13 +84,17 @@ export default function HomeScreen() {
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
       {/* Mascot: stands in the bottom-right corner, behind the content and
           untouchable, so it never collides with the wordmark (which spans
-          the full width on phones) or blocks a button press. */}
-      <View
-        pointerEvents="none"
-        style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
-      >
-        <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
-      </View>
+          the full width on phones) or blocks a button press. Hidden while
+          the join field is open — on phones the keyboard shrinks the
+          visible area and the duck would crowd the form. */}
+      {!joinExpanded && (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
+        >
+          <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
+        </View>
+      )}
       <Pressable
         onPress={() => router.push('/profile')}
         style={{
@@ -117,7 +121,9 @@ export default function HomeScreen() {
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 24,
-          paddingTop: 80,
+          // Wordmark sits higher now that the eyebrow line is gone — but
+          // clears the notch (insets.top) and the profile button row.
+          paddingTop: insets.top + 52,
           // The real fix for the unreachable Start button: the page itself
           // now scrolls, and its last bit of content always clears the home
           // indicator / gesture bar instead of running under it.
@@ -126,10 +132,6 @@ export default function HomeScreen() {
       >
         {/* Title block */}
         <View className="mb-14">
-          <Text className="font-mono text-[11px] tracking-[0.28em] uppercase text-amber mb-6">
-            Real-time party game
-          </Text>
-
           {/* Signature: single-line wordmark, alternating ink/amber letters —
               same treatment as the OG share card, so the brand reads the
               same in a WhatsApp preview and on first open. */}
@@ -193,7 +195,12 @@ export default function HomeScreen() {
                   placeholder="XXXXXX"
                   placeholderTextColor="#C4B49A"
                   autoCapitalize="characters"
-                  autoFocus
+                  // Web (iOS Safari especially): auto-focusing pops the
+                  // keyboard the instant the field appears, and Safari's
+                  // scroll-into-view + viewport shrink together threw the
+                  // whole screen out of frame. Let the user tap the field
+                  // themselves — the form is already visible by then.
+                  autoFocus={Platform.OS !== 'web'}
                   maxLength={6}
                   value={codeInput}
                   onChangeText={(t) => { setCodeInput(t.toUpperCase()); setError(null); }}
