@@ -916,7 +916,7 @@ export default function PodiumScreen() {
   }>();
 
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send, dissolved, dismissPromotion } = useRoomSocket(code);
+  const { snapshot, send, leave, dissolved, dismissPromotion } = useRoomSocket(code);
 
   const outcomes: Record<string, PlayerOutcome> = (() => {
     try { return allOutcomesJson ? JSON.parse(allOutcomesJson) : {}; } catch { return {}; }
@@ -930,7 +930,7 @@ export default function PodiumScreen() {
   // confirmation overlay pattern as lobby.tsx's own confirmingLeave.
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   function handleLeave() {
-    send({ type: 'LEAVE_ROOM' });
+    leave();
     router.replace('/');
   }
 
