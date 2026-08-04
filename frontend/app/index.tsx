@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image, Platform } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
@@ -84,17 +84,14 @@ export default function HomeScreen() {
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
       {/* Mascot: stands in the bottom-right corner, behind the content and
           untouchable, so it never collides with the wordmark (which spans
-          the full width on phones) or blocks a button press. Hidden while
-          the join field is open — on phones the keyboard shrinks the
-          visible area and the duck would crowd the form. */}
-      {!joinExpanded && (
-        <View
-          pointerEvents="none"
-          style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
-        >
-          <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
-        </View>
-      )}
+          the full width on phones) or blocks a button press. When the
+          keyboard opens it may cover him — that's fine. */}
+      <View
+        pointerEvents="none"
+        style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
+      >
+        <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
+      </View>
       <Pressable
         onPress={() => router.push('/profile')}
         style={{
@@ -192,15 +189,15 @@ export default function HomeScreen() {
               <View className="flex-row gap-2">
                 <TextInput
                   className="flex-1 border-2 border-[#0A0A0F] py-4 px-4 text-[#0A0A0F] text-center text-xl font-mono tracking-widest bg-white rounded-none"
+                  // minWidth 0: on web, a flex item refuses to shrink below
+                  // its intrinsic width by default — the input's ~20-char
+                  // default size overflowed the row and shoved the Join
+                  // button off the right edge.
+                  style={{ minWidth: 0 }}
                   placeholder="XXXXXX"
                   placeholderTextColor="#C4B49A"
                   autoCapitalize="characters"
-                  // Web (iOS Safari especially): auto-focusing pops the
-                  // keyboard the instant the field appears, and Safari's
-                  // scroll-into-view + viewport shrink together threw the
-                  // whole screen out of frame. Let the user tap the field
-                  // themselves — the form is already visible by then.
-                  autoFocus={Platform.OS !== 'web'}
+                  autoFocus
                   maxLength={6}
                   value={codeInput}
                   onChangeText={(t) => { setCodeInput(t.toUpperCase()); setError(null); }}
