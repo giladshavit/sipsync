@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Bot, GlassWater, PlayCircle } from 'lucide-react-native';
 import { colors } from '@/constants/design';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { CATEGORY_LABELS, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
@@ -267,6 +268,7 @@ function PairwiseGrid({ matrix, mode }: { matrix: PairwiseMatrix; mode: 'chasers
 }
 
 export default function GameRulesScreen() {
+  useWebPageBackground(colors.cream);
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const game = getGameById(id ?? '');

@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useAudio } from '@/contexts/AudioContext';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { buildRoomShareMessage } from '@/lib/deepLink';
 import { VIBE_ICONS } from '@/constants/vibes';
 import { colors, typography } from '@/constants/design';
@@ -21,6 +22,7 @@ import { AvatarPickerSheet } from '@/components/AvatarPickerSheet';
 const AVATAR_SIZE = 78;
 
 export default function LobbyScreen() {
+  useWebPageBackground(colors.cream);
   const { code } = useLocalSearchParams<{ code: string }>();
   const insets = useSafeAreaInsets();
   const { playerId } = usePlayerIdentity();

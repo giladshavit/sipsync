@@ -3,6 +3,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 
 const H_PADDING = 24;
 
@@ -28,6 +29,7 @@ function Section({ title, children }: { title: string; children: string }) {
 }
 
 export default function PrivacyScreen() {
+  useWebPageBackground(colors.cream);
   const insets = useSafeAreaInsets();
 
   return (

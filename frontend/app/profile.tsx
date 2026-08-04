@@ -11,6 +11,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { AVATAR_IMAGES, AVATAR_COLORS } from '@/constants/avatars';
 import { AvatarPickerSheet } from '@/components/AvatarPickerSheet';
@@ -98,6 +99,7 @@ function AvatarHero({ avatar, onPress }: { avatar: string | null; onPress: () =>
 }
 
 export default function ProfileScreen() {
+  useWebPageBackground(colors.cream);
   const insets = useSafeAreaInsets();
   const { isLoading, displayName, vibe, preferredAvatar, setIdentity, setPreferredAvatar, clearIdentity } = usePlayerIdentity();
   const [name, setName] = useState('');

@@ -4,10 +4,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { API_BASE } from '@/constants/api';
 import { GAME_CATALOG } from '@/constants/games';
 
 export default function HomeScreen() {
+  useWebPageBackground('#FFF8E1');
   const { isLoading, isOnboarded, displayName, playerId } = usePlayerIdentity();
   const insets = useSafeAreaInsets();
   const [joinExpanded, setJoinExpanded] = useState(false);
