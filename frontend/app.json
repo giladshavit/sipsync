@@ -22,6 +22,9 @@
       },
       "package": "com.sipsync.app"
     },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
     "plugins": [
       "expo-router",
       "expo-secure-store",
