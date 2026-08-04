@@ -19,6 +19,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { buildRoomShareMessage } from '@/lib/deepLink';
 import { typography } from '@/constants/design';
 import { AVATAR_COLORS } from '@/constants/avatars';
@@ -908,6 +909,7 @@ function PromotionToast({ topInset, onDismiss }: { topInset: number; onDismiss: 
 }
 
 export default function PodiumScreen() {
+  useWebPageBackground(BG);
   const { code, allOutcomesJson } = useLocalSearchParams<{
     code: string;
     allOutcomesJson: string;

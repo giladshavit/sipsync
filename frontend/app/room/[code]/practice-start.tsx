@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { usePracticeExit } from '@/hooks/usePracticeExit';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { PracticeExitButton } from '@/components/PracticeExitButton';
 import { RoundLoader } from '@/components/RoundLoader';
 
@@ -17,6 +18,7 @@ import { RoundLoader } from '@/components/RoundLoader';
 // TUTORIAL_DONE itself (never rendering tutorial.tsx) and hands off
 // straight to the live game screen once the FSM reaches PLAYING.
 export default function PracticeStartScreen() {
+  useWebPageBackground('#0A0A0F');
   const { code, gameId } = useLocalSearchParams<{ code: string; gameId: string }>();
   const { playerId } = usePlayerIdentity();
   const { snapshot, send } = useRoomSocket(code);

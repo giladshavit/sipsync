@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
 
@@ -23,6 +24,7 @@ import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
 // the FSM itself moving past PLAYING — no need to wait on the player-record
 // round trip when the state transition already says the round is over.
 export default function WaitingRoomScreen() {
+  useWebPageBackground(colors.ink);
   const { code } = useLocalSearchParams<{ code: string }>();
   const { playerId } = usePlayerIdentity();
   const { snapshot, send, dissolved } = useRoomSocket(code);

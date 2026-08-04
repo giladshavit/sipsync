@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Redirect } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { API_BASE } from '@/constants/api';
 import { colors, typography } from '@/constants/design';
 
@@ -14,6 +15,7 @@ import { colors, typography } from '@/constants/design';
 // an onboarded one straight into the room, so an invite link works before
 // the recipient has ever opened the app.
 export default function RoomDeepLinkScreen() {
+  useWebPageBackground(colors.ink);
   const { code } = useLocalSearchParams<{ code: string }>();
   const { isLoading, isOnboarded } = usePlayerIdentity();
   const [notFound, setNotFound] = useState(false);

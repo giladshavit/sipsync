@@ -5,11 +5,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { getGameById } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
 
 export default function TutorialPreviewScreen() {
+  useWebPageBackground(colors.ink);
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
   const game = getGameById(id ?? '');

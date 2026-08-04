@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { TUTORIAL_COMPONENTS } from '@/constants/tutorials';
 import { getGameById } from '@/constants/games';
@@ -51,6 +52,7 @@ const DURATION_MS_OVERRIDES: Record<string, number> = {
 };
 
 export default function TutorialScreen() {
+  useWebPageBackground(colors.ink);
   const { code, tutorialType: _tutorialType, tutorialAsset } = useLocalSearchParams<{
     code: string;
     tutorialType: string;

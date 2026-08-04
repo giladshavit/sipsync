@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { RoundResultCard, roundResultBgColor } from '@/components/RoundResultCard';
 import { PracticeExitButton } from '@/components/PracticeExitButton';
 import type { PlayerOutcome } from '@/hooks/useRoomSocket';
@@ -33,6 +34,8 @@ export default function SummaryScreen() {
   const outcome: PlayerOutcome | null = (() => {
     try { return outcomeJson ? JSON.parse(outcomeJson) : null; } catch { return null; }
   })();
+
+  useWebPageBackground(roundResultBgColor(outcome?.result));
 
   const allOutcomes: Record<string, PlayerOutcome> = (() => {
     try { return allOutcomesJson ? JSON.parse(allOutcomesJson) : {}; } catch { return {}; }

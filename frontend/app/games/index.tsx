@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
@@ -12,6 +13,7 @@ const H_PADDING = 20;
 const COLUMNS = 3;
 
 export default function AllGamesScreen() {
+  useWebPageBackground(colors.cream);
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
   const [filter, setFilter] = useState<CategoryFilter>('all');

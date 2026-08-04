@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { AVATAR_POOL, AVATAR_IMAGES, AVATAR_COLORS } from '@/constants/avatars';
 
@@ -21,6 +22,7 @@ const AVATAR_SIZE = 64;
 const AVATAR_GAP = 14;
 
 export default function OnboardingScreen() {
+  useWebPageBackground(colors.ink);
   const { redirectToRoom } = useLocalSearchParams<{ redirectToRoom?: string }>();
   const { displayName, isLoading, setIdentity, setPreferredAvatar } = usePlayerIdentity();
   const [name, setName] = useState('');

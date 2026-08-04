@@ -16,6 +16,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { AvatarCircle } from '@/components/games/SharedChaserDistributor';
 
@@ -43,6 +44,7 @@ const OPTION_COLORS: [string, string] = [colors.tapped, '#7C3AED'];
  * "watch and wait" idiom).
  */
 export default function CustomQuestionScreen() {
+  useWebPageBackground(`linear-gradient(180deg, ${WINE} 0%, ${WINE_DEEP} 50%, ${colors.ink} 100%)`);
   const { code, writerId: paramWriterId } = useLocalSearchParams<{ code: string; writerId: string }>();
   const { playerId } = usePlayerIdentity();
   const { snapshot, send, dissolved } = useRoomSocket(code);
