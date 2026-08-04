@@ -435,6 +435,33 @@ export function useRoomSocket(code: string): UseRoomSocket {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [reconnect]);
 
+  // The departure half of the same problem: iOS Safari tears the page down
+  // on tab close / navigation away without sending a WebSocket close frame,
+  // so the server keeps seeing this player as fully connected until its
+  // ping timeout fires (tens of seconds). During that window the lobby
+  // shows a "connected" ghost — and the admin can start a game counting a
+  // player who's gone. Closing the socket on pagehide hands the server the
+  // close frame while the page can still speak, turning the departure into
+  // an immediate PLAYER_DISCONNECTED broadcast (seat still held by the
+  // normal grace period — a user who comes back gets restored, and the
+  // visibilitychange handler above reconnects them). pagehide fires on real
+  // departures, not on a mere app switch, so brief WhatsApp checks don't
+  // churn the connection.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+
+    function handlePageHide() {
+      try {
+        wsRef.current?.close();
+      } catch {
+        /* already dead — nothing to clean up */
+      }
+    }
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+  }, []);
+
   const dismissPromotion = useCallback(() => {
     setSnapshot((prev) => (prev ? { ...prev, justPromoted: false } : prev));
   }, []);
