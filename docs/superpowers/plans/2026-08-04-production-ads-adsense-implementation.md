@@ -225,21 +225,71 @@ Add this render line directly after the existing line 48
           {Platform.OS === 'web' && <AdSenseScript />}
 ```
 
-- [ ] **Step 4: Build with the flag off and confirm the script tag is absent from the bundled JS**
+**Critical finding from controller verification (fix required, not optional):**
+Metro's transform cache does **not** invalidate when only `EXPO_PUBLIC_ADS_ENABLED`
+changes between builds. Reproduced directly: with the OS-temp Metro cache
+warm, `EXPO_PUBLIC_ADS_ENABLED=false npm run build` followed immediately by
+`EXPO_PUBLIC_ADS_ENABLED=true npm run build` (no other changes, cache not
+manually cleared) produced **identical output both times** — the second
+build silently kept serving the flag=false bundle. Passing `--clear` to the
+export command reliably fixes this (verified: `--clear` correctly flips the
+bundle's content on each run, matching whichever flag was actually set).
+This is load-bearing for the whole plan's safety design — the rollout plan
+depends on flipping this Vercel env var and redeploying to reliably turn
+ads on/off; without `--clear`, a redeploy that only changes the env var
+(and nothing else in the code) risks Vercel's own build cache serving the
+previous bundle unchanged, silently defeating the kill switch.
+
+**Fix:** `frontend/package.json`'s `build` script must pass `--clear`.
+
+- [ ] **Step 4: Fix the build script's cache invalidation**
+
+In `frontend/package.json`, change:
+```json
+    "build": "expo export --platform web",
+```
+to:
+```json
+    "build": "expo export --platform web --clear",
+```
+
+- [ ] **Step 5: Build with the flag off and confirm the script tag is absent from the bundled JS**
 
 Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=false npm run build && grep -c "pagead2.googlesyndication.com" dist/_expo/static/js/web/*.js`
 Expected: `0`. (The script now lives in the JS bundle, not `index.html` — `dist/index.html` itself never contains it either way, since it's injected at runtime by this component.)
 
-- [ ] **Step 5: Build with the flag on and confirm the script tag is present in the bundled JS**
+- [ ] **Step 6: Build with the flag on and confirm the script tag is present in the bundled JS**
 
 Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=true npm run build && grep -c "pagead2.googlesyndication.com" dist/_expo/static/js/web/*.js`
-Expected: `1` or more (the exact count depends on minification/bundling, but at least one match confirms the string made it into the client bundle).
+Expected: `1` or more (the exact count depends on minification/bundling, but at least one match confirms the string made it into the client bundle). Since Step 4 now makes every build pass `--clear`, this should be reliable — if it isn't, that's a real regression to report, not a caching fluke to explain away.
 
-- [ ] **Step 6: Manual browser check that the tag actually gets injected**
+- [ ] **Step 7: Manual browser check that the tag actually gets injected and loads**
 
-Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=true npx expo start --web`, open the app in a browser, open DevTools → Elements, and confirm a `<script async src="https://pagead2.googlesyndication.com/...">` tag is present inside `<head>`. This is the real behavioral proof the grep in Steps 4-5 can't give — grep only proves the string exists in the bundle, not that the runtime `useEffect` actually ran and appended it.
+Serve the flag-on `dist/` output and load it in a real browser — grep only proves the string exists in the bundle, not that the runtime `useEffect` actually ran and appended it. From `frontend/`, with the flag-on build from Step 6 still in `dist/`:
+```bash
+python3 -m http.server 4173 --directory dist &
+sleep 1
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:4173/
+```
+Expected: `200`. Then, using Playwright (already a devDependency):
+```bash
+node -e "
+const { chromium } = require('playwright');
+(async () => {
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto('http://localhost:4173/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForTimeout(3000);
+  const found = await page.\$\$eval('script', els => els.map(e => e.src));
+  console.log(JSON.stringify(found, null, 2));
+  await browser.close();
+})();
+"
+kill %1
+```
+Expected: the printed array includes `https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6248733928314999`.
 
-- [ ] **Step 7: Re-run the default build so the working tree matches what actually ships without a Vercel env var set (i.e., disabled)**
+- [ ] **Step 8: Re-run the default build so the working tree matches what actually ships without a Vercel env var set (i.e., disabled)**
 
 Run: `cd frontend && npm run build`
 Expected: succeeds; resets `dist/` to the disabled-by-default state. `dist/`
@@ -247,15 +297,15 @@ isn't committed — confirm with `git check-ignore frontend/dist/index.html`
 (checking the bare `frontend/dist` directory path instead can print nothing
 even when the directory *is* ignored).
 
-- [ ] **Step 8: Type-check**
+- [ ] **Step 9: Type-check**
 
 Run: `cd frontend && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add frontend/components/AdSenseScript.tsx frontend/app/_layout.tsx
+git add frontend/components/AdSenseScript.tsx frontend/app/_layout.tsx frontend/package.json
 git rm frontend/app/+html.tsx
 git commit -m "feat: inject AdSense auto-ads script client-side, gated by EXPO_PUBLIC_ADS_ENABLED"
 ```
