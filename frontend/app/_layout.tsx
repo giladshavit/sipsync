@@ -1,8 +1,9 @@
 import '../global.css';
 
 import { useEffect } from 'react';
-import { Platform, useWindowDimensions } from 'react-native';
+import { Platform } from 'react-native';
 import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
+import { useWebViewportHeight } from '@/hooks/useWebViewportHeight';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,15 +17,11 @@ export default function RootLayout() {
   const pathname = usePathname();
   const showAdsScript = Platform.OS === 'web' && isAdEligiblePath(pathname);
 
-  // Web-only: `height: 100%` on html/body/#root (or `100vh`) both resolve
-  // against the browser's *layout* viewport, which iOS Safari doesn't
-  // shrink/grow live as its address bar collapses — the result is content
-  // sized for a viewport that doesn't match what's actually visible,
-  // rendering as a squashed top strip. useWindowDimensions gives a
-  // JS-measured height that updates on the resize event Safari fires when
-  // the address bar shows/hides, so we size the root explicitly instead of
-  // trusting the inherited percentage chain.
-  const { height } = useWindowDimensions();
+  // Web-only: size the root to what's actually visible — tracks both the
+  // iOS Safari address bar and the on-screen keyboard (which shrinks only
+  // the visual viewport, never the layout viewport). See the hook for the
+  // full story.
+  const height = useWebViewportHeight();
   const rootStyle = Platform.OS === 'web' ? { height, width: '100%' as const } : { flex: 1 as const };
 
   useEffect(() => {
