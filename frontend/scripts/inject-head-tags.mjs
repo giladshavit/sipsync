@@ -44,5 +44,22 @@ if (html.includes('og:image')) {
   process.exit(0);
 }
 
-writeFileSync(indexPath, html.replace('</head>', `    ${TAGS}\n  </head>`));
-console.log('inject-head-tags: injected social meta + apple-touch-icon into dist/index.html');
+// viewport-fit=cover lets the layout viewport extend under the iPhone
+// notch / home-indicator, so screen backgrounds paint edge-to-edge instead
+// of leaving white bars outside the safe area. safe-area-context's web
+// implementation reads the env() insets this enables, so screens keep
+// their padding.
+const VIEWPORT_OLD =
+  '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />';
+const VIEWPORT_NEW =
+  '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />';
+if (!html.includes(VIEWPORT_OLD)) {
+  console.error('inject-head-tags: expected viewport meta not found — Expo template changed, update this script');
+  process.exit(1);
+}
+
+writeFileSync(
+  indexPath,
+  html.replace(VIEWPORT_OLD, VIEWPORT_NEW).replace('</head>', `    ${TAGS}\n  </head>`),
+);
+console.log('inject-head-tags: injected social meta, apple-touch-icon, viewport-fit=cover into dist/index.html');

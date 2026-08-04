@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
@@ -80,6 +80,15 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
+      {/* Mascot: stands in the bottom-right corner, behind the content and
+          untouchable, so it never collides with the wordmark (which spans
+          the full width on phones) or blocks a button press. */}
+      <View
+        pointerEvents="none"
+        style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
+      >
+        <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
+      </View>
       <Pressable
         onPress={() => router.push('/profile')}
         style={{
@@ -119,9 +128,17 @@ export default function HomeScreen() {
             Real-time party game
           </Text>
 
-          {/* Signature: single-line wordmark, heavy amber */}
-          <Text style={{ fontWeight: '900', color: '#F59E0B', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
-            Quickle
+          {/* Signature: single-line wordmark, alternating ink/amber letters —
+              same treatment as the OG share card, so the brand reads the
+              same in a WhatsApp preview and on first open. */}
+          <Text style={{ fontWeight: '900', fontSize: 96, lineHeight: 104, letterSpacing: -4 }}>
+            <Text style={{ color: '#0A0A0F' }}>Q</Text>
+            <Text style={{ color: '#F59E0B' }}>u</Text>
+            <Text style={{ color: '#0A0A0F' }}>i</Text>
+            <Text style={{ color: '#F59E0B' }}>c</Text>
+            <Text style={{ color: '#0A0A0F' }}>k</Text>
+            <Text style={{ color: '#F59E0B' }}>l</Text>
+            <Text style={{ color: '#0A0A0F' }}>e</Text>
           </Text>
 
           {displayName && (

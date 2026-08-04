@@ -30,7 +30,10 @@ export default function RootLayout() {
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const style = document.createElement('style');
-    style.textContent = `html, body { overscroll-behavior-y: none; touch-action: pan-y; }`;
+    // background-color: with viewport-fit=cover the app's own views paint
+    // edge-to-edge, but the body is the fallback surface behind rubber-band
+    // overscroll and mid-load — cream matches the app, not browser white.
+    style.textContent = `html, body { overscroll-behavior-y: none; touch-action: pan-y; background-color: #FFF8E1; }`;
     document.head.appendChild(style);
     return () => {
       document.head.removeChild(style);
