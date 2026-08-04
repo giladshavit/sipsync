@@ -27,7 +27,7 @@ export default function WaitingRoomScreen() {
   useWebPageBackground(colors.ink);
   const { code } = useLocalSearchParams<{ code: string }>();
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send, dissolved } = useRoomSocket(code);
+  const { snapshot, send, leave, dissolved } = useRoomSocket(code);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
 
   useEffect(() => {
@@ -55,7 +55,7 @@ export default function WaitingRoomScreen() {
   const pulseStyle = useAnimatedStyle(() => ({ transform: [{ scale: pulse.value }] }));
 
   function handleLeave() {
-    send({ type: 'LEAVE_ROOM' });
+    leave();
     router.replace('/');
   }
 

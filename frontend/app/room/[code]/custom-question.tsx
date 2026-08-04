@@ -47,7 +47,7 @@ export default function CustomQuestionScreen() {
   useWebPageBackground(`linear-gradient(180deg, ${WINE} 0%, ${WINE_DEEP} 50%, ${colors.ink} 100%)`);
   const { code, writerId: paramWriterId } = useLocalSearchParams<{ code: string; writerId: string }>();
   const { playerId } = usePlayerIdentity();
-  const { snapshot, send, dissolved } = useRoomSocket(code);
+  const { snapshot, send, leave, dissolved } = useRoomSocket(code);
   const insets = useSafeAreaInsets();
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [question, setQuestion] = useState('');
@@ -85,7 +85,7 @@ export default function CustomQuestionScreen() {
   }
 
   function handleLeave() {
-    send({ type: 'LEAVE_ROOM' });
+    leave();
     router.replace('/');
   }
 

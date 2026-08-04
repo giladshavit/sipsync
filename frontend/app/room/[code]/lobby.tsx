@@ -27,7 +27,7 @@ export default function LobbyScreen() {
   const insets = useSafeAreaInsets();
   const { playerId } = usePlayerIdentity();
   const { isMuted, toggleMute } = useAudio();
-  const { snapshot, send } = useRoomSocket(code);
+  const { snapshot, send, leave } = useRoomSocket(code);
   const [copied, setCopied] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [gamesSheetMode, setGamesSheetMode] = useState<'edit' | 'view' | null>(null);
@@ -110,7 +110,7 @@ export default function LobbyScreen() {
   }
 
   function handleLeave() {
-    send({ type: 'LEAVE_ROOM' });
+    leave();
     router.replace('/');
   }
 

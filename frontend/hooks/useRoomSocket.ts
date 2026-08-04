@@ -109,6 +109,15 @@ export interface UseRoomSocket {
   snapshot: RoomSnapshot | null;
   isConnected: boolean;
   send: (msg: object) => void;
+  /**
+   * Deliberate, permanent departure with guaranteed delivery. `send` on a
+   * socket iOS silently killed is a spec-sanctioned no-op — the LEAVE_ROOM
+   * just vanishes. This sends over the live socket when there is one, and
+   * otherwise fires a detached one-shot connection (carrying player_id in
+   * the message, which the server accepts in lieu of a HANDSHAKE) that
+   * survives the navigation-away that follows.
+   */
+  leave: () => void;
   outcomesRef: MutableRefObject<Record<string, PlayerOutcome>>;
   dissolved: boolean;
   /**
@@ -466,5 +475,37 @@ export function useRoomSocket(code: string): UseRoomSocket {
     setSnapshot((prev) => (prev ? { ...prev, justPromoted: false } : prev));
   }, []);
 
-  return { snapshot, isConnected, send, outcomesRef, dissolved, reconnect, dismissPromotion };
+  // Deliberate, permanent departure — guaranteed delivery, unlike send().
+  // A WebSocket that iOS silently killed in the background reports CLOSED,
+  // and the spec makes send() on it a silent no-op: the LEAVE_ROOM vanishes,
+  // the user navigates home believing they left, and everyone else keeps
+  // seeing them until the server's ping timeout. When the screen's socket
+  // isn't OPEN, this fires a detached throwaway connection instead — not
+  // tied to this hook's lifecycle, so it survives the navigation-away that
+  // immediately follows — carrying player_id in the message itself (the
+  // server accepts that in lieu of a HANDSHAKE for exactly this path).
+  const leave = useCallback(() => {
+    const payload = JSON.stringify({
+      type: 'LEAVE_ROOM',
+      player_id: playerIdRef.current,
+    });
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+      return;
+    }
+    try {
+      const oneShot = new WebSocket(`${WS_BASE}/ws/${code}`);
+      oneShot.onopen = () => {
+        oneShot.send(payload);
+        // Give the frame a moment to flush before closing.
+        setTimeout(() => oneShot.close(), 300);
+      };
+    } catch {
+      // Truly offline — the server's ping timeout and grace period are the
+      // backstop, same as a tab close.
+    }
+  }, [code]);
+
+  return { snapshot, isConnected, send, leave, outcomesRef, dissolved, reconnect, dismissPromotion };
 }

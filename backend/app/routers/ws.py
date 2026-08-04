@@ -50,7 +50,17 @@ async def room_ws(websocket: WebSocket, code: str) -> None:
                 case "SKIP_GAME":
                     await room_service.handle_skip_game(code, player_id)
                 case "LEAVE_ROOM":
-                    await room_service.handle_leave(code, player_id)
+                    # Fallback to a player_id carried in the message itself:
+                    # a deliberate leave pressed while the screen's own
+                    # socket is silently dead (iOS Safari kills sockets in
+                    # the background without a close frame) is re-sent over
+                    # a fresh throwaway connection that never HANDSHAKEs —
+                    # so the connection-local player_id is None there. Trust
+                    # model is unchanged: HANDSHAKE itself just claims a
+                    # player_id, and the guest UUID is the auth token.
+                    await room_service.handle_leave(
+                        code, player_id or msg.get("player_id")
+                    )
                 case "GAME_ACTION":
                     await room_service.handle_game_action(
                         code, player_id, msg.get("payload", {})
