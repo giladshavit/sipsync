@@ -2,16 +2,20 @@ import '../global.css';
 
 import { useEffect } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
-import { Stack, type ErrorBoundaryProps } from 'expo-router';
+import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Analytics, SpeedInsights } from '@/lib/vercelInsights';
 import AdSenseScript from '@/components/AdSenseScript';
+import { isAdEligiblePath } from '@/config/adPlacements';
 import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
 
 export default function RootLayout() {
+  const pathname = usePathname();
+  const showAdsScript = Platform.OS === 'web' && isAdEligiblePath(pathname);
+
   // Web-only: `height: 100%` on html/body/#root (or `100vh`) both resolve
   // against the browser's *layout* viewport, which iOS Safari doesn't
   // shrink/grow live as its address bar collapses — the result is content
@@ -47,7 +51,7 @@ export default function RootLayout() {
           />
           {Platform.OS === 'web' && <Analytics />}
           {Platform.OS === 'web' && <SpeedInsights />}
-          {Platform.OS === 'web' && <AdSenseScript />}
+          {showAdsScript && <AdSenseScript />}
         </AudioProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
