@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
-import { Bot } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useRoomSocket } from '@/hooks/useRoomSocket';
 import { usePracticeExit } from '@/hooks/usePracticeExit';
 import { PracticeExitButton } from '@/components/PracticeExitButton';
-import { colors } from '@/constants/design';
+import { RoundLoader } from '@/components/RoundLoader';
 
 // Minimal glue screen for practice-vs-bots rooms — there's no one to invite,
 // so this skips the real lobby.tsx (its player-count gating, share/invite
@@ -48,11 +47,9 @@ export default function PracticeStartScreen() {
   }, [snapshot?.state, code]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+    <View style={{ flex: 1 }}>
       <PracticeExitButton onPress={exitPractice} />
-      <Bot size={40} color={colors.amber} strokeWidth={1.5} />
-      <ActivityIndicator color={colors.amber} />
-      <Text style={{ color: colors.chalk, fontSize: 13 }}>Setting up your practice round…</Text>
+      <RoundLoader label="Setting up your practice round" />
     </View>
   );
 }

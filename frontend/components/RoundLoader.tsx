@@ -76,7 +76,7 @@ function Bubble({ left, size, delayMs, durationMs }: (typeof BUBBLES)[number]) {
  * drinks it, repeat. Content fades in after a short delay so sub-150ms gaps
  * show only the ink background instead of flashing anything at all.
  */
-export function RoundLoader() {
+export function RoundLoader({ label = 'Pouring the next round' }: { label?: string }) {
   const reducedMotion = useReducedMotion();
   const fill = useSharedValue(reducedMotion ? 0.66 : EMPTY_FILL);
 
@@ -151,7 +151,7 @@ export function RoundLoader() {
             color: colors.fog,
           }}
         >
-          Pouring the next round
+          {label}
         </Text>
       </Animated.View>
     </View>
