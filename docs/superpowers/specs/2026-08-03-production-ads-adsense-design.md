@@ -62,13 +62,20 @@ Google's script owns that.
 
 ### Add
 
-- **`frontend/app/+html.tsx`** — Expo Router's hook for customizing the
-  exported web document's `<head>`. Does not exist yet (the app currently
-  uses Expo's default web HTML template). This is where the AdSense auto-ads
-  script tag (`adsbygoogle.js`, keyed to the publisher's `pub-` ID) gets
-  injected, gated by an environment flag (see Rollout, below) — Google
-  wants this script in the real initial HTML, not injected client-side via
-  `useEffect` the way `lib/vercelInsights.tsx` handles Vercel Analytics.
+- **Superseded during implementation:** this section originally called for
+  `frontend/app/+html.tsx` (Expo Router's custom-document hook) to inject
+  the AdSense script into the real initial HTML, on the theory that Google
+  prefers that over a client-injected `useEffect` script. That doesn't work
+  in this app — `+html.tsx` is only honored when `app.json`'s `web.output`
+  is `"static"` or `"server"`, and this app has no `web` key (defaults to
+  plain SPA mode), so Expo silently ignores it. Switching `web.output` risks
+  the app's dynamic, runtime-resolved routes (`room/[code]/lobby`, etc.).
+  The implementation instead injects the script client-side via a small
+  component, the same pattern already live in production for Vercel
+  Analytics/Speed Insights (`lib/vercelInsights.tsx` + `app/_layout.tsx`).
+  See the plan's Task 3 revision note for the full account of what was
+  tried and why:
+  `docs/superpowers/plans/2026-08-04-production-ads-adsense-implementation.md`.
 - **`public/ads.txt`** — a single line
   (`google.com, pub-6248733928314999, DIRECT, f08c47fec0942fa0`). Expo
   copies `frontend/public/` verbatim into the web build output.
@@ -97,16 +104,20 @@ not guessed at here.
 ## Rollout & compliance
 
 - **Environment gate is a policy requirement, not a nice-to-have.** A single
-  flag (e.g. `EXPO_PUBLIC_ADS_ENABLED`), read in `+html.tsx`, must be true
-  only for the production Vercel deployment. Vercel preview deployments
-  (every branch/PR) must never load the live AdSense script — impressions
-  from dev/preview traffic risk Google's invalid-traffic enforcement
-  (warnings up to account suspension). This single flag replaces the old
-  three-flag system in spirit; there's no "lobby ad" vs. "podium ad"
-  distinction left to flag separately since Google decides placement.
-- **`vercel.json` update:** the current catch-all rewrite would swallow a
-  request for `/ads.txt` and serve the SPA shell instead. Needs an
-  exception carved out so `/ads.txt` is served as the static file.
+  flag (`EXPO_PUBLIC_ADS_ENABLED`), read by the `AdSenseScript` component
+  (see the superseded-approach note above — client-injected, not read in a
+  `+html.tsx` that turned out not to work in this app), must be true only
+  for the production Vercel deployment. Vercel preview deployments (every
+  branch/PR) must never load the live AdSense script — impressions from
+  dev/preview traffic risk Google's invalid-traffic enforcement (warnings up
+  to account suspension). This single flag replaces the old three-flag
+  system in spirit; there's no "lobby ad" vs. "podium ad" distinction left
+  to flag separately since Google decides placement.
+- **`vercel.json`:** turned out to need no change — also found during
+  implementation planning. Vercel serves a matching static file before
+  applying any `rewrites`, so the existing catch-all rewrite doesn't affect
+  `/ads.txt` at all; the file just needs to exist. (The design originally
+  assumed otherwise.)
 - **Account-side steps, in order (user's responsibility, not code — a
   checklist will be handed over at implementation time):**
   1. Retrieve the publisher ID for `ads.txt` (available immediately,
@@ -116,9 +127,10 @@ not guessed at here.
      dashboard. This step is **blocked on the code being deployed first**:
      AdSense verifies the site by finding its own connection-code
      `<script>` snippet live on the domain — the same script tag this
-     design already puts in `app/+html.tsx`. So the real order is: deploy
-     the code (flag on) → then add the site in AdSense → verification
-     succeeds because the script is already live.
+     design puts on the page, now via client-side injection rather than
+     `+html.tsx`. So the real order is: deploy the code (flag on) → then
+     add the site in AdSense → verification succeeds because the script is
+     already live.
   3. Once the site verifies, enable Vignette (optionally Anchor) under
      Auto ads for it.
   4. Enable the Privacy & messaging consent tool once `/privacy` is live,

@@ -137,72 +137,127 @@ git commit -m "feat: add ads.txt for AdSense site verification"
 
 ---
 
-### Task 3: Add the AdSense script via a custom web document
+### Task 3: Add the AdSense script via client-side injection
+
+**Revision note (found during implementation, not the original plan):** the
+first attempt at this task used `frontend/app/+html.tsx`, Expo Router's
+custom-document hook. That doesn't work in this app: `app/+html.tsx` is only
+used when `app.json`'s `web.output` is `"static"` or `"server"` (confirmed
+directly in the installed Expo CLI source,
+`node_modules/@expo/cli/build/src/export/exportApp.js:122` —
+`useServerRendering = ["static","server"].includes(exp.web?.output ?? "")`).
+This app's `app.json` has no `web` key, so it defaults to plain SPA
+("single") mode, and Expo silently ignores `+html.tsx`, falling back to its
+own generic template — confirmed by inspecting the actual built
+`dist/index.html`, which contained none of that file's content. Switching
+`web.output` to `"static"` would make `+html.tsx` work, but changes the
+whole site from one SPA shell to per-route static generation — a real risk
+for an app whose routes (`room/[code]/lobby`, `room/[code]/podium`, etc.)
+are dynamic and resolved entirely at runtime over WebSocket. The user chose
+the lower-risk path instead: inject the script client-side, mirroring the
+pattern already live in production for Vercel Analytics/Speed Insights
+(`frontend/lib/vercelInsights.tsx` + `frontend/app/_layout.tsx:9,47-48`).
 
 **Files:**
-- Create: `frontend/app/+html.tsx`
+- Delete: `frontend/app/+html.tsx` (created by the abandoned first attempt;
+  inert dead code under this app's current `web.output` config — remove it
+  rather than leave an unused file that looks load-bearing)
+- Create: `frontend/components/AdSenseScript.tsx`
+- Modify: `frontend/app/_layout.tsx:9` (add import), `:47-48` (add render
+  call after the existing `Analytics`/`SpeedInsights` lines)
 
 **Interfaces:**
-- Consumes: `process.env.EXPO_PUBLIC_ADS_ENABLED` (a Vercel-scoped env var — not defined in code, set in Vercel's dashboard for the Production environment only; absent/`false` everywhere else).
-- Produces: nothing consumed by other tasks — this is the terminal piece of the AdSense wiring. The env var name (`EXPO_PUBLIC_ADS_ENABLED`) is the one fact from this task worth remembering for the account-side checklist handed to the user afterward.
+- Consumes: `process.env.EXPO_PUBLIC_ADS_ENABLED` (a Vercel-scoped env var —
+  not defined in code, set in Vercel's dashboard for the Production
+  environment only; absent/`false` everywhere else).
+- Produces: `AdSenseScript`, a default-exported React component with no
+  props, rendered the same way `Analytics`/`SpeedInsights` already are.
+  Nothing else consumes it — terminal piece of the AdSense wiring.
 
-`app/+html.tsx` doesn't exist yet — Expo Router uses whatever default web document template it ships with in its absence. This file is the officially documented way to customize that document's `<head>` (see Expo Router's `expo-router/html` export, used below for `ScrollViewStyleReset`, which is part of the standard template Expo's own docs use — omitting it can affect React Native Web's scroll-reset behavior on the exported page).
+- [ ] **Step 1: Delete the non-working `+html.tsx` from the abandoned attempt**
 
-- [ ] **Step 1: Create `frontend/app/+html.tsx`**
+```bash
+rm frontend/app/+html.tsx
+```
+
+- [ ] **Step 2: Create `frontend/components/AdSenseScript.tsx`**
 
 ```tsx
-import { ScrollViewStyleReset } from 'expo-router/html';
-import type { PropsWithChildren } from 'react';
+import { useEffect } from 'react';
 
 const ADS_ENABLED = process.env.EXPO_PUBLIC_ADS_ENABLED === 'true';
+const ADSENSE_SRC =
+  'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6248733928314999';
 
-export default function Root({ children }: PropsWithChildren) {
-  return (
-    <html lang="en">
-      <head>
-        <meta charSet="utf-8" />
-        <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-        <ScrollViewStyleReset />
-        {ADS_ENABLED && (
-          <script
-            async
-            src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6248733928314999"
-            crossOrigin="anonymous"
-          />
-        )}
-      </head>
-      <body>{children}</body>
-    </html>
-  );
+// Mirrors lib/vercelInsights.tsx's approach: a client-injected script tag,
+// mounted from _layout.tsx alongside Analytics/SpeedInsights. React 18
+// Strict Mode double-invokes effects in development, so this guards
+// against appending the tag twice on a single mount.
+export default function AdSenseScript() {
+  useEffect(() => {
+    if (!ADS_ENABLED) return;
+    if (document.querySelector(`script[src="${ADSENSE_SRC}"]`)) return;
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = ADSENSE_SRC;
+    script.crossOrigin = 'anonymous';
+    document.head.appendChild(script);
+  }, []);
+
+  return null;
 }
 ```
 
-- [ ] **Step 2: Build with the flag off and confirm the script is absent**
+- [ ] **Step 3: Wire it into `frontend/app/_layout.tsx`**
 
-Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=false npm run build && grep -c "pagead2.googlesyndication.com" dist/index.html`
-Expected: `0` (grep with `-c` prints the match count; `0` means the script tag is not present).
+Add this import on the line directly after the existing line 9
+(`import { Analytics, SpeedInsights } from '@/lib/vercelInsights';`):
 
-- [ ] **Step 3: Build with the flag on and confirm the script is present**
+```tsx
+import AdSenseScript from '@/components/AdSenseScript';
+```
 
-Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=true npm run build && grep -c "pagead2.googlesyndication.com" dist/index.html`
-Expected: `1`.
+Add this render line directly after the existing line 48
+(`{Platform.OS === 'web' && <SpeedInsights />}`), inside the same
+`<AudioProvider>` block:
 
-- [ ] **Step 4: Re-run the default build so the working tree matches what actually ships without a Vercel env var set (i.e., disabled)**
+```tsx
+          {Platform.OS === 'web' && <AdSenseScript />}
+```
+
+- [ ] **Step 4: Build with the flag off and confirm the script tag is absent from the bundled JS**
+
+Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=false npm run build && grep -c "pagead2.googlesyndication.com" dist/_expo/static/js/web/*.js`
+Expected: `0`. (The script now lives in the JS bundle, not `index.html` — `dist/index.html` itself never contains it either way, since it's injected at runtime by this component.)
+
+- [ ] **Step 5: Build with the flag on and confirm the script tag is present in the bundled JS**
+
+Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=true npm run build && grep -c "pagead2.googlesyndication.com" dist/_expo/static/js/web/*.js`
+Expected: `1` or more (the exact count depends on minification/bundling, but at least one match confirms the string made it into the client bundle).
+
+- [ ] **Step 6: Manual browser check that the tag actually gets injected**
+
+Run: `cd frontend && EXPO_PUBLIC_ADS_ENABLED=true npx expo start --web`, open the app in a browser, open DevTools → Elements, and confirm a `<script async src="https://pagead2.googlesyndication.com/...">` tag is present inside `<head>`. This is the real behavioral proof the grep in Steps 4-5 can't give — grep only proves the string exists in the bundle, not that the runtime `useEffect` actually ran and appended it.
+
+- [ ] **Step 7: Re-run the default build so the working tree matches what actually ships without a Vercel env var set (i.e., disabled)**
 
 Run: `cd frontend && npm run build`
-Expected: succeeds; this just resets `dist/` to the disabled-by-default state — `dist/` isn't committed (confirm it's covered by `.gitignore` before moving on: `git check-ignore frontend/dist/index.html` should print that path — checking the bare `frontend/dist` directory path instead can print nothing even when the directory *is* ignored, since git's directory-pattern matching behaves differently for a path with no file component).
+Expected: succeeds; resets `dist/` to the disabled-by-default state. `dist/`
+isn't committed — confirm with `git check-ignore frontend/dist/index.html`
+(checking the bare `frontend/dist` directory path instead can print nothing
+even when the directory *is* ignored).
 
-- [ ] **Step 5: Type-check**
+- [ ] **Step 8: Type-check**
 
 Run: `cd frontend && npx tsc --noEmit`
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add frontend/app/+html.tsx
-git commit -m "feat: inject AdSense auto-ads script gated by EXPO_PUBLIC_ADS_ENABLED"
+git add frontend/components/AdSenseScript.tsx frontend/app/_layout.tsx
+git rm frontend/app/+html.tsx
+git commit -m "feat: inject AdSense auto-ads script client-side, gated by EXPO_PUBLIC_ADS_ENABLED"
 ```
 
 ---
