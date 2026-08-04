@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, TextInput, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
+import JoinRoomModal from '@/components/JoinRoomModal';
 import { API_BASE } from '@/constants/api';
 import { GAME_CATALOG } from '@/constants/games';
 
@@ -12,10 +13,8 @@ export default function HomeScreen() {
   useWebPageBackground('#FFF8E1');
   const { isLoading, isOnboarded, displayName, playerId } = usePlayerIdentity();
   const insets = useSafeAreaInsets();
-  const [joinExpanded, setJoinExpanded] = useState(false);
-  const [codeInput, setCodeInput] = useState('');
+  const [joinOpen, setJoinOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (isLoading) {
@@ -53,30 +52,6 @@ export default function HomeScreen() {
       setError('Could not create room. Check your connection.');
     } finally {
       setCreating(false);
-    }
-  }
-
-  async function handleJoinRoom() {
-    const code = codeInput.trim().toUpperCase();
-    if (code.length !== 6) return;
-    setJoining(true);
-    setError(null);
-    try {
-      const res = await fetch(`${API_BASE}/rooms/${code}`);
-      if (!res.ok) throw new Error();
-      const data: { exists: boolean; state: string | null } = await res.json();
-      if (!data.exists) {
-        setError('Room not found.');
-        return;
-      }
-      // Late Join: a round already in progress no longer blocks joining —
-      // lobby.tsx reads the first ROOM_STATE snapshot and routes a mid-round
-      // arrival to the Waiting Room instead of the live board/tutorial.
-      router.push(`/room/${code}/lobby`);
-    } catch {
-      setError('Could not reach server. Check your connection.');
-    } finally {
-      setJoining(false);
     }
   }
 
@@ -175,62 +150,22 @@ export default function HomeScreen() {
             )}
           </Pressable>
 
-          {!joinExpanded ? (
-            <Pressable
-              onPress={() => { setJoinExpanded(true); setCodeInput(''); setError(null); }}
-              className="border-2 border-[#0A0A0F] py-5 items-center rounded-none active:opacity-60"
-            >
-              <Text className="text-[#0A0A0F] text-sm font-bold tracking-[0.18em] uppercase">
-                Join with code
-              </Text>
-            </Pressable>
-          ) : (
-            <View className="gap-2">
-              <View className="flex-row gap-2">
-                <TextInput
-                  className="flex-1 border-2 border-[#0A0A0F] py-4 px-4 text-[#0A0A0F] text-center text-xl font-mono tracking-widest bg-white rounded-none"
-                  // minWidth 0: on web, a flex item refuses to shrink below
-                  // its intrinsic width by default — the input's ~20-char
-                  // default size overflowed the row and shoved the Join
-                  // button off the right edge.
-                  style={{ minWidth: 0 }}
-                  placeholder="XXXXXX"
-                  placeholderTextColor="#C4B49A"
-                  autoCapitalize="characters"
-                  autoFocus
-                  maxLength={6}
-                  value={codeInput}
-                  onChangeText={(t) => { setCodeInput(t.toUpperCase()); setError(null); }}
-                  onSubmitEditing={handleJoinRoom}
-                />
-                <Pressable
-                  onPress={handleJoinRoom}
-                  disabled={codeInput.trim().length !== 6 || joining}
-                  className="bg-amber px-6 items-center justify-center rounded-none active:opacity-80 disabled:opacity-40"
-                >
-                  {joining ? (
-                    <ActivityIndicator color="#0A0A0F" />
-                  ) : (
-                    <Text className="text-ink font-bold text-sm tracking-[0.15em] uppercase">
-                      Join
-                    </Text>
-                  )}
-                </Pressable>
-              </View>
-              <Pressable
-                onPress={() => { setJoinExpanded(false); setCodeInput(''); setError(null); }}
-                className="items-center py-2"
-              >
-                <Text className="text-[#A8977A] text-sm">Cancel</Text>
-              </Pressable>
-            </View>
-          )}
+          <Pressable
+            onPress={() => { setJoinOpen(true); setError(null); }}
+            className="border-2 border-[#0A0A0F] py-5 items-center rounded-none active:opacity-60"
+          >
+            <Text className="text-[#0A0A0F] text-sm font-bold tracking-[0.18em] uppercase">
+              Join with code
+            </Text>
+          </Pressable>
         </View>
 
         {error && (
           <Text className="text-stop text-sm text-center mt-4">{error}</Text>
         )}
       </ScrollView>
+
+      {joinOpen && <JoinRoomModal onClose={() => setJoinOpen(false)} />}
     </View>
   );
 }
