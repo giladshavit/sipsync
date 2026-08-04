@@ -728,6 +728,21 @@ class RoomService:
         admin_id = await redis.hget(f"room:{code}", "admin_id")
         if player_id != admin_id:
             return
+        # Server-side Minimum Players gate. The lobby disables its Start
+        # button below 2 connected players, but that check trusts the
+        # client's picture of the room — and iOS Safari can kill a departing
+        # player's socket without a close frame, leaving everyone (server
+        # included) seeing a "connected" ghost until the websocket ping
+        # timeout fires. count_active_players ignores mid-grace disconnected
+        # seats, so a start pressed inside that window is rejected here even
+        # though the button looked enabled. Practice rooms are exempt:
+        # solo-vs-bots is the whole point there. None means "no player hash
+        # yet" — nothing meaningful to enforce against (see
+        # count_active_players' docstring).
+        if await redis.hget(f"room:{code}", "practice") != "1":
+            active = await count_active_players(redis, code)
+            if active is not None and active < 2:
+                return
         await self._trigger_next_game_tutorial(code)
 
     async def handle_set_games(
