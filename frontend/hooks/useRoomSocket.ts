@@ -311,8 +311,17 @@ export function useRoomSocket(code: string): UseRoomSocket {
 
           case 'PLAYER_LEFT': {
             setSnapshot((prev) => {
-              if (!prev) return prev;
-              const { [msg.player_id]: _removed, ...rest } = prev.players;
+              if (!prev || !prev.players[msg.player_id]) return prev;
+              // Plain copy-and-delete, NOT computed-key rest destructuring
+              // (`const { [msg.player_id]: _removed, ...rest }`). That
+              // version minified into removing the key `undefined`: the
+              // production minifier saw the unused `_removed` binding,
+              // dropped its assignment — and took the computed key's temp
+              // var assignment with it, leaving `[r].map(...)` over an
+              // uninitialized var. Dev bundles were fine, every production
+              // PLAYER_LEFT silently no-oped (the "ghost player" bug).
+              const rest = { ...prev.players };
+              delete rest[msg.player_id];
               return { ...prev, players: rest };
             });
             break;
