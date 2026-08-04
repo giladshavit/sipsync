@@ -59,14 +59,18 @@ export default function HomeScreen() {
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
       {/* Mascot: stands in the bottom-right corner, behind the content and
           untouchable, so it never collides with the wordmark (which spans
-          the full width on phones) or blocks a button press. When the
-          keyboard opens it may cover him — that's fine. */}
-      <View
-        pointerEvents="none"
-        style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
-      >
-        <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
-      </View>
+          the full width on phones) or blocks a button press. Hidden while
+          the join modal is up — iOS Safari shrinks the viewport when the
+          keyboard opens, which floated him up into the dimmed area, an
+          odd background presence during code entry. */}
+      {!joinOpen && (
+        <View
+          pointerEvents="none"
+          style={{ position: 'absolute', right: 4, bottom: insets.bottom - 6 }}
+        >
+          <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
+        </View>
+      )}
       <Pressable
         onPress={() => router.push('/profile')}
         style={{
