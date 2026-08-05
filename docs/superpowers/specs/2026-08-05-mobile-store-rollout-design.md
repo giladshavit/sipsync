@@ -42,8 +42,12 @@
 
 **1.2 Complete the graphic assets.** Known gaps found in `app.json`:
 - Android `adaptiveIcon` has only `backgroundColor` — a `foregroundImage` is **required**. Create one.
-- `splash` has only `backgroundColor` + `resizeMode` — add a splash image (logo).
+- Android `adaptiveIcon.monochromeImage` — required for Android 13+ themed icons.
+- `splash` has only `backgroundColor` + `resizeMode` — add a splash image (logo), plus a dark-mode variant (app uses `userInterfaceStyle: automatic`).
 - Verify the iOS icon (1024×1024, exists) has no alpha channel (Apple rejects transparent icons).
+- iOS icon dark + tinted variants (iOS 18 appearance modes) via `ios.icon` in app.json.
+- Set `ios.infoPlist.ITSAppUsesNonExemptEncryption: false` (HTTPS/WSS only ⇒ exempt) to skip the export-compliance question on every build.
+- Permissions audit on the final build: microphone must stay off (already `microphonePermission: false`), and no stray Android permissions that complicate the Data Safety form.
 
 **1.3 Dev build + real-device pass.**
 - `eas build --profile development` for iOS + Android; install on physical iPhone and Android phone.
@@ -78,15 +82,32 @@
 - **Store copy:** frame as a "party game" with responsible-drinking language. No encouragement of excess ("get wasted", quantities, challenges to drink more).
 - **Age-rating questionnaires:** answer honestly. Apple → Alcohol References ⇒ 17+. Google IARC ⇒ 18+ in some regions. Lying in the questionnaire is grounds for removal.
 
-**3.2 Store assets.**
-- Check "Quickle" name availability in both stores; fallback display name with a suffix (e.g., "Quickle — Party Game").
-- Screenshots: iOS 6.9″ or 6.5″ class (≥3); Android phone screenshots + 1024×500 feature graphic.
-- Descriptions in Hebrew and English; store icon.
+**3.2 Store assets — full checklist.**
+
+*Both stores:*
+- Check "Quickle" name availability; fallback display name with a suffix (e.g., "Quickle — Party Game").
+- All listing text in two locales: Hebrew + English.
+- Screenshots are designed marketing frames (device frame + short caption), not raw captures; content must reflect the actual app and match the 17+/18+ rating.
+
+*App Store Connect:*
+- Screenshots: 6.9″ class (1320×2868), one size set suffices since 2024; up to 10, target 5–6. No iPad set (`supportsTablet: false`).
+- Optional App Preview video (15–30s) — can be cut from the beta demo video.
+- Text fields with hard limits, drafted in advance: Subtitle (30 chars), Promotional Text (170), Description (4000), Keywords (100 chars — hidden field, critical for ASO), Support URL, Marketing URL, Copyright.
+- Category selection (likely Games → Casual, or Entertainment — decide by studying category of Picolo et al.).
+
+*Google Play Console:*
+- Store icon **512×512 PNG** — uploaded separately in the Console, distinct from the in-app icon.
+- Feature graphic 1024×500.
+- Phone screenshots: min 2, max 8, 9:16.
+- Short description (80 chars — the first text users see) + Full description (4000).
+- Optional promo video (YouTube URL).
+- Console declarations: ads (none), target audience (18+), public contact email.
 
 **3.3 Legal obligations.**
 - Privacy policy page at `quicklegame.com/privacy` (required by both stores). Data collected is minimal — anonymous UUID, display name, transient game state in Redis — present that fully.
 - Apple App Privacy questionnaire + Google Data Safety form, consistent with the policy.
 - Support/contact URL.
+- **EU DSA trader declaration (both stores):** required for distribution in the EU. As a solo developer with no monetization, declare **non-trader**; leaving it unanswered blocks EU availability.
 - No account creation ⇒ Apple's account-deletion requirement does not apply. No purchases ⇒ no payments complexity.
 
 ## Phase 4 — Submission & Review
