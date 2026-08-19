@@ -20,6 +20,8 @@ const CHECKS = [
   { file: 'games/index.html', mustContain: ['Speed', 'Luck', 'Strategy'] },
   { file: 'games/reflex/index.html', mustContain: ['tap as fast as you can'] },
   { file: 'privacy.html', mustContain: ['Privacy Policy', 'No account, email, phone number'] },
+  { file: 'about.html', mustContain: ['About Quickle', 'Drink responsibly'] },
+  { file: 'terms.html', mustContain: ['Terms of Use', 'legal drinking age'] },
 ];
 
 function renameBracketSegments(dir) {
