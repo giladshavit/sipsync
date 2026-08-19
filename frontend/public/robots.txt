@@ -1,0 +1,7 @@
+User-agent: *
+Disallow: /room/
+Disallow: /onboarding
+Disallow: /profile
+Allow: /
+
+Sitemap: https://www.quicklegame.com/sitemap.xml

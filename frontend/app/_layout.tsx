@@ -3,6 +3,7 @@ import '../global.css';
 import { useEffect } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,6 +12,7 @@ import AdSenseScript from '@/components/AdSenseScript';
 import { isAdEligiblePath } from '@/config/adPlacements';
 import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
+import { useHydrated } from '@/hooks/useHydrated';
 
 export default function RootLayout() {
   const pathname = usePathname();
@@ -30,7 +32,20 @@ export default function RootLayout() {
   // entry keeps its input in the top part of the screen instead, e.g.
   // components/JoinRoomModal.tsx.)
   const { height } = useWindowDimensions();
-  const rootStyle = Platform.OS === 'web' ? { height, width: '100%' as const } : { flex: 1 as const };
+  // Static export renders with no viewport, so the JS-measured height is 0
+  // there — and React hydration adopts server inline styles verbatim (it
+  // never patches attribute mismatches), so rendering the measured height
+  // on the first client pass would leave height:0px in the DOM until a
+  // resize. First paint uses flex:1 (fills via #root's height:100% chain,
+  // matching the server), then post-hydration the measured height takes
+  // over for the iOS Safari address-bar behavior described above.
+  const hydrated = useHydrated();
+  const rootStyle =
+    Platform.OS === 'web'
+      ? hydrated
+        ? { height, width: '100%' as const }
+        : { flex: 1 as const, width: '100%' as const }
+      : { flex: 1 as const };
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;
@@ -47,6 +62,33 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      {/* Site-wide defaults; content pages override title/description with
+          their own <Head> (helmet dedupes by tag identity, deepest wins). */}
+      <Head>
+        <title>Quickle — The Party Drinking Game</title>
+        <meta
+          name="description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Quickle" />
+        <meta property="og:title" content="Quickle — The Party Drinking Game" />
+        <meta
+          property="og:description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta property="og:url" content="https://www.quicklegame.com/" />
+        <meta property="og:image" content="https://www.quicklegame.com/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Quickle — The Party Drinking Game" />
+        <meta
+          name="twitter:description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta name="twitter:image" content="https://www.quicklegame.com/og-image.png" />
+      </Head>
       <GestureHandlerRootView style={rootStyle}>
         <AudioProvider>
           <StatusBar style="light" />

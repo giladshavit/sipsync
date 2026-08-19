@@ -7,7 +7,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "build": "expo export --platform web --clear && node scripts/inject-head-tags.mjs",
+    "build": "expo export --platform web --clear && node scripts/post-export.mjs",
     "screenshot": "node scripts/screenshot.mjs"
   },
   "dependencies": {

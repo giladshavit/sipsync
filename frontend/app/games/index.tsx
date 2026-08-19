@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
+import Head from 'expo-router/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
+import { useHydrated } from '@/hooks/useHydrated';
 import { GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
@@ -25,7 +27,14 @@ export default function AllGamesScreen() {
   // exactly what tips flexWrap into bumping the 3rd card to its own line
   // (the bug this fixes). Flooring means 3 cards can only ever round DOWN
   // from here, never past the budget, so the row can never overflow.
-  const cellSize = Math.floor((width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
+  // The static export renders with no viewport (width 0), which would bake
+  // negative card/icon sizes into the HTML — use a phone-ish width there.
+  // The same value must serve the first client pass too: hydration adopts
+  // server inline styles verbatim, so only a post-hydration value *change*
+  // gets the real measured width written to the DOM (see useHydrated).
+  const hydrated = useHydrated();
+  const layoutWidth = hydrated ? width || 390 : 390;
+  const cellSize = Math.floor((layoutWidth - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   const games = useMemo(
     () => (filter === 'all' ? GAME_CATALOG : GAME_CATALOG.filter((g) => g.categories.includes(filter))),
@@ -47,6 +56,14 @@ export default function AllGamesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
+      <Head>
+        <title>All 15 Party Drinking Games — Quickle</title>
+        <meta
+          name="description"
+          content="Browse Quickle's 15 party drinking mini-games — speed, luck and strategy games with full rules, who drinks, and scoring."
+        />
+        <link rel="canonical" href="https://www.quicklegame.com/games" />
+      </Head>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -103,9 +120,15 @@ export default function AllGamesScreen() {
           {rows.map((row, rowIndex) => (
             <View key={rowIndex} style={{ flexDirection: 'row', gap: GRID_GAP }}>
               {row.map((game) => (
-                <Pressable
+                // Link, not router.push: crawlers only follow real <a href>
+                // anchors, and these cards are the site's path to the rules
+                // pages.
+                <Link
                   key={game.id}
-                  onPress={() => router.push(`/games/${game.id}`)}
+                  href={{ pathname: '/games/[id]', params: { id: game.id } }}
+                  asChild
+                >
+                <Pressable
                   style={{
                     width: cellSize,
                     borderWidth: 2,
@@ -160,6 +183,7 @@ export default function AllGamesScreen() {
                     </Text>
                   </View>
                 </Pressable>
+                </Link>
               ))}
             </View>
           ))}

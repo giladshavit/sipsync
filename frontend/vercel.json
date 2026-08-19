@@ -1,5 +1,17 @@
 {
+  "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/room/:code", "destination": "/room/_code_/index.html" },
+    { "source": "/room/:code/lobby", "destination": "/room/_code_/lobby.html" },
+    { "source": "/room/:code/waiting", "destination": "/room/_code_/waiting.html" },
+    { "source": "/room/:code/tutorial", "destination": "/room/_code_/tutorial.html" },
+    { "source": "/room/:code/game", "destination": "/room/_code_/game.html" },
+    { "source": "/room/:code/custom-question", "destination": "/room/_code_/custom-question.html" },
+    { "source": "/room/:code/practice-start", "destination": "/room/_code_/practice-start.html" },
+    { "source": "/room/:code/summary", "destination": "/room/_code_/summary.html" },
+    { "source": "/room/:code/podium", "destination": "/room/_code_/podium.html" },
+    { "source": "/games/:id", "destination": "/games/_id_.html" },
+    { "source": "/games/:id/tutorial", "destination": "/games/_id_/tutorial.html" }
   ]
 }

@@ -1,13 +1,15 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, ScrollView, Image } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Redirect, router } from 'expo-router';
+import { router } from 'expo-router';
+import Head from 'expo-router/head';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import JoinRoomModal from '@/components/JoinRoomModal';
 import { API_BASE } from '@/constants/api';
 import { GAME_CATALOG } from '@/constants/games';
+import HomeWebSections from '@/components/HomeWebSections';
 
 export default function HomeScreen() {
   useWebPageBackground('#FFF8E1');
@@ -17,19 +19,17 @@ export default function HomeScreen() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (isLoading) {
-    return (
-      <View className="flex-1 items-center justify-center bg-[#FFF8E1]">
-        <ActivityIndicator color="#F59E0B" />
-      </View>
-    );
-  }
-
-  if (!isOnboarded) {
-    return <Redirect href="/onboarding" />;
-  }
-
+  // No identity gate around the render: this screen doubles as
+  // quicklegame.com's landing page, so its content must exist in the static
+  // export (where identity never resolves) and for first-time visitors —
+  // who now see the page instead of being bounced to the onboarding form.
+  // The Create CTA routes them through onboarding instead; room links keep
+  // their own redirect-with-code flow in app/room/[code]/index.tsx.
   async function handleCreateRoom() {
+    if (!isOnboarded) {
+      router.push('/onboarding');
+      return;
+    }
     setCreating(true);
     setError(null);
     try {
@@ -57,6 +57,9 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
+      <Head>
+        <link rel="canonical" href="https://www.quicklegame.com/" />
+      </Head>
       {/* Mascot: stands in the bottom-right corner, behind the content and
           untouchable, so it never collides with the wordmark (which spans
           the full width on phones) or blocks a button press. Hidden while
@@ -71,6 +74,7 @@ export default function HomeScreen() {
           <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
         </View>
       )}
+      {isOnboarded && (
       <Pressable
         onPress={() => router.push('/profile')}
         style={{
@@ -89,6 +93,7 @@ export default function HomeScreen() {
       >
         <CircleUser size={20} color="#0A0A0F" strokeWidth={2} />
       </Pressable>
+      )}
 
       <ScrollView
         className="flex-1"
@@ -142,7 +147,7 @@ export default function HomeScreen() {
         <View className="gap-3">
           <Pressable
             onPress={handleCreateRoom}
-            disabled={creating}
+            disabled={creating || isLoading}
             className="bg-amber py-5 items-center rounded-none active:opacity-75 disabled:opacity-40"
           >
             {creating ? (
@@ -167,6 +172,8 @@ export default function HomeScreen() {
         {error && (
           <Text className="text-stop text-sm text-center mt-4">{error}</Text>
         )}
+
+        {Platform.OS === 'web' && <HomeWebSections />}
       </ScrollView>
 
       {joinOpen && <JoinRoomModal onClose={() => setJoinOpen(false)} />}

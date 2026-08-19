@@ -3,12 +3,18 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
-import { getGameById } from '@/constants/games';
+import { GAME_CATALOG, getGameById } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
+
+// Static export: prerender a real HTML page per catalog game.
+export function generateStaticParams(): { id: string }[] {
+  return GAME_CATALOG.map((g) => ({ id: g.id }));
+}
 
 export default function TutorialPreviewScreen() {
   useWebPageBackground(colors.ink);
@@ -28,6 +34,14 @@ export default function TutorialPreviewScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.ink }}>
+      {game && (
+        <Head>
+          <title>{`${game.title} Tutorial — Quickle`}</title>
+          {/* The tutorial is an animated near-duplicate of the rules page —
+              canonicalize it there. */}
+          <link rel="canonical" href={`https://www.quicklegame.com/games/${game.id}`} />
+        </Head>
+      )}
       {/* Depth wash + this game's own accent bleeding faintly from the top —
           same layered-gradient-plus-glow technique PracticeRoleSheet uses to
           turn a flat colors.ink fill into something with actual atmosphere,
