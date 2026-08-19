@@ -3,7 +3,8 @@ import { Bomb, CircleSlash, Coins, Crosshair, Gavel, Hand, HandHeart, Package, S
 import { BlackBoxCardStrip } from '@/components/rules/BlackBoxCardStrip';
 
 // Frontend mirror of the backend GAME_REGISTRY — REST is limited to room
-// create/join, so the catalog lives here. Keep in sync when adding a game.
+// create/join, so the catalog lives here. Keep in sync when adding a game
+// (and list the new /games/<id> page in public/sitemap.xml).
 
 export type GameCategory = 'speed' | 'luck' | 'strategy';
 
