@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
+import Head from 'expo-router/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
@@ -47,6 +48,14 @@ export default function AllGamesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
+      <Head>
+        <title>All 15 Party Drinking Games — Quickle</title>
+        <meta
+          name="description"
+          content="Browse Quickle's 15 party drinking mini-games — speed, luck and strategy games with full rules, who drinks, and scoring."
+        />
+        <link rel="canonical" href="https://www.quicklegame.com/games" />
+      </Head>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
@@ -103,9 +112,15 @@ export default function AllGamesScreen() {
           {rows.map((row, rowIndex) => (
             <View key={rowIndex} style={{ flexDirection: 'row', gap: GRID_GAP }}>
               {row.map((game) => (
-                <Pressable
+                // Link, not router.push: crawlers only follow real <a href>
+                // anchors, and these cards are the site's path to the rules
+                // pages.
+                <Link
                   key={game.id}
-                  onPress={() => router.push(`/games/${game.id}`)}
+                  href={{ pathname: '/games/[id]', params: { id: game.id } }}
+                  asChild
+                >
+                <Pressable
                   style={{
                     width: cellSize,
                     borderWidth: 2,
@@ -160,6 +175,7 @@ export default function AllGamesScreen() {
                     </Text>
                   </View>
                 </Pressable>
+                </Link>
               ))}
             </View>
           ))}

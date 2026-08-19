@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Redirect, router } from 'expo-router';
+import Head from 'expo-router/head';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
@@ -57,6 +58,9 @@ export default function HomeScreen() {
 
   return (
     <View style={{ flex: 1 }} className="bg-[#FFF8E1]">
+      <Head>
+        <link rel="canonical" href="https://www.quicklegame.com/" />
+      </Head>
       {/* Mascot: stands in the bottom-right corner, behind the content and
           untouchable, so it never collides with the wordmark (which spans
           the full width on phones) or blocks a button press. Hidden while

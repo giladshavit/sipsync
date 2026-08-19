@@ -3,6 +3,7 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-nati
 import Svg, { Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import Head from 'expo-router/head';
 import { ArrowLeft, Bot, GlassWater, PlayCircle } from 'lucide-react-native';
 import { colors } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
@@ -340,6 +341,14 @@ export default function GameRulesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
+      <Head>
+        <title>{`${game.title} — Drinking Game Rules | Quickle`}</title>
+        <meta
+          name="description"
+          content={`${game.title}: ${game.tagline}. Full rules, who drinks, and scoring for this Quickle party mini-game.`}
+        />
+        <link rel="canonical" href={`https://www.quicklegame.com/games/${game.id}`} />
+      </Head>
       {/* Fixed header — just the banner + the back button floating on it.
           Sits outside the ScrollView so it stays pinned; everything else
           (title, tagline, category badges, the rules themselves) scrolls
