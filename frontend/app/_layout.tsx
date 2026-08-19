@@ -12,6 +12,7 @@ import AdSenseScript from '@/components/AdSenseScript';
 import { isAdEligiblePath } from '@/config/adPlacements';
 import { AudioProvider } from '@/contexts/AudioContext';
 import ErrorFallback from '@/components/ErrorFallback';
+import { useHydrated } from '@/hooks/useHydrated';
 
 export default function RootLayout() {
   const pathname = usePathname();
@@ -31,7 +32,20 @@ export default function RootLayout() {
   // entry keeps its input in the top part of the screen instead, e.g.
   // components/JoinRoomModal.tsx.)
   const { height } = useWindowDimensions();
-  const rootStyle = Platform.OS === 'web' ? { height, width: '100%' as const } : { flex: 1 as const };
+  // Static export renders with no viewport, so the JS-measured height is 0
+  // there — and React hydration adopts server inline styles verbatim (it
+  // never patches attribute mismatches), so rendering the measured height
+  // on the first client pass would leave height:0px in the DOM until a
+  // resize. First paint uses flex:1 (fills via #root's height:100% chain,
+  // matching the server), then post-hydration the measured height takes
+  // over for the iOS Safari address-bar behavior described above.
+  const hydrated = useHydrated();
+  const rootStyle =
+    Platform.OS === 'web'
+      ? hydrated
+        ? { height, width: '100%' as const }
+        : { flex: 1 as const, width: '100%' as const }
+      : { flex: 1 as const };
 
   useEffect(() => {
     if (Platform.OS !== 'web') return;

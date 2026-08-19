@@ -6,6 +6,7 @@ import Head from 'expo-router/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
+import { useHydrated } from '@/hooks/useHydrated';
 import { GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
@@ -26,7 +27,14 @@ export default function AllGamesScreen() {
   // exactly what tips flexWrap into bumping the 3rd card to its own line
   // (the bug this fixes). Flooring means 3 cards can only ever round DOWN
   // from here, never past the budget, so the row can never overflow.
-  const cellSize = Math.floor((width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
+  // The static export renders with no viewport (width 0), which would bake
+  // negative card/icon sizes into the HTML — use a phone-ish width there.
+  // The same value must serve the first client pass too: hydration adopts
+  // server inline styles verbatim, so only a post-hydration value *change*
+  // gets the real measured width written to the DOM (see useHydrated).
+  const hydrated = useHydrated();
+  const layoutWidth = hydrated ? width || 390 : 390;
+  const cellSize = Math.floor((layoutWidth - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   const games = useMemo(
     () => (filter === 'all' ? GAME_CATALOG : GAME_CATALOG.filter((g) => g.categories.includes(filter))),
