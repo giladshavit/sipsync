@@ -14,6 +14,9 @@ const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 // Naming note: a route with child routes exports as <name>/index.html
 // (games/, games/reflex/), a leaf route exports flat (privacy.html).
 const CHECKS = [
+  // Needles must be single static JSX text nodes — SSR splits interpolated
+  // text with <!-- --> comments, so "See all 15 games" never appears joined.
+  { file: 'index.html', mustContain: ['How it works', 'Create a room', 'Loser drinks', 'drink responsibly'] },
   { file: 'games/index.html', mustContain: ['Speed', 'Luck', 'Strategy'] },
   { file: 'games/reflex/index.html', mustContain: ['tap as fast as you can'] },
   { file: 'privacy.html', mustContain: ['Privacy Policy', 'No account, email, phone number'] },
