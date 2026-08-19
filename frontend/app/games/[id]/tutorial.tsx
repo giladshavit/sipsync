@@ -6,9 +6,14 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
-import { getGameById } from '@/constants/games';
+import { GAME_CATALOG, getGameById } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
+
+// Static export: prerender a real HTML page per catalog game.
+export function generateStaticParams(): { id: string }[] {
+  return GAME_CATALOG.map((g) => ({ id: g.id }));
+}
 
 export default function TutorialPreviewScreen() {
   useWebPageBackground(colors.ink);

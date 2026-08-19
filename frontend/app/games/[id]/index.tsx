@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Bot, GlassWater, PlayCircle } from 'lucide-react-native';
 import { colors } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
-import { CATEGORY_LABELS, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
+import { CATEGORY_LABELS, GAME_CATALOG, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { API_BASE } from '@/constants/api';
@@ -265,6 +265,11 @@ function PairwiseGrid({ matrix, mode }: { matrix: PairwiseMatrix; mode: 'chasers
       ))}
     </View>
   );
+}
+
+// Static export: prerender a real HTML page per catalog game.
+export function generateStaticParams(): { id: string }[] {
+  return GAME_CATALOG.map((g) => ({ id: g.id }));
 }
 
 export default function GameRulesScreen() {

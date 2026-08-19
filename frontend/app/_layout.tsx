@@ -3,6 +3,7 @@ import '../global.css';
 import { useEffect } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
+import Head from 'expo-router/head';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -47,6 +48,33 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
+      {/* Site-wide defaults; content pages override title/description with
+          their own <Head> (helmet dedupes by tag identity, deepest wins). */}
+      <Head>
+        <title>Quickle — The Party Drinking Game</title>
+        <meta
+          name="description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Quickle" />
+        <meta property="og:title" content="Quickle — The Party Drinking Game" />
+        <meta
+          property="og:description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta property="og:url" content="https://www.quicklegame.com/" />
+        <meta property="og:image" content="https://www.quicklegame.com/og-image.png" />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Quickle — The Party Drinking Game" />
+        <meta
+          name="twitter:description"
+          content="Join a room from your phone and battle your friends in fast mini-games. Loser drinks."
+        />
+        <meta name="twitter:image" content="https://www.quicklegame.com/og-image.png" />
+      </Head>
       <GestureHandlerRootView style={rootStyle}>
         <AudioProvider>
           <StatusBar style="light" />

@@ -730,13 +730,27 @@ Sitemap: https://www.quicklegame.com/sitemap.xml
 
 - [ ] **Step 3: Replace `frontend/vercel.json`** (drop the catch-all; filesystem + cleanUrls serve the prerendered pages first, rewrites only catch runtime-dynamic paths):
 
+Confirmed dist naming (Task 1's build): routes with children export as
+`<name>/index.html` (`games/index.html`, `games/reflex/index.html`,
+`room/_code_/index.html`); leaf routes export flat (`privacy.html`); dynamic
+fallbacks are `games/_id_.html` + `games/_id_/tutorial.html`. Room screens are
+enumerated explicitly rather than via a `:screen` param — production room
+links must not depend on how Vercel parses a param abutting `.html`:
+
 ```json
 {
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/room/:code", "destination": "/room/_code_.html" },
-    { "source": "/room/:code/:screen", "destination": "/room/_code_/:screen.html" },
+    { "source": "/room/:code", "destination": "/room/_code_/index.html" },
+    { "source": "/room/:code/lobby", "destination": "/room/_code_/lobby.html" },
+    { "source": "/room/:code/waiting", "destination": "/room/_code_/waiting.html" },
+    { "source": "/room/:code/tutorial", "destination": "/room/_code_/tutorial.html" },
+    { "source": "/room/:code/game", "destination": "/room/_code_/game.html" },
+    { "source": "/room/:code/custom-question", "destination": "/room/_code_/custom-question.html" },
+    { "source": "/room/:code/practice-start", "destination": "/room/_code_/practice-start.html" },
+    { "source": "/room/:code/summary", "destination": "/room/_code_/summary.html" },
+    { "source": "/room/:code/podium", "destination": "/room/_code_/podium.html" },
     { "source": "/games/:id", "destination": "/games/_id_.html" },
     { "source": "/games/:id/tutorial", "destination": "/games/_id_/tutorial.html" }
   ]
