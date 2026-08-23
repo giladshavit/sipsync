@@ -8,6 +8,7 @@ import Animated, {
   withDelay,
   withSequence,
   withTiming,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { colors, typography } from '@/constants/design';
 
@@ -143,7 +144,7 @@ function MiniPhone({
 // ── Shared growing dot — solid fill, no border, so it never reads as a
 // hollow ring while small (matches the live game's filled circle) ─────────
 
-function GrowingDot({ growth }: { growth: Animated.SharedValue<number> }): React.ReactElement {
+function GrowingDot({ growth }: { growth: SharedValue<number> }): React.ReactElement {
   const dotStyle = useAnimatedStyle(() => ({
     transform: [{ scale: Math.max(growth.value, 0.01) }],
   }));
