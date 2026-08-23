@@ -1,9 +1,9 @@
 {
   "expo": {
     "name": "Quickle",
-    "slug": "sipsync",
+    "slug": "quickle",
     "version": "1.0.0",
-    "scheme": "sipsync",
+    "scheme": "quickle",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,13 +14,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.sipsync.app"
+      "bundleIdentifier": "com.quicklegame.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0f172a"
       },
-      "package": "com.sipsync.app"
+      "package": "com.quicklegame.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",

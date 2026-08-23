@@ -18,10 +18,10 @@ function uuidv4(): string {
   return id;
 }
 
-const KEY_PLAYER_ID = 'sipsync.player_id';
-const KEY_DISPLAY_NAME = 'sipsync.display_name';
-const KEY_VIBE = 'sipsync.vibe';
-const KEY_PREFERRED_AVATAR = 'sipsync.preferred_avatar';
+const KEY_PLAYER_ID = 'quickle.player_id';
+const KEY_DISPLAY_NAME = 'quickle.display_name';
+const KEY_VIBE = 'quickle.vibe';
+const KEY_PREFERRED_AVATAR = 'quickle.preferred_avatar';
 
 interface PlayerIdentity {
   playerId: string | null;

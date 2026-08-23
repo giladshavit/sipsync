@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { BGM_TRACKS, SFX_SOURCES, type BGMTrack, type SFXName } from '@/constants/sounds';
 
-const MUTE_STORAGE_KEY = 'sipsync.audio_muted';
+const MUTE_STORAGE_KEY = 'quickle.audio_muted';
 
 interface AudioContextValue {
   isMuted: boolean;
