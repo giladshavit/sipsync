@@ -31,13 +31,18 @@ let server = null;
 if (!base) {
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    if (path.startsWith('/_vercel/')) {
+      res.writeHead(200, { 'Content-Type': 'text/javascript' });
+      return res.end('');
+    }
     let file = join(DIST, path);
     try {
       const s = await stat(file);
       if (s.isDirectory()) file = join(file, 'index.html');
       await stat(file);
     } catch {
-      file = join(DIST, 'index.html'); // SPA fallback, same as vercel.json rewrite
+      if (extname(path)) { res.writeHead(404); return res.end(); }
+      file = join(DIST, 'index.html'); // SPA fallback for routes, same as vercel.json rewrite
     }
     try {
       const body = await readFile(file);
