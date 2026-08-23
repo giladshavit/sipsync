@@ -2,6 +2,7 @@
 // Web smoke: serve dist/ (or hit --url=<base>) and assert three static
 // screens render with no runtime errors. Used as the pass/fail gate for
 // every SDK upgrade hop and for the Vercel preview before merge.
+// Server mimics Vercel's cleanUrls static hosting: /privacy → privacy.html, /games → games/index.html.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -29,28 +30,31 @@ let base = urlArg ? urlArg.slice('--url='.length).replace(/\/$/, '') : null;
 let server = null;
 
 if (!base) {
+  async function exists(p) { try { return (await stat(p)).isFile(); } catch { return false; } }
+
   server = createServer(async (req, res) => {
     const path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname));
     if (path.startsWith('/_vercel/')) {
       res.writeHead(200, { 'Content-Type': 'text/javascript' });
       return res.end('');
     }
-    let file = join(DIST, path);
-    try {
-      const s = await stat(file);
-      if (s.isDirectory()) file = join(file, 'index.html');
-      await stat(file);
-    } catch {
-      if (extname(path)) { res.writeHead(404); return res.end(); }
-      file = join(DIST, 'index.html'); // SPA fallback for routes, same as vercel.json rewrite
+
+    let file = null;
+    if (extname(path)) {
+      if (await exists(join(DIST, path))) file = join(DIST, path);
+    } else {
+      // Vercel cleanUrls: /privacy → privacy.html, /games → games/index.html, / → index.html
+      for (const candidate of [join(DIST, `${path}.html`), join(DIST, path, 'index.html')]) {
+        if (await exists(candidate)) { file = candidate; break; }
+      }
     }
-    try {
-      const body = await readFile(file);
-      res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
-      res.end(body);
-    } catch {
-      res.writeHead(404).end();
+    if (!file) {
+      res.writeHead(404, { 'Content-Type': 'text/html' });
+      return res.end(await readFile(join(DIST, '404.html')).catch(() => ''));
     }
+    const body = await readFile(file);
+    res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
+    res.end(body);
   });
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
