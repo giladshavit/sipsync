@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Web smoke: serve dist/ (or hit --url=<base>) and assert three static
-// screens render with no runtime errors. Used as the pass/fail gate for
-// every SDK upgrade hop and for the Vercel preview before merge.
+// Web smoke: serve dist/ (or hit --url=<base>) and assert static screens
+// render with no runtime errors. Used as the pass/fail gate for every SDK
+// upgrade hop and for the Vercel preview before merge.
 // Server mimics Vercel's cleanUrls static hosting: /privacy → privacy.html, /games → games/index.html.
+// It also mimics vercel.json's `rewrites` (dynamic routes like /games/:id
+// that aren't all prerendered) by loading that file's rewrite table and
+// resolving a matched destination through the same cleanUrls candidates.
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
@@ -10,7 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
 import { chromium } from 'playwright';
 
-const DIST = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const DIST = join(ROOT, 'dist');
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml',
@@ -18,11 +22,23 @@ const MIME = {
   '.ttf': 'font/ttf', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.webp': 'image/webp',
 };
 
+// vercel.json rewrites, e.g. { source: '/games/:id', destination: '/games/_id_' }
+// — turn each :param source segment into a [^/]+ regex group. Destinations
+// here are already literal (post-export renames [id] -> _id_), so no
+// substitution back into the destination is needed, just a match test.
+const { rewrites = [] } = JSON.parse(await readFile(join(ROOT, 'vercel.json'), 'utf8'));
+const REWRITES = rewrites.map((r) => ({
+  pattern: new RegExp(`^${r.source.replace(/:[^/]+/g, '[^/]+')}$`),
+  destination: r.destination,
+}));
+
 // Each check: path, and a text the screen must show once it has rendered.
 const CHECKS = [
   { path: '/', expect: 'Quickle' },             // home page
   { path: '/games', expect: 'Games' },          // catalog index
   { path: '/privacy', expect: 'Privacy Policy' },
+  { path: '/games/reflex', expect: 'tap as fast as you can' }, // dynamic /games/:id rules page
+  { path: '/games/reflex/tutorial', expect: 'Green Light' },   // dynamic /games/:id/tutorial page
 ];
 
 const urlArg = process.argv.find((a) => a.startsWith('--url='));
@@ -49,6 +65,17 @@ if (!base) {
         if (await exists(candidate)) { file = candidate; break; }
       }
       if (!file) {
+        // Not a static file — try vercel.json's rewrites (dynamic routes,
+        // e.g. an un-prerendered /games/:id), resolving the destination
+        // through the same cleanUrls candidates as above.
+        const rewrite = REWRITES.find((r) => r.pattern.test(path));
+        if (rewrite) {
+          for (const candidate of [join(DIST, `${rewrite.destination}.html`), join(DIST, rewrite.destination, 'index.html')]) {
+            if (await exists(candidate)) { file = candidate; break; }
+          }
+        }
+      }
+      if (!file) {
         res.writeHead(404, { 'Content-Type': 'text/html' });
         return res.end(await readFile(join(DIST, '404.html')).catch(() => ''));
       }
@@ -72,6 +99,10 @@ for (const check of CHECKS) {
   try {
     await page.goto(`${base}${check.path}`, { waitUntil: 'networkidle' });
     await page.getByText(check.expect, { exact: false }).first().waitFor({ timeout: 15000 });
+    // Let the page settle briefly after its expected text appears — some
+    // runtime errors (e.g. a delayed hydration mismatch) surface just after
+    // the initial render, not at it.
+    await page.waitForTimeout(1500);
     if (errors.length) throw new Error(errors.join('\n'));
     console.log(`PASS ${check.path}`);
   } catch (e) {

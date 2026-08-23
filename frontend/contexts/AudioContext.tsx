@@ -52,7 +52,7 @@ function isBlockedAutoplayError(error: unknown): boolean {
  * in an inconsistent state; it would fall back to `onBlocked` (which the
  * callers below use to force isMuted back on).
  *
- * On the currently-installed expo-audio web build (0.3.5), this never
+ * On the currently-installed expo-audio web build (57.0.4), this never
  * actually fires: `AudioPlayerWeb.play()` is declared to return `void`
  * and internally calls `HTMLMediaElement.play()` without awaiting,
  * catching, or otherwise propagating the promise it returns, so a
