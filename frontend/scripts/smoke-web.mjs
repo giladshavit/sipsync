@@ -42,15 +42,16 @@ if (!base) {
     let file = null;
     if (extname(path)) {
       if (await exists(join(DIST, path))) file = join(DIST, path);
+      else { res.writeHead(404); return res.end(); } // Missing asset: plain 404
     } else {
       // Vercel cleanUrls: /privacy → privacy.html, /games → games/index.html, / → index.html
       for (const candidate of [join(DIST, `${path}.html`), join(DIST, path, 'index.html')]) {
         if (await exists(candidate)) { file = candidate; break; }
       }
-    }
-    if (!file) {
-      res.writeHead(404, { 'Content-Type': 'text/html' });
-      return res.end(await readFile(join(DIST, '404.html')).catch(() => ''));
+      if (!file) {
+        res.writeHead(404, { 'Content-Type': 'text/html' });
+        return res.end(await readFile(join(DIST, '404.html')).catch(() => ''));
+      }
     }
     const body = await readFile(file);
     res.writeHead(200, { 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
