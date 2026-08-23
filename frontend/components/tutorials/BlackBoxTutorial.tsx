@@ -193,10 +193,10 @@ function MiniHeroCard({
   const frontStyle = useAnimatedStyle(() => ({ opacity: Math.round(spin.value) % 2 === 1 ? 1 : 0 }));
   return (
     <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: M_CARD_W, height: M_CARD_H, zIndex: 10 }, wrapStyle]}>
-      <Animated.View style={[StyleSheet.absoluteFillObject, backStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, backStyle]}>
         <MiniSealedFace hinted={hinted} />
       </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFillObject, frontStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, frontStyle]}>
         <MiniDrinkFace />
       </Animated.View>
     </Animated.View>
@@ -270,7 +270,7 @@ function MiniSkullPlaque({ isTarget }: { isTarget: boolean }): React.ReactElemen
     <Animated.View
       pointerEvents="none"
       style={[
-        StyleSheet.absoluteFillObject,
+        StyleSheet.absoluteFill,
         { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,10,15,0.7)', zIndex: 20 },
         style,
       ]}
@@ -425,7 +425,7 @@ function PhonePlayArea({
   return (
     <View style={{ width: PLAY_W, height: PLAY_H }}>
       {/* Grid of the 5 UNCHOSEN tiles (the chosen slot is the hero card) */}
-      <Animated.View style={[StyleSheet.absoluteFillObject, gridStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, gridStyle]}>
         {Array.from({ length: 6 }, (_, i) =>
           i === PICKED_INDEX ? null : (
             <View
@@ -494,7 +494,7 @@ function PhonePlayArea({
       {/* Reveal dim — darkness settles under the centered card */}
       <Animated.View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: '#0A0A0F', zIndex: 5 }, dimStyle]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: '#0A0A0F', zIndex: 5 }, dimStyle]}
       />
 
       {/* Fingers — P1's over the bottom-left tile, P2's over LEAVE IT;

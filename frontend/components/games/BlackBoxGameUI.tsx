@@ -232,11 +232,11 @@ const LAMP_RINGS = [
 
 function VaultBackdrop(): React.ReactElement {
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       <LinearGradient
         colors={[VAULT_VIOLET, VAULT_DEEP, colors.ink]}
         locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       {LAMP_RINGS.map(({ size, top, opacity }) => (
         <View
@@ -291,7 +291,7 @@ function CardChrome({
         elevation: glow ? 10 : 6,
       }}
     >
-      <LinearGradient colors={gradient} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={gradient} locations={[0, 0.55, 1]} style={StyleSheet.absoluteFill} />
       <View
         pointerEvents="none"
         style={{
@@ -372,7 +372,7 @@ function CardBack({
       <Animated.View
         pointerEvents="none"
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           {
             borderRadius: 18,
             borderWidth: 2.5,
@@ -527,7 +527,7 @@ function SealedCardTile({
               <Animated.View
                 pointerEvents="none"
                 style={[
-                  StyleSheet.absoluteFillObject,
+                  StyleSheet.absoluteFill,
                   {
                     borderRadius: 18,
                     borderWidth: 2,
@@ -578,10 +578,10 @@ function FlippableCard({
 
   return (
     <Animated.View style={[{ width: CARD_W, height: CARD_H }, squashStyle]}>
-      <Animated.View style={[StyleSheet.absoluteFillObject, backFaceStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, backFaceStyle]}>
         <CardBack width={CARD_W} height={CARD_H} ownership={ownership} />
       </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFillObject, frontFaceStyle]}>
+      <Animated.View style={[StyleSheet.absoluteFill, frontFaceStyle]}>
         <CardFront width={CARD_W} height={CARD_H} box={box} contentOpacity={contentOpacity} />
       </Animated.View>
     </Animated.View>
