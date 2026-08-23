@@ -23,10 +23,12 @@
 - `scheme`: `sipsync` → `quickle`
 - `slug`: `sipsync` → `quickle`
 
-**0.2 Expo SDK upgrade (52 → latest, expected 54).**
-- Reason: Google Play requires new apps to target recent Android API levels (API 35 since Aug 2025; the requirement likely steps up to API 36 around the end of Aug 2026). SDK 52 targets API 34 — not submittable. Apple similarly requires recent Xcode/iOS SDK toolchains.
-- Verify the exact current store requirements (web search) at execution time before choosing the target SDK.
-- This is the riskiest technical step (React Native major bump, Reanimated major bump). Do it first, on its own branch, and **verify the existing web deployment still builds and works on Vercel before merging** — the live web app must not break.
+**0.2 Expo SDK upgrade (52 → 57).** Store requirements verified on 2026-08-23:
+- Google Play: new apps and updates must target **Android 16 (API 36)** from **31 Aug 2026** (extension to 1 Nov 2026 available). SDK 52 targets API 34 — not submittable.
+- Apple: since **28 Apr 2026** uploads must be built with **Xcode 26 / iOS 26 SDK**. Expo SDK 54+ default EAS images use Xcode 26; SDK 53 and lower are not supported for this.
+- Latest Expo SDK is **57** (released 30 Jun 2026; React Native 0.86, React 19.2, Reanimated 4.5). Target SDK 57.
+- Expo recommends upgrading **one SDK at a time** (52→53→54→55→56→57) to pinpoint breakages; each hop is `npm install expo@^N` → `npx expo install --fix` → `npx expo-doctor` → typecheck → web build → web smoke → commit. Known hops with breaking changes for this codebase: 53 (React 19), 54 (Reanimated 4 + `react-native-worklets`, babel plugin moves into `babel-preset-expo`, NativeWind bump, Android edge-to-edge default).
+- This is the riskiest technical step. Do it first, on its own branch, and **verify the existing web deployment still builds and works (local smoke + Vercel preview deployment) before merging** — the live web app must not break.
 
 **0.3 EAS setup.**
 - Log in to Expo account, `eas init` (creates the EAS project ID in app.json).
