@@ -186,11 +186,7 @@ export default function OnboardingScreen() {
                       {!selected && (
                         <View
                           pointerEvents="none"
-                          style={{
-                            ...StyleSheet.absoluteFill,
-                            backgroundColor: tint,
-                            opacity: 0.06,
-                          }}
+                          style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: 0.06 }]}
                         />
                       )}
                     </Pressable>
