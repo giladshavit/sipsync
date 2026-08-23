@@ -11,7 +11,9 @@
 - **Build/submit approach (decided):** Full EAS pipeline — EAS Build (cloud builds, Expo-managed signing credentials) + EAS Submit for both stores. No local Xcode/Android Studio builds.
 - **Bundle identity (decided):** Change `bundleIdentifier`/`package` from `com.sipsync.app` to `com.quicklegame.app` before first upload (last chance — permanent afterwards). Also rename `scheme` → `quickle` and `slug` → `quickle` (no EAS project exists yet, so slug is still free to change).
 - **Content positioning (decided):** Declare honestly as a drinking game with a 17+/18+ age rating, plus responsible-drinking framing and "works with any beverage" messaging — the proven path used by Picolo, Drink Roulette, etc. Goal is passing review, not hiding the category.
-- **Scope (decided):** Web parity only. No push notifications, no deep links / universal links, no new features. The only new in-app code driven by this project is the first-launch age/consent screen (see 3.1).
+- **Scope (decided):** Web parity only. No push notifications, no deep links / universal links, no new gameplay features. New in-app code driven by this project is limited to: the first-launch age/consent screen (3.1), EAS Update wiring (1.4), the server-side game kill switch (1.5), and the client compatibility gate with a blocking update screen (1.6).
+- **Package upgrade rule (decided):** the Expo SDK / dependency upgrade is verified against the existing web deployment first; nothing merges until web is confirmed unbroken.
+- **Release-compatibility principle (decided):** a store app cannot be updated instantly, but the backend (Railway) and web (Vercel) can. Therefore anything that must take effect for all players at once — disabling a game, requiring a newer client — is enforced by the backend, and clients only mirror it for display.
 
 ## Phase 0 — Foundations
 
@@ -60,6 +62,24 @@
   - Screen staying awake during a round (keep-awake behavior)
 - Fix whatever breaks here, before beta.
 
+**1.4 EAS Update (OTA) — wired before beta, not after launch.**
+- A new mini-game is pure JS/TS on the client (a component + a `GAME_CATALOG` entry) with zero native changes, so it can ship over-the-air to every installed app without a store review. That makes OTA the primary delivery channel for new games and bug fixes; store releases are only for native changes (SDK upgrades, new native modules).
+- Configure `expo-updates` with a `runtimeVersion` policy tied to the native build, `checkAutomatically: ON_LOAD`, and a `production` channel matching the `production` build profile. Publish with `eas update`.
+- Free-tier limits (monthly active users / update bandwidth) are sufficient for launch; revisit if usage grows.
+
+**1.5 Game kill switch (server-authoritative, flipped in code).**
+- Backend: a single `DISABLED_GAME_IDS: frozenset[str]` constant beside `GAME_REGISTRY` in `backend/app/engine/game_loader.py`. Disabling a game = add its id, deploy.
+- Enforcement: `normalize_game_ids` (shared by `CreateRoomRequest` and `SET_GAMES`) **silently drops** disabled ids instead of raising — a stale client that still knows the game must not be broken by it — and errors only if nothing remains. `CreateRoomRequest`'s default game list includes enabled games only. The room's broadcast `game_ids` is therefore always the effective list, and every client already renders from it.
+- Frontend mirror: `enabled?: boolean` on `GameMeta` in `frontend/constants/games.ts` (default true) so a disabled game disappears from the lobby picker and catalog pages; web picks it up on deploy, apps via OTA.
+- This is a registry-level feature, not a new mini-game: `deck.py`, `fsm.py`, `base.py`, `ws.py` are not touched.
+
+**1.6 Client compatibility gate (forced update).**
+- Problem: when a game is added, players on an older client would be dealt a game their app has no UI for. Rooms must never mix incompatible clients.
+- Mechanism: an integer compatibility number, not the marketing version — `CLIENT_VERSION = 1` as a frontend constant (baked into the JS bundle, so an OTA update can raise it; the native `1.0.0` cannot serve this purpose), and `MIN_CLIENT_VERSION = 1` on the backend.
+- Transport (no new REST endpoints — respects the two-endpoint limit): the client sends `X-Client-Version` on `POST /rooms` and `GET /rooms/{code}`, and the same value as a query parameter on the WebSocket connect. Below the minimum ⇒ REST responds `426 Upgrade Required` with a JSON body; WebSocket is closed with a dedicated close code before joining. A missing header is treated as version 0 (old web tabs are gated too).
+- Frontend: a global handler for 426 / the WS close code navigates to a blocking `update-required` screen. The screen first tries OTA (`Updates.fetchUpdateAsync()` → `reloadAsync()`, shown as "Updating…"); only if no OTA update is available does it show a store button (App Store / Play Store link by platform; on web: "refresh the page"). Most forced updates therefore resolve in seconds without visiting a store.
+- Operating rule: adding a game that old clients cannot render bumps `CLIENT_VERSION` and `MIN_CLIENT_VERSION` in the same PR. Backend and frontend auto-deploy from the same merge; the OTA publish (`eas update`) is part of the release checklist for any client-facing change.
+
 ## Phase 2 — Closed Beta
 
 **2.1 iOS — TestFlight.**
@@ -78,7 +98,7 @@
 ## Phase 3 — Store Readiness (parallel to beta)
 
 **3.1 Sensitive-content strategy (the core of passing review).**
-- **In-app:** one-time first-launch consent screen — age confirmation (18+), "drink responsibly" note, and an explicit statement that the game works with any beverage, alcoholic or not. Persisted in SecureStore. This is the only new in-app feature in scope.
+- **In-app:** one-time first-launch consent screen — age confirmation (18+), "drink responsibly" note, and an explicit statement that the game works with any beverage, alcoholic or not. Persisted in SecureStore.
 - **Store copy:** frame as a "party game" with responsible-drinking language. No encouragement of excess ("get wasted", quantities, challenges to drink more).
 - **Age-rating questionnaires:** answer honestly. Apple → Alcohol References ⇒ 17+. Google IARC ⇒ 18+ in some regions. Lying in the questionnaire is grounds for removal.
 
@@ -131,8 +151,19 @@
 ## Phase 5 — Post-Launch Operations
 
 - **Versioning:** `autoIncrement` in eas.json manages build numbers; marketing version (1.0.0 → 1.1.0) bumped manually.
-- **EAS Update (OTA):** recommended to wire up after launch — JS-only fixes ship directly to users without store review. Native changes still require build + review.
+- **Release routine:** JS-only changes (new games, UI fixes) ship via `eas update` to the production channel, plus a web deploy; native changes go through `eas build` + store review. Every release that affects the client contract bumps the compatibility number (1.6).
 - **Web stays live:** quicklegame.com continues to serve — it is both the low-friction join path for people without the app and Apple's second-player test surface. Same backend serves all clients.
+
+## Ownership — who does what
+
+| Phase | Claude (code, builds, assets, copy) | Gilad (accounts, devices, people, consoles) |
+|---|---|---|
+| 0 — Foundations | Bundle-id rename, SDK upgrade + web verification, `eas.json`, `eas init` | Log in to the Expo account when `eas init` runs |
+| 1 — Technical readiness | Env wiring, all graphic assets, EAS Update, kill switch, compatibility gate, dev builds, fixing what breaks | Install dev builds on a physical iPhone + Android and run the device checklist |
+| 2 — Closed beta | Submit builds to TestFlight / Play Internal, fix field bugs | Check the Play Console 12-testers/14-days rule first, recruit testers, run real game nights, record the demo video |
+| 3 — Store readiness | Consent screen, privacy policy page, all store copy (he/en), designed screenshots | Approve copy/visuals; fill the account-holder-only forms: age-rating questionnaires, App Privacy / Data Safety, EU non-trader declaration |
+| 4 — Submission | Production builds, `eas submit`, App Review notes | Press the final submit buttons; co-write any rejection response |
+| 5 — Post-launch | OTA + store release routine | Tell the friends |
 
 ## Estimated Timeline
 
@@ -147,6 +178,8 @@
 **Realistic total: ~4–6 weeks** from today to live in both stores; the critical path is likely Google's 14-day closed-testing requirement.
 
 ## Out of Scope (explicitly)
+
+- Dynamic server-driven game catalog (replacing the frontend mirror with a fetched list) — the kill switch + compatibility gate cover the real need without a new REST endpoint.
 
 - Push notifications, deep links / universal links, host migration, or any backlog feature.
 - Backend changes (none required — CORS, wss, and Railway deployment all already serve native clients as-is).
