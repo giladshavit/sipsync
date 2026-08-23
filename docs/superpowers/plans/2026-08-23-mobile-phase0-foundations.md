@@ -21,6 +21,7 @@ Spec: `docs/superpowers/specs/2026-08-05-mobile-store-rollout-design.md` (Phase 
 - Commits: conventional style (`chore:`, `feat:`, `fix:`, `docs:`), each with the `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>` trailer.
 - Branch: `chore/mobile-foundations` cut from `main` (after the spec/plan docs PR is merged). PR body first line: `Closes #<issue>`.
 - Do not run `eas build` in this phase — builds are Phase 1. Phase 0 only needs `eas init` and a validated `eas.json`.
+- **Local Expo Go must work when this phase ends:** `npm run start:go` opens the app in Expo Go on the iOS Simulator (Xcode 26.5 / iOS 26.5 runtime, verified installed) and on Gilad's physical phone. Today it fails on the phone because SDK 52's `expo-audio` was beta and not bundled in Expo Go; SDK 53+ includes it, so the upgrade itself is the fix — Task 7 proves it, Task 8 keeps it working after `expo-dev-client` is added.
 
 ---
 
@@ -487,7 +488,27 @@ Backend + web running as in Task 4 Step 7. Use two browser contexts (one normal 
 6. No `console.error` in either window throughout.
 If any step fails: fix it in this task (it is an upgrade regression), re-run `npm run verify:web`, repeat the flow.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Expo Go on the iOS Simulator**
+
+Backend still running on `:8000` (the simulator reaches the Mac's `localhost` directly, so the default dev URL works).
+```bash
+npx expo start --ios
+```
+Expected: Expo CLI installs/opens Expo Go (SDK 57) on the iOS 26.5 simulator and loads the app. Complete onboarding → Create Room → lobby shows a code. Background music / SFX play (expo-audio is now part of Expo Go — SDK 52's crash is gone without the `require()` guard from the unmerged `fix/expo-audio-expo-go-crash` branch). No red error screen.
+
+- [ ] **Step 7: Expo Go on Gilad's phone (Gilad's step, with the Mac on the same Wi-Fi)**
+
+1. Gilad updates **Expo Go** on the phone from the App Store (the store version always tracks the latest SDK — 57).
+2. On the Mac:
+```bash
+ipconfig getifaddr en0          # → the Mac's LAN IP, e.g. 192.168.1.23
+EXPO_PUBLIC_API_URL=http://<LAN-IP>:8000 npx expo start
+```
+3. Gilad scans the QR code with the phone's camera → the app opens in Expo Go.
+4. Phone: onboard → Create Room. Simulator (Step 6, restarted with the same `EXPO_PUBLIC_API_URL` so both clients talk to the same backend): Join with that code → Start Game → play one round across the two devices.
+Expected: both clients stay in sync through a full round; audio plays on the phone; no red error screen. If the phone cannot load the bundle, the usual cause is a different Wi-Fi network or the Mac firewall — `npx expo start --tunnel` is the fallback.
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add -A
@@ -573,14 +594,30 @@ eas config --profile development --platform android
 ```
 Expected: each prints the resolved build profile and app config with `bundleIdentifier`/`package` = `com.quicklegame.app`, `EXPO_PUBLIC_API_URL` present under `env` for `production`, absent for `development`, and no "invalid eas.json" error.
 
-- [ ] **Step 6: Web still green (expo-dev-client must not affect web)**
+- [ ] **Step 6: Keep Expo Go working now that a dev client is installed**
+
+With `expo-dev-client` present, plain `npx expo start` targets a development build (none exists until Phase 1) and will not open Expo Go. Add an explicit Expo Go script to `frontend/package.json` `"scripts"`:
+
+```json
+"start:go": "expo start --go",
+```
+
+Verify: `npm run start:go -- --ios` → Expo Go opens on the simulator and the app loads to onboarding (same as Task 7 Step 6).
+
+Then document it in `CLAUDE.md` under **Deployment & Environments**, right after the "Local development still uses `localhost`" paragraph:
+
+```markdown
+**Running the app locally on a device/simulator:** `cd frontend && npm run start:go` opens it in **Expo Go** (simulator: add `-- --ios`; phone: scan the QR code, with `EXPO_PUBLIC_API_URL=http://<Mac-LAN-IP>:8000` so the phone reaches the local backend). Plain `npm start` targets a development build (`expo-dev-client`), which only exists once one has been built with `eas build --profile development`.
+```
+
+- [ ] **Step 7: Web still green (expo-dev-client must not affect web)**
 
 Run: `npm run verify:web` → `All smoke checks passed`.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add eas.json app.json package.json package-lock.json
+git add eas.json app.json package.json package-lock.json ../CLAUDE.md
 git commit -m "chore: initialize EAS project and build profiles
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
@@ -609,6 +646,7 @@ Phase 0 of the mobile store rollout (spec: docs/superpowers/specs/2026-08-05-mob
 - EAS project initialised, \`eas.json\` with development/preview/production profiles
 
 Web verified: local smoke on every hop, full two-player room flow on SDK 57, Vercel preview smoke (see checklist below).
+Local Expo Go verified on the iOS Simulator and a physical iPhone (SDK 57 Expo Go); \`npm run start:go\` documented in CLAUDE.md.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)"
 ```
@@ -641,3 +679,4 @@ Then confirm production: open `https://www.quicklegame.com` after Vercel's main 
 - Spec 0.1 → Task 2. Spec 0.2 → Tasks 1, 3–7 (one hop per task, web verified each hop; Vercel preview gate in Task 9). Spec 0.3 → Task 8 (three profiles, `autoIncrement`, `eas init`). Ownership table: Gilad's only hands-on step in this phase is `eas login` (Task 8 Step 1) — matches the spec.
 - `EXPO_PUBLIC_API_URL` baking in `preview`/`production` is spec 1.1's requirement, pulled forward because it is a one-line part of writing `eas.json`; the verification that a native production build resolves it stays in Phase 1.
 - Not in this plan (by design): `expo-updates`, `runtimeVersion`, assets, dev builds — all Phase 1.
+- Local Expo Go requirement (added 2026-08-23): Task 7 Steps 6–7 prove simulator + phone; Task 8 Step 6 keeps it working after `expo-dev-client`. After Task 7 passes, the unmerged branch `fix/expo-audio-expo-go-crash` is obsolete — delete it (`git branch -D fix/expo-audio-expo-go-crash && git push origin --delete fix/expo-audio-expo-go-crash`) in Task 9 after merge.
