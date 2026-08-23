@@ -55,7 +55,7 @@ export default function OnboardingScreen() {
       <LinearGradient
         colors={[colors.surface, colors.ink]}
         locations={[0, 0.65]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View
         pointerEvents="none"
@@ -186,11 +186,7 @@ export default function OnboardingScreen() {
                       {!selected && (
                         <View
                           pointerEvents="none"
-                          style={{
-                            ...StyleSheet.absoluteFillObject,
-                            backgroundColor: tint,
-                            opacity: 0.06,
-                          }}
+                          style={[StyleSheet.absoluteFill, { backgroundColor: tint, opacity: 0.06 }]}
                         />
                       )}
                     </Pressable>

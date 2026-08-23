@@ -1,26 +1,21 @@
 {
   "expo": {
     "name": "Quickle",
-    "slug": "sipsync",
+    "slug": "quickle",
     "version": "1.0.0",
-    "scheme": "sipsync",
+    "scheme": "quickle",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#0f172a"
-    },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.sipsync.app"
+      "bundleIdentifier": "com.quicklegame.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#0f172a"
       },
-      "package": "com.sipsync.app"
+      "package": "com.quicklegame.app"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -29,10 +24,17 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      ["expo-audio", { "microphonePermission": false }]
+      ["expo-audio", { "microphonePermission": false }],
+      ["expo-splash-screen", { "backgroundColor": "#0f172a", "resizeMode": "contain" }]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1e06dfb5-0c89-405a-9c8a-95e43e674320"
+      }
+    },
+    "owner": "giladshavit"
   }
 }

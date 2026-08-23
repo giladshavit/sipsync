@@ -107,7 +107,7 @@ export default function CustomQuestionScreen() {
       <LinearGradient
         colors={[WINE, WINE_DEEP, colors.ink]}
         locations={[0, 0.5, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View
         pointerEvents="none"

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { BGM_TRACKS, SFX_SOURCES, type BGMTrack, type SFXName } from '@/constants/sounds';
 
+// Storage keys keep the legacy 'sipsync.' prefix on purpose — renaming them would wipe every existing user's saved state.
 const MUTE_STORAGE_KEY = 'sipsync.audio_muted';
 
 interface AudioContextValue {
@@ -51,7 +52,7 @@ function isBlockedAutoplayError(error: unknown): boolean {
  * in an inconsistent state; it would fall back to `onBlocked` (which the
  * callers below use to force isMuted back on).
  *
- * On the currently-installed expo-audio web build (0.3.5), this never
+ * On the currently-installed expo-audio web build (57.0.4), this never
  * actually fires: `AudioPlayerWeb.play()` is declared to return `void`
  * and internally calls `HTMLMediaElement.play()` without awaiting,
  * catching, or otherwise propagating the promise it returns, so a

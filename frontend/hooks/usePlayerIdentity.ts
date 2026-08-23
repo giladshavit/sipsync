@@ -18,6 +18,7 @@ function uuidv4(): string {
   return id;
 }
 
+// Storage keys keep the legacy 'sipsync.' prefix on purpose — renaming them would wipe every existing user's saved state.
 const KEY_PLAYER_ID = 'sipsync.player_id';
 const KEY_DISPLAY_NAME = 'sipsync.display_name';
 const KEY_VIBE = 'sipsync.vibe';

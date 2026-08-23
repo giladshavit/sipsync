@@ -114,7 +114,7 @@ export function PracticeRoleSheet({ onSelect, onClose, loadingRole }: PracticeRo
       <LinearGradient
         colors={[VAULT_VIOLET, VAULT_DEEP, colors.ink]}
         locations={[0, 0.45, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View
         pointerEvents="none"

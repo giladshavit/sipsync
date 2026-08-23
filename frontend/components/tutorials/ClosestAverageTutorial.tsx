@@ -9,6 +9,7 @@ import Animated, {
   withSequence,
   withTiming,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { Check } from 'lucide-react-native';
 import { colors } from '@/constants/design';
@@ -69,7 +70,7 @@ function thumbCenterX(v: number): number {
 
 // ── Mini replica of ClosestAverageGameUI's slider ───────────────────────────
 
-function MiniSlider({ value }: { value: Animated.SharedValue<number> }): React.ReactElement {
+function MiniSlider({ value }: { value: SharedValue<number> }): React.ReactElement {
   const thumbStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: thumbCenterX(value.value) - THUMB / 2 }],
   }));
@@ -164,7 +165,7 @@ function ScriptedFinger({
   value,
 }: {
   stage: Stage;
-  value: Animated.SharedValue<number>;
+  value: SharedValue<number>;
 }): React.ReactElement {
   const opacity = useSharedValue(0);
   const moveX = useSharedValue(0);

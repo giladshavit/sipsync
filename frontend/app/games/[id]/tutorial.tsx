@@ -49,7 +49,7 @@ export default function TutorialPreviewScreen() {
       <LinearGradient
         colors={[colors.surface, colors.ink]}
         locations={[0, 0.65]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View
         pointerEvents="none"
