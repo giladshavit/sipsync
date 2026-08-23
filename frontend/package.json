@@ -8,7 +8,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo export --platform web --clear && node scripts/post-export.mjs",
-    "screenshot": "node scripts/screenshot.mjs"
+    "screenshot": "node scripts/screenshot.mjs",
+    "smoke:web": "node scripts/smoke-web.mjs",
+    "verify:web": "npm run build && npm run smoke:web"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",
