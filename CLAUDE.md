@@ -22,6 +22,8 @@ SipSync is a real-time BYOD party drinking game. See [ARCHITECTURE.md](ARCHITECT
 
 **Local development still uses `localhost`.** The frontend defaults to `http://localhost:8000` in dev builds (via `__DEV__` in `frontend/constants/api.ts`), overridable with `EXPO_PUBLIC_API_URL` for LAN/physical-device testing. The production URLs above are the already-deployed live app — they don't reflect uncommitted local changes, so use `localhost` for iterating on code, not the production URLs.
 
+**Running the app locally on a device/simulator:** `cd frontend && npm run start:go` opens it in **Expo Go** (simulator: add `-- --ios`; phone: scan the QR code, with `EXPO_PUBLIC_API_URL=http://<Mac-LAN-IP>:8000` so the phone reaches the local backend). Plain `npm start` targets a development build (`expo-dev-client`), which only exists once one has been built with `eas build --profile development`.
+
 Backend CORS allows: `https://quicklegame.com`, `https://www.quicklegame.com`, any `*.vercel.app` origin, and `http://localhost:\d+`.
 
 ---

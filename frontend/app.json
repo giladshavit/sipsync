@@ -29,6 +29,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1e06dfb5-0c89-405a-9c8a-95e43e674320"
+      }
+    },
+    "owner": "giladshavit"
   }
 }
