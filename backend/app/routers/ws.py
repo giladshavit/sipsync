@@ -1,6 +1,7 @@
 import json
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from app.engine.room_service import room_service
+from app.version_gate import WS_CLOSE_UPGRADE_REQUIRED, ws_client_version_ok
 
 router = APIRouter(tags=["websocket"])
 
@@ -8,6 +9,9 @@ router = APIRouter(tags=["websocket"])
 @router.websocket("/ws/{code}")
 async def room_ws(websocket: WebSocket, code: str) -> None:
     await websocket.accept()
+    if not ws_client_version_ok(websocket):
+        await websocket.close(code=WS_CLOSE_UPGRADE_REQUIRED)
+        return
     player_id: str | None = None
 
     try:

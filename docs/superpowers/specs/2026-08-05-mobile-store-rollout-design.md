@@ -66,7 +66,9 @@
 
 **1.4 EAS Update (OTA) — wired before beta, not after launch.**
 - A new mini-game is pure JS/TS on the client (a component + a `GAME_CATALOG` entry) with zero native changes, so it can ship over-the-air to every installed app without a store review. That makes OTA the primary delivery channel for new games and bug fixes; store releases are only for native changes (SDK upgrades, new native modules).
-- Configure `expo-updates` with a `runtimeVersion` policy tied to the native build, `checkAutomatically: ON_LOAD`, and a `production` channel matching the `production` build profile. Publish with `eas update`.
+- Configure `expo-updates`. Runtime policy is `appVersion` (`fingerprint` was tried first and failed on EAS: the builder's fingerprint included an `ios` bareNativeDir plus differing `expo-dev-launcher`/`expo-dev-menu` hashes, so local and builder runtime versions never matched), `checkAutomatically: ON_LOAD`, and a `production` channel matching the `production` build profile. Publish with `eas update`.
+  - **Rule 1:** any build containing NATIVE changes (SDK upgrade, new native module, config-plugin change) must bump `expo.version` in `app.json` before `eas build` — otherwise old binaries share the runtime and can receive an incompatible OTA.
+  - **Rule 2:** updates published for runtime `1.0.0` do NOT reach a `1.0.1` build, so `eas update --channel production` must be re-run per runtime version after a version bump.
 - Free-tier limits (monthly active users / update bandwidth) are sufficient for launch; revisit if usage grows.
 
 **1.5 Game kill switch (server-authoritative, flipped in code).**
@@ -77,7 +79,7 @@
 
 **1.6 Client compatibility gate (forced update).**
 - Problem: when a game is added, players on an older client would be dealt a game their app has no UI for. Rooms must never mix incompatible clients.
-- Mechanism: an integer compatibility number, not the marketing version — `CLIENT_VERSION = 1` as a frontend constant (baked into the JS bundle, so an OTA update can raise it; the native `1.0.0` cannot serve this purpose), and `MIN_CLIENT_VERSION = 1` on the backend.
+- Mechanism: an integer compatibility number, not the marketing version — `CLIENT_VERSION = 1` as a frontend constant (baked into the JS bundle, so an OTA update can raise it; the native `1.0.0` cannot serve this purpose), and `MIN_CLIENT_VERSION = 0 at launch (armed but permissive; first real forced update raises it together with CLIENT_VERSION)` on the backend.
 - Transport (no new REST endpoints — respects the two-endpoint limit): the client sends `X-Client-Version` on `POST /rooms` and `GET /rooms/{code}`, and the same value as a query parameter on the WebSocket connect. Below the minimum ⇒ REST responds `426 Upgrade Required` with a JSON body; WebSocket is closed with a dedicated close code before joining. A missing header is treated as version 0 (old web tabs are gated too).
 - Frontend: a global handler for 426 / the WS close code navigates to a blocking `update-required` screen. The screen first tries OTA (`Updates.fetchUpdateAsync()` → `reloadAsync()`, shown as "Updating…"); only if no OTA update is available does it show a store button (App Store / Play Store link by platform; on web: "refresh the page"). Most forced updates therefore resolve in seconds without visiting a store.
 - Operating rule: adding a game that old clients cannot render bumps `CLIENT_VERSION` and `MIN_CLIENT_VERSION` in the same PR. Backend and frontend auto-deploy from the same merge; the OTA publish (`eas update`) is part of the release checklist for any client-facing change.

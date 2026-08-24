@@ -5,7 +5,7 @@ import { router } from 'expo-router';
 import { ArrowLeft, Check, ChevronRight, Lock, X } from 'lucide-react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { colors, typography } from '@/constants/design';
-import { GAME_CATALOG, type GameMeta } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG, GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
 interface GamesSheetProps {
@@ -71,10 +71,11 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
   const cellSize = Math.floor((width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   // Same category filter, same tab row, for both modes — mirrors the main
-  // Game Catalog screen exactly. Edit mode filters the full catalog (the
-  // admin needs to see/toggle everything); view mode further restricts to
+  // Game Catalog screen exactly. Edit mode filters the active catalog
+  // (disabled games are hidden; the admin still sees/toggles everything
+  // enabled); view mode further restricts to
   // only the room's already-selected games.
-  const editGames = filter === 'all' ? GAME_CATALOG : GAME_CATALOG.filter((g) => g.categories.includes(filter));
+  const editGames = filter === 'all' ? ACTIVE_GAME_CATALOG : ACTIVE_GAME_CATALOG.filter((g) => g.categories.includes(filter));
   const viewPool = GAME_CATALOG.filter((g) => selectedIds.includes(g.id));
   const viewGames = filter === 'all' ? viewPool : viewPool.filter((g) => g.categories.includes(filter));
 
@@ -88,7 +89,7 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
   // visually marked below-floor games as selected even though the server
   // would immediately filter them back out — a real selection the UI
   // claimed but didn't actually have.
-  const allowedIds = GAME_CATALOG.filter((g) => meetsFloor(g) || localIds.includes(g.id)).map((g) => g.id);
+  const allowedIds = ACTIVE_GAME_CATALOG.filter((g) => meetsFloor(g) || localIds.includes(g.id)).map((g) => g.id);
   const allSelected = localIds.length === allowedIds.length && allowedIds.every((id) => localIds.includes(id));
   const noneSelected = localIds.length === 0;
 
@@ -146,7 +147,7 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
             }}
           >
             {mode === 'edit'
-              ? `${localIds.length} of ${GAME_CATALOG.length} selected`
+              ? `${localIds.length} of ${ACTIVE_GAME_CATALOG.length} selected`
               : `${viewPool.length} game${viewPool.length === 1 ? '' : 's'} tonight`}
           </Text>
           <Text style={{ fontWeight: '200', color: colors.ink, fontSize: 34, lineHeight: 38, letterSpacing: -1.5 }}>
@@ -189,7 +190,7 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
                 opacity: 0.55,
               }}
             >
-              {localIds.length}/{GAME_CATALOG.length}
+              {localIds.length}/{ACTIVE_GAME_CATALOG.length}
             </Text>
           </Pressable>
         )}

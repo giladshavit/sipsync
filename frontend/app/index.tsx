@@ -7,8 +7,8 @@ import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import JoinRoomModal from '@/components/JoinRoomModal';
-import { API_BASE } from '@/constants/api';
-import { GAME_CATALOG } from '@/constants/games';
+import { apiFetch } from '@/lib/api';
+import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 import HomeWebSections from '@/components/HomeWebSections';
 
 export default function HomeScreen() {
@@ -36,8 +36,8 @@ export default function HomeScreen() {
       // Every game plays by default — the host narrows it down from inside
       // the lobby (see components/GamesSheet.tsx), everyone else just
       // watches the selection update live.
-      const gameIds = GAME_CATALOG.map((g) => g.id);
-      const res = await fetch(`${API_BASE}/rooms`, {
+      const gameIds = ACTIVE_GAME_CATALOG.map((g) => g.id);
+      const res = await apiFetch('/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_id: playerId ?? '', game_ids: gameIds }),

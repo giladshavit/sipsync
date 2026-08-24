@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
-import { API_BASE } from '@/constants/api';
+import { apiFetch } from '@/lib/api';
 
 // Room-code entry as an overlay card anchored to the TOP of the screen.
 // A modal instead of an inline field is deliberate: on iOS Safari the
@@ -24,7 +24,7 @@ export default function JoinRoomModal({ onClose }: { onClose: () => void }) {
     setJoining(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/rooms/${trimmed}`);
+      const res = await apiFetch(`/rooms/${trimmed}`);
       if (!res.ok) throw new Error();
       const data: { exists: boolean; state: string | null } = await res.json();
       if (!data.exists) {

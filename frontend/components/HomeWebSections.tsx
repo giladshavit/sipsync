@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { ChevronRight, Martini, Smartphone, Swords } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
-import { GAME_CATALOG } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 
 const STEPS = [
   {
@@ -60,7 +60,7 @@ export default function HomeWebSections() {
         The games
       </Text>
       <View style={{ gap: 12, marginBottom: 16 }}>
-        {GAME_CATALOG.slice(0, TEASER_COUNT).map((game) => (
+        {ACTIVE_GAME_CATALOG.slice(0, TEASER_COUNT).map((game) => (
           <Link key={game.id} href={{ pathname: '/games/[id]', params: { id: game.id } }} asChild>
             {/* asChild needs a pressable child — a plain View won't navigate */}
             <Pressable
@@ -89,7 +89,7 @@ export default function HomeWebSections() {
       <Link href="/games" asChild>
         <Pressable style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 56 }} className="active:opacity-60">
           <Text style={{ color: colors.ink, fontSize: 14, fontWeight: '700' }}>
-            See all {GAME_CATALOG.length} games
+            See all {ACTIVE_GAME_CATALOG.length} games
           </Text>
           <ChevronRight size={16} color={colors.ink} strokeWidth={2} />
         </Pressable>
