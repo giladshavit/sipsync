@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { useHydrated } from '@/hooks/useHydrated';
-import { GAME_CATALOG, type GameMeta } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG, GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
 const GRID_GAP = 10;
@@ -37,7 +37,7 @@ export default function AllGamesScreen() {
   const cellSize = Math.floor((layoutWidth - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   const games = useMemo(
-    () => (filter === 'all' ? GAME_CATALOG : GAME_CATALOG.filter((g) => g.categories.includes(filter))),
+    () => (filter === 'all' ? ACTIVE_GAME_CATALOG : ACTIVE_GAME_CATALOG.filter((g) => g.categories.includes(filter))),
     [filter],
   );
 
@@ -101,7 +101,7 @@ export default function AllGamesScreen() {
               marginBottom: 6,
             }}
           >
-            {GAME_CATALOG.length} mini-games
+            {ACTIVE_GAME_CATALOG.length} mini-games
           </Text>
           <Text style={{ fontWeight: '200', color: colors.ink, fontSize: 40, lineHeight: 44, letterSpacing: -2 }}>
             All

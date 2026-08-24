@@ -87,6 +87,11 @@ export interface GameMeta {
   // Signature accent color for this game's cell/banner — swapped out once
   // real artwork lands, kept as the background behind the placeholder icon.
   accentColor: string;
+  // Game kill switch mirror of the backend's DISABLED_GAME_IDS: set to false
+  // to hide a game from the catalog grid, home carousel, and lobby picker.
+  // Rooms that already contain the game keep rendering it (lookups by id use
+  // GAME_CATALOG). Web picks this up on deploy; installed apps via OTA.
+  enabled?: boolean;
   // Below this room size the game degrades badly (e.g. auction's pool/
   // distribution math wants a real crowd) — not enforced by the engine
   // (no mini-game gates on player count there), just a hint for whichever
@@ -579,6 +584,8 @@ export const GAME_CATALOG: GameMeta[] = [
     ],
   },
 ];
+
+export const ACTIVE_GAME_CATALOG = GAME_CATALOG.filter((g) => g.enabled !== false);
 
 export function getGameById(id: string): GameMeta | undefined {
   return GAME_CATALOG.find((g) => g.id === id);
