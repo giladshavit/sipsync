@@ -69,6 +69,12 @@ Backend CORS allows: `https://quicklegame.com`, `https://www.quicklegame.com`, a
 - Player identity is a `UUID` from `SecureStore`. Treat it as a first-class auth token.
 - Do not add login gates. The guest-first model is intentional.
 
+### Release checklist
+- New mini-game or client-visible protocol change → bump `frontend/constants/version.ts`'s `CLIENT_VERSION` and `backend/app/version_gate.py`'s `MIN_CLIENT_VERSION` in the same PR.
+- After merging any client-facing change → `cd frontend && eas update --channel production` (re-run per runtime version).
+- Native changes → bump `expo.version` in `frontend/app.json` before `eas build` (runtime policy is `appVersion`).
+- Disabling a game → add its id to `DISABLED_GAME_IDS` (`backend/app/engine/game_loader.py`) AND set `enabled: false` on its `GAME_CATALOG` entry (`frontend/constants/games.ts`), then deploy + OTA.
+
 ---
 
 ## Coding Standards

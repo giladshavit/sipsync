@@ -71,8 +71,9 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
   const cellSize = Math.floor((width - H_PADDING * 2 - GRID_GAP * (COLUMNS - 1)) / COLUMNS);
 
   // Same category filter, same tab row, for both modes — mirrors the main
-  // Game Catalog screen exactly. Edit mode filters the full catalog (the
-  // admin needs to see/toggle everything); view mode further restricts to
+  // Game Catalog screen exactly. Edit mode filters the active catalog
+  // (disabled games are hidden; the admin still sees/toggles everything
+  // enabled); view mode further restricts to
   // only the room's already-selected games.
   const editGames = filter === 'all' ? ACTIVE_GAME_CATALOG : ACTIVE_GAME_CATALOG.filter((g) => g.categories.includes(filter));
   const viewPool = GAME_CATALOG.filter((g) => selectedIds.includes(g.id));

@@ -8,7 +8,7 @@ import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import JoinRoomModal from '@/components/JoinRoomModal';
 import { apiFetch } from '@/lib/api';
-import { ACTIVE_GAME_CATALOG, GAME_CATALOG } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 import HomeWebSections from '@/components/HomeWebSections';
 
 export default function HomeScreen() {

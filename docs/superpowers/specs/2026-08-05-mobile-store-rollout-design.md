@@ -66,7 +66,9 @@
 
 **1.4 EAS Update (OTA) — wired before beta, not after launch.**
 - A new mini-game is pure JS/TS on the client (a component + a `GAME_CATALOG` entry) with zero native changes, so it can ship over-the-air to every installed app without a store review. That makes OTA the primary delivery channel for new games and bug fixes; store releases are only for native changes (SDK upgrades, new native modules).
-- Configure `expo-updates` with a `runtimeVersion` policy tied to the native build, `checkAutomatically: ON_LOAD`, and a `production` channel matching the `production` build profile. Publish with `eas update`.
+- Configure `expo-updates`. Runtime policy is `appVersion` (`fingerprint` was tried first and failed on EAS: the builder's fingerprint included an `ios` bareNativeDir plus differing `expo-dev-launcher`/`expo-dev-menu` hashes, so local and builder runtime versions never matched), `checkAutomatically: ON_LOAD`, and a `production` channel matching the `production` build profile. Publish with `eas update`.
+  - **Rule 1:** any build containing NATIVE changes (SDK upgrade, new native module, config-plugin change) must bump `expo.version` in `app.json` before `eas build` — otherwise old binaries share the runtime and can receive an incompatible OTA.
+  - **Rule 2:** updates published for runtime `1.0.0` do NOT reach a `1.0.1` build, so `eas update --channel production` must be re-run per runtime version after a version bump.
 - Free-tier limits (monthly active users / update bandwidth) are sufficient for launch; revisit if usage grows.
 
 **1.5 Game kill switch (server-authoritative, flipped in code).**

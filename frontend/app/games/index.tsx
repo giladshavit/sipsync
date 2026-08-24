@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { useHydrated } from '@/hooks/useHydrated';
-import { ACTIVE_GAME_CATALOG, GAME_CATALOG, type GameMeta } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
 const GRID_GAP = 10;

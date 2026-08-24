@@ -6,7 +6,6 @@ monkeypatched DISABLED_GAME_IDS.
 import pytest
 
 import app.engine.game_loader as loader
-import app.models.room as room_models
 from app.models.room import CreateRoomRequest, normalize_game_ids
 
 

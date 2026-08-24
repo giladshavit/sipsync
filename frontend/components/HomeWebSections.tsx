@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
 import { ChevronRight, Martini, Smartphone, Swords } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
-import { ACTIVE_GAME_CATALOG, GAME_CATALOG } from '@/constants/games';
+import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 
 const STEPS = [
   {
