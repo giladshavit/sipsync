@@ -3,15 +3,18 @@ import secrets
 import string
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.engine import bot_engine
 from app.engine.deck import deck
 from app.engine.room_service import room_service
 from app.models.room import CreateRoomRequest, CreateRoomResponse, RoomInfoResponse
 from app.redis_client import redis
+from app.version_gate import require_client_version
 
-router = APIRouter(prefix="/rooms", tags=["rooms"])
+router = APIRouter(
+    prefix="/rooms", tags=["rooms"], dependencies=[Depends(require_client_version)]
+)
 
 _CODE_ALPHABET = string.ascii_uppercase.replace("O", "").replace("I", "") + string.digits.replace("0", "").replace("1", "")
 _CODE_LENGTH = 6
