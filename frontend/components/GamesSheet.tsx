@@ -146,7 +146,7 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
             }}
           >
             {mode === 'edit'
-              ? `${localIds.length} of ${GAME_CATALOG.length} selected`
+              ? `${localIds.length} of ${ACTIVE_GAME_CATALOG.length} selected`
               : `${viewPool.length} game${viewPool.length === 1 ? '' : 's'} tonight`}
           </Text>
           <Text style={{ fontWeight: '200', color: colors.ink, fontSize: 34, lineHeight: 38, letterSpacing: -1.5 }}>
@@ -189,7 +189,7 @@ export function GamesSheet({ mode, selectedIds, onSetSelected, onClose, playerCo
                 opacity: 0.55,
               }}
             >
-              {localIds.length}/{GAME_CATALOG.length}
+              {localIds.length}/{ACTIVE_GAME_CATALOG.length}
             </Text>
           </Pressable>
         )}
