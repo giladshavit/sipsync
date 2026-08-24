@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { ScrollView, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';

@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from 'react-native';
 import { Link } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 
