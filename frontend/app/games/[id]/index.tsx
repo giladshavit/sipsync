@@ -10,7 +10,7 @@ import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { CATEGORY_LABELS, GAME_CATALOG, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
-import { API_BASE } from '@/constants/api';
+import { apiFetch } from '@/lib/api';
 import { PracticeRoleSheet, type PracticeRole } from '@/components/PracticeRoleSheet';
 
 // Games that pick a small number of participants at random each round —
@@ -288,7 +288,7 @@ export default function GameRulesScreen() {
     setSimulating(true);
     setSelectedRole(role ?? null);
     try {
-      const res = await fetch(`${API_BASE}/rooms`, {
+      const res = await apiFetch('/rooms', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

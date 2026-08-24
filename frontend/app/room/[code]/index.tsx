@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, router, Redirect } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
-import { API_BASE } from '@/constants/api';
+import { apiFetch } from '@/lib/api';
 import { colors, typography } from '@/constants/design';
 
 // Deep-link landing pad for `/room/[code]` — shared links point to
@@ -27,7 +27,7 @@ export default function RoomDeepLinkScreen() {
 
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/rooms/${code}`);
+        const res = await apiFetch(`/rooms/${code}`);
         const data: { exists: boolean } = res.ok ? await res.json() : { exists: false };
         if (!data.exists) {
           setNotFound(true);

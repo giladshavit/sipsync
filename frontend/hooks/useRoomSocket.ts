@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useCallback, MutableRefObject } from 'react';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 import { usePlayerIdentity } from './usePlayerIdentity';
 import { API_BASE } from '@/constants/api';
+import { CLIENT_VERSION } from '@/constants/version';
 
 const WS_BASE = API_BASE.replace(/^http/, 'ws');
 
@@ -185,7 +187,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
       if (unmountedRef.current) return;
 
       const myGeneration = ++generationRef.current;
-      const ws = new WebSocket(`${WS_BASE}/ws/${code}`);
+      const ws = new WebSocket(`${WS_BASE}/ws/${code}?cv=${CLIENT_VERSION}`);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -374,10 +376,11 @@ export function useRoomSocket(code: string): UseRoomSocket {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event: CloseEvent) => {
         if (generationRef.current !== myGeneration) return; // superseded socket — a newer connect() already owns wsRef/reconnectTimer
         setIsConnected(false);
         wsRef.current = null;
+        if (event.code === 4426) { router.replace('/update-required'); return; } // gate: never reconnect
         // Auto-reconnect unless the component unmounted intentionally
         if (!unmountedRef.current) {
           reconnectTimer.current = setTimeout(connect, RECONNECT_DELAY_MS);
@@ -504,7 +507,7 @@ export function useRoomSocket(code: string): UseRoomSocket {
       return;
     }
     try {
-      const oneShot = new WebSocket(`${WS_BASE}/ws/${code}`);
+      const oneShot = new WebSocket(`${WS_BASE}/ws/${code}?cv=${CLIENT_VERSION}`);
       oneShot.onopen = () => {
         oneShot.send(payload);
         // Give the frame a moment to flush before closing.
