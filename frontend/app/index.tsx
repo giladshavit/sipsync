@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Platform, ScrollView, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';

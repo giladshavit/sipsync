@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';

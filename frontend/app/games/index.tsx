@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';

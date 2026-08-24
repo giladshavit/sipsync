@@ -3,7 +3,7 @@ import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-nati
 import Svg, { Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { ArrowLeft, Bot, GlassWater, PlayCircle } from 'lucide-react-native';
 import { colors } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';

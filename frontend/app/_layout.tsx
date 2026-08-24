@@ -3,7 +3,7 @@ import '../global.css';
 import { useEffect } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
-import Head from 'expo-router/head';
+import Head from '@/lib/head';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
