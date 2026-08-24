@@ -2,28 +2,26 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 from app.engine.fsm import RoomState
-from app.engine.game_loader import GAME_REGISTRY
+import app.engine.game_loader as game_loader
+from app.engine.game_loader import GAME_REGISTRY, enabled_game_ids
 
 
 def normalize_game_ids(game_ids: list[str]) -> list[str]:
-    """Dedupe (order-preserving) and validate against the game registry.
-
-    Shared by CreateRoomRequest's validator and the in-room SET_GAMES action
-    so both entry points reject the same malformed input the same way.
-    """
+    """Dedupe (order-preserving), validate against the registry, and silently
+    drop kill-switched games. Shared by CreateRoomRequest and SET_GAMES."""
     unknown = [g for g in game_ids if g not in GAME_REGISTRY]
     if unknown:
         raise ValueError(f"Unknown game_ids: {unknown}")
-    deduped = list(dict.fromkeys(game_ids))
+    deduped = [g for g in dict.fromkeys(game_ids) if g not in game_loader.DISABLED_GAME_IDS]
     if not deduped:
-        raise ValueError("At least one game_id is required")
+        raise ValueError("game_ids must contain at least one enabled game")
     return deduped
 
 
 class CreateRoomRequest(BaseModel):
     admin_id: str = Field(..., description="Player UUID from SecureStore")
     game_ids: list[str] = Field(
-        default_factory=lambda: list(GAME_REGISTRY.keys()),
+        default_factory=enabled_game_ids,
         description="Ordered list of game IDs to include in this room's deck",
     )
     practice: bool = Field(

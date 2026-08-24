@@ -21,7 +21,7 @@ def test_rejects_unknown_game_id():
 
 
 def test_rejects_empty_selection():
-    with pytest.raises(ValidationError, match="At least one game_id"):
+    with pytest.raises(ValidationError, match="at least one enabled game"):
         CreateRoomRequest(admin_id="p1", game_ids=[])
 
 

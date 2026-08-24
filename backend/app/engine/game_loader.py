@@ -32,6 +32,16 @@ GAME_REGISTRY: dict[str, type[BaseMiniGame]] = {
     TwentyOneGame.game_id: TwentyOneGame,
 }
 
+# Game kill switch: ids listed here vanish from defaults and are silently
+# dropped from any client-supplied list (a stale client that still knows a
+# disabled game must not be broken by it). Disabling a game = add its id
+# here and deploy. Registry-level feature: fsm/deck/base/ws untouched.
+DISABLED_GAME_IDS: frozenset[str] = frozenset()
+
+
+def enabled_game_ids() -> list[str]:
+    return [g for g in GAME_REGISTRY if g not in DISABLED_GAME_IDS]
+
 
 def load_game(game_id: str) -> BaseMiniGame:
     cls = GAME_REGISTRY.get(game_id)
