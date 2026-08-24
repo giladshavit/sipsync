@@ -7,11 +7,16 @@ duck with dark-brown outline, small white Gemini watermark near the
 bottom-right corner. The background is OPAQUE (checkerboard-style fake
 transparency was already debunked for the avatar sheets — same here).
 
-Note: the committed source, despite its .png extension, was actually saved
-as a JPEG (PIL doesn't care — it sniffs real content, not the extension).
-Step 0 below re-encodes it as a true, compressed PNG after watermark
-cleanup so the committed asset is honest about its format and much
-smaller. JPEG compression also blurs the duck's outline against the cream
+Note: the source was originally committed despite its .png extension as a
+JPEG (PIL doesn't care — it sniffs real content, not the extension). The
+one-time re-encode step below (run once, long ago) turned it into a true,
+palette-mode PNG. That palette-mode file is now the CANONICAL, permanent
+source — it is what's committed to git and it is what every future run
+must reproduce byte-for-byte. The re-encode step below detects this via
+the source's PIL mode ("P" = palette = already quantized) and never
+touches an already-palette source again, so all outputs are always
+generated from whatever is currently on disk. JPEG compression (from the
+original mislabeled source) blurs the duck's outline against the cream
 background by a few pixels, which is why the flood-fill tolerance below is
 looser than it would need to be for a lossless source.
 """
@@ -25,7 +30,11 @@ DARK = (15, 23, 42)       # #0f172a — app dark
 
 src_bytes_before = SRC.stat().st_size
 
-src = Image.open(SRC).convert("RGBA")
+raw = Image.open(SRC)
+already_quantized = raw.mode == "P"  # palette mode ⇒ this file already went
+                                      # through the one-time re-encode below;
+                                      # never re-encode it again.
+src = raw.convert("RGBA")
 W, H = src.size
 px = src.load()
 
@@ -58,35 +67,37 @@ for y in range(int(H * 0.80), H):
         px[x, y] = (*bg, 255)
 
 # --- Step 2 (brief calls this "step 0" — it must run before background
-# removal, straight after watermark cleanup): re-encode the committed
-# source as a true, compressed PNG now that
-# the watermark is gone. This runs on a COPY of the cleaned full-color RGBA
-# data, taken before background removal/palette work touches anything, so
-# the committed file stays full color (no quantization artifacts leak into
-# the icons generated below, which continue from the original `src`).
-# A straight 256-color quantize of the JPEG-sourced pixels came out LARGER
-# than the original (1.58MB) because JPEG block noise inflates the color
-# count enough to defeat PNG's DEFLATE pass. A median filter first knocks
-# out that noise (flat cartoon art has none of its own to lose — verified
-# by eye at 1:1 on the face) so the palette pass actually pays off.
+# removal, straight after watermark cleanup): ONE-TIME re-encode of the
+# committed source into a true, compressed, palette-mode PNG. This ran
+# exactly once, back when the source was still the original ~1.3MB
+# mislabeled JPEG: a median filter knocked out JPEG block noise (flat
+# cartoon art has none of its own to lose), then a 64-color quantize
+# brought it down to ~300KB. That quantized file is what's committed to
+# git today — it is now the CANONICAL source, permanently.
 #
-# Guarded by file size so the script stays safely re-runnable: SRC starts
-# as a ~1.3MB mislabeled JPEG and this step brings it to ~300KB. Without
-# the guard, running the script again would treat that already-quantized
-# ~300KB PNG as fresh input and re-median-filter + re-quantize it, losing
-# a little more fidelity each pass (observed: a second blind pass took it
-# 309KB -> 205KB with visible extra softening). Skipping the step once the
-# file is already compact makes every run after the first a no-op here.
-REENCODE_THRESHOLD = 600_000  # bytes; comfortably between "compact" (~300KB) and "raw" (~1.3MB)
-if src_bytes_before > REENCODE_THRESHOLD:
+# This step must be idempotent, not just "safely re-runnable": re-encoding
+# an already-quantized file doesn't error, but it silently re-median-filters
+# and re-quantizes already-degraded data, losing a little more fidelity
+# every single run (measured: a second blind pass took it 309KB -> 205KB
+# with visible extra softening) while produced no error or warning — a
+# non-reproducible pipeline masquerading as a working one. Detecting via
+# file size (as an earlier version of this script did) is a heuristic that
+# can't tell "already quantized" from "not yet quantized" with certainty.
+# Detecting via PIL mode is exact: `Image.quantize()` always returns a
+# palette ("P" mode) image, and nothing else in this pipeline ever produces
+# a "P" mode file, so `already_quantized` (computed above, before the
+# watermark step converts to RGBA) is a hard fact about the file on disk,
+# not a guess about its size.
+if not already_quantized:
     denoised = src.copy().convert("RGB").filter(ImageFilter.MedianFilter(size=9))
     quantized = denoised.quantize(colors=64, method=Image.MEDIANCUT, dither=Image.Dither.NONE)
     quantized.save(SRC, optimize=True)
     src_bytes_after = SRC.stat().st_size
-    print(f"source re-encoded: {src_bytes_before:,} -> {src_bytes_after:,} bytes "
-          f"({src_bytes_after / src_bytes_before:.1%} of original)")
+    print(f"source re-encoded (one-time): {src_bytes_before:,} -> {src_bytes_after:,} bytes "
+          f"({src_bytes_after / src_bytes_before:.1%} of original) — this quantized file is now canonical")
 else:
-    print(f"source already compact ({src_bytes_before:,} bytes) — skipping re-encode")
+    print(f"source already palette-mode / quantized ({src_bytes_before:,} bytes) — "
+          f"skipping re-encode, regenerating all outputs from this exact file")
 
 # --- Step 3: Background removal by edge flood-fill (NOT global chroma-key: the
 # duck's eye-whites must survive). BFS from the four corners over pixels
