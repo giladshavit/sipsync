@@ -443,3 +443,18 @@ async def test_second_next_round_tap_does_not_burn_a_card(patch_redis_and_broadc
     assert await r.hget(f"room:{CODE}", "active_game") == dealt
     assert await r.get(NEXT_GAME_KEY) == queued
     assert await r.lrange(f"room:{CODE}:deck", 0, -1) == deck_after_first
+
+
+async def test_first_next_game_write_after_room_emptied_still_expires(patch_redis_and_broadcast):
+    """The other half of the TTL path: keepttl has nothing to keep when the
+    key doesn't exist yet, so a *first* Up Next write landing inside the
+    empty-room window has to inherit the room's own remaining TTL instead."""
+    r, _ = patch_redis_and_broadcast
+    await _settled_room(r)
+    await r.delete(NEXT_GAME_KEY)
+    await _svc._apply_empty_room_ttl(CODE)
+
+    async with _svc._room_lock(CODE):
+        assert await _svc._refresh_next_game(CODE) is not None
+
+    assert 0 < await r.ttl(NEXT_GAME_KEY) <= 60
