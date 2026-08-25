@@ -335,3 +335,111 @@ async def test_peek_matches_the_next_pop_across_a_reconnect(patch_redis_and_broa
     await _handshake(ADMIN)
 
     assert await deck_singleton.pop_next_game(CODE) == advertised
+
+
+# ---------------------------------------------------------------------------
+# Bug A, second edge — a headcount change that leaves the effective list alone
+# ---------------------------------------------------------------------------
+
+# Every entry needs 3 players, so a 2-player room can deal none of them and
+# resolve_effective_games has nothing to prune down to — it hands back the
+# admin's list unchanged via `fallback`.
+CROWD_ONLY = ["majority", "sacrifice"]
+
+
+async def test_headcount_drop_clears_a_now_undealable_up_next(patch_redis_and_broadcast):
+    """resolve_effective_games returns the admin's unfiltered list when *every*
+    selection is above the floor, so a 4-player crowd-game room dropping to 2
+    leaves the effective list identical — and the "no actual change" early
+    return that fact triggers skipped the Up Next refresh entirely. The podium
+    kept advertising a 3-player game to a 2-player room (issue #129's exact
+    symptom) and the admin's Next button became a silent no-op."""
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.PODIUM, "admin_id": ADMIN})
+    await r.rpush(f"room:{CODE}:admin_game_ids", *CROWD_ONLY)
+    for pid in (ADMIN, GUEST, "p3", "p4"):
+        await _handshake(pid)
+    assert await r.get(NEXT_GAME_KEY) in CROWD_ONLY
+
+    for pid in ("p3", "p4"):
+        await r.hdel(f"room:{CODE}:players", pid)
+        await _svc._finalize_departure(CODE, pid)
+
+    # Nothing in the catalogue is playable at 2, so the honest card is no card.
+    assert await r.get(NEXT_GAME_KEY) is None
+    # ...and the promise matches what the room would actually deal.
+    assert await deck_singleton.pop_next_game(CODE) is None
+
+
+async def test_headcount_drop_broadcasts_the_cleared_up_next(patch_redis_and_broadcast):
+    """Clients sitting on the podium hold whatever card their last ROOM_STATE
+    gave them; clearing it server-side without telling them leaves the stale
+    game on screen until the next transition."""
+    r, captured = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.PODIUM, "admin_id": ADMIN})
+    await r.rpush(f"room:{CODE}:admin_game_ids", *CROWD_ONLY)
+    for pid in (ADMIN, GUEST, "p3", "p4"):
+        await _handshake(pid)
+    captured.clear()
+
+    for pid in ("p3", "p4"):
+        await r.hdel(f"room:{CODE}:players", pid)
+        await _svc._finalize_departure(CODE, pid)
+
+    updates = [m for m in captured if m["type"] == "NEXT_GAME_UPDATED"]
+    assert updates and updates[-1]["next_game_id"] is None
+
+
+async def test_unchanged_up_next_does_not_spam_a_broadcast(patch_redis_and_broadcast):
+    """The refresh now runs on every sync, so it must stay quiet when it
+    recomputes the same card — a join that changes nothing shouldn't push a
+    redundant NEXT_GAME_UPDATED to everyone."""
+    r, captured = patch_redis_and_broadcast
+    await _settled_room(r)
+    before = await r.get(NEXT_GAME_KEY)
+    captured.clear()
+
+    await _svc._sync_eligible_games(CODE, 2)
+
+    assert await r.get(NEXT_GAME_KEY) == before
+    assert [m for m in captured if m["type"] == "NEXT_GAME_UPDATED"] == []
+
+
+async def test_refresh_next_game_keeps_the_key_expiring(patch_redis_and_broadcast):
+    """Room Garbage Collection: a grace timer firing after the last socket
+    closed rewrites Up Next, and a plain SET drops the key's TTL — leaving one
+    orphan key per abandoned room behind after Redis reclaims the rest."""
+    r, _ = patch_redis_and_broadcast
+    await _settled_room(r)
+    await _svc._apply_empty_room_ttl(CODE)
+
+    async with _svc._room_lock(CODE):
+        await _svc._refresh_next_game(CODE)
+
+    assert 0 < await r.ttl(NEXT_GAME_KEY) <= 60
+
+
+# ---------------------------------------------------------------------------
+# Dealing a game is one atomic queue advance
+# ---------------------------------------------------------------------------
+
+
+async def test_second_next_round_tap_does_not_burn_a_card(patch_redis_and_broadcast):
+    """The admin's Next button has no debounce, and the room lock serializes
+    two taps rather than letting them interleave — so the second one popped a
+    card, overwrote active_game and advanced Up Next *before* the
+    TUTORIAL->TUTORIAL transition raised and it gave up. Everyone then watched
+    the first game's tutorial while a second game was silently burned out of
+    the shuffle bag."""
+    r, _ = patch_redis_and_broadcast
+    await _settled_room(r)
+
+    assert await _svc._trigger_next_game_tutorial(CODE) is True
+    dealt = await r.hget(f"room:{CODE}", "active_game")
+    queued = await r.get(NEXT_GAME_KEY)
+    deck_after_first = await r.lrange(f"room:{CODE}:deck", 0, -1)
+
+    assert await _svc._trigger_next_game_tutorial(CODE) is False
+    assert await r.hget(f"room:{CODE}", "active_game") == dealt
+    assert await r.get(NEXT_GAME_KEY) == queued
+    assert await r.lrange(f"room:{CODE}:deck", 0, -1) == deck_after_first

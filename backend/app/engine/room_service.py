@@ -216,7 +216,17 @@ class RoomService:
         if next_game_id is None:
             await redis.delete(key)
         else:
-            await redis.set(key, next_game_id)
+            # Room Garbage Collection: a plain SET drops the key's expiry, so
+            # a write landing after _apply_empty_room_ttl (a disconnect grace
+            # timer firing once the last socket closed) would leave this key
+            # immortal while Redis reclaimed the rest of the room. keepttl
+            # preserves an existing expiry; the ttl<0 branch covers a *first*
+            # write in that same window, where there's no expiry to keep.
+            await redis.set(key, next_game_id, keepttl=True)
+            if await redis.ttl(key) < 0:
+                room_ttl = await redis.ttl(f"room:{code}")
+                if room_ttl > 0:
+                    await redis.expire(key, room_ttl)
         return next_game_id
 
     async def _get_next_game(self, code: str) -> str | None:
@@ -422,8 +432,19 @@ class RoomService:
         The pop and the Up Next refresh are one critical section: dealing the
         queued game is a genuine queue change, and any window where the
         stored card still names the game that was just dealt would put a
-        reconnecting client's podium a whole round behind."""
+        reconnecting client's podium a whole round behind.
+
+        The FSM check comes *before* the pop for the same reason. The admin's
+        Next button has no debounce, and the lock serializes a double-tap
+        rather than letting the two calls interleave — so popping first meant
+        the second tap burned a card out of the shuffle bag and advanced Up
+        Next before the illegal TUTORIAL->TUTORIAL transition raised and it
+        gave up, leaving the room playing the first game with a second one
+        silently gone."""
         async with self._room_lock(code):
+            state = await redis.hget(f"room:{code}", "state")
+            if state not in (RoomState.LOBBY, RoomState.PODIUM):
+                return False
             game_id = await deck.pop_next_game(code)
             if game_id is None:
                 return False
@@ -613,6 +634,8 @@ class RoomService:
         new_ids — the second write would silently discard the first."""
         new_ids: list[str] | None = None
         next_game_id: str | None = None
+        deck_rebuilt = False
+        next_game_changed = False
         async with self._room_lock(code):
             admin_ids = await redis.lrange(f"room:{code}:admin_game_ids", 0, -1)
             if not admin_ids:
@@ -621,19 +644,36 @@ class RoomService:
             current_ids = await deck.get_game_ids(code)
             new_ids = resolve_effective_games(admin_ids, active_player_count, fallback=admin_ids)
 
-            if new_ids == current_ids:
-                return  # no actual change — don't reshuffle the deck or broadcast for nothing
+            deck_rebuilt = new_ids != current_ids
+            if deck_rebuilt:
+                await deck.initialize(code, new_ids)
 
-            await deck.initialize(code, new_ids)
+            # Refreshed unconditionally, even when the effective list didn't
+            # move: resolve_effective_games hands back the admin's unfiltered
+            # list when *every* selection is above the floor, so a room of
+            # nothing but crowd games dropping from 4 players to 2 produces an
+            # identical list — and returning early on that basis left the
+            # stored card naming a game the room could no longer deal, which
+            # is issue #129's symptom all over again (podium advertising a
+            # 3-player game to 2 players, Next button a silent no-op).
+            # ensure_next_game re-checks the card against the *current*
+            # headcount, so this is what actually clears it.
+            previous_next_game_id = await self._get_next_game(code)
             next_game_id = await self._refresh_next_game(code)
+            next_game_changed = next_game_id != previous_next_game_id
 
         assert new_ids is not None
-        await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
-        # The reshuffle above replaced the deck wholesale, so whatever card
-        # clients are showing right now was drawn from a deck that no longer
-        # exists. Push the new one rather than leaving them on a stale card
-        # until their next ROOM_STATE.
-        await self.broadcast(code, {"type": "NEXT_GAME_UPDATED", "next_game_id": next_game_id})
+        if deck_rebuilt:
+            await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
+        # A rebuilt deck replaced whatever card clients are showing right now,
+        # and a headcount change alone can invalidate it — either way, push the
+        # new value rather than leaving them stale until their next ROOM_STATE.
+        # Silent when nothing moved, so an ordinary join doesn't broadcast for
+        # nothing.
+        if next_game_changed:
+            await self.broadcast(
+                code, {"type": "NEXT_GAME_UPDATED", "next_game_id": next_game_id}
+            )
 
     # ── Public handle_* interface ─────────────────────────────────────────────
 

@@ -963,8 +963,9 @@ export default function PodiumScreen() {
     .map(([pid, o]) => ({
       pid,
       // Identity flash: no placeholder name here either — an unresolved
-      // snapshot leaves this blank (AvatarCircle falls back to a neutral
-      // circle) rather than labelling someone 'Player'. See summary.tsx.
+      // snapshot leaves this blank, which AvatarCircle renders as a '?'
+      // initial, rather than labelling someone 'Player'. An obvious unknown
+      // beats a confident wrong name. See summary.tsx.
       name: snapshot?.players[pid]?.display_name ?? '',
       avatar: snapshot?.players[pid]?.avatar ?? null,
       chasers: o.chasers,
