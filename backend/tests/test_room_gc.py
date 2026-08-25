@@ -53,6 +53,7 @@ def test_room_redis_keys_covers_every_room_scoped_key():
         f"room:{CODE}:deck",
         f"room:{CODE}:game_ids",
         f"room:{CODE}:admin_game_ids",
+        f"room:{CODE}:next_game",
         f"room:{CODE}:game",
         f"room:{CODE}:asked_questions",
         f"room:{CODE}:conns",
@@ -196,6 +197,29 @@ async def test_end_night_deletes_asked_questions_and_conns_too(patch_redis_and_b
 
     for key in rs_module._room_redis_keys(CODE):
         assert await r.exists(key) == 0, key
+
+
+async def test_end_night_deletes_the_stored_up_next_card(patch_redis_and_broadcast):
+    """Up Next is stored room state now (room:{code}:next_game), so it has to
+    be torn down with the rest of the room rather than outliving it."""
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN})
+    await _join(CODE, ADMIN)
+    await r.set(f"room:{CODE}:next_game", "reflex")
+
+    await _svc.handle_end_night(CODE, ADMIN)
+
+    assert await r.exists(f"room:{CODE}:next_game") == 0
+
+
+async def test_refresh_room_ttl_covers_the_stored_up_next_card(patch_redis_and_broadcast):
+    r, _ = patch_redis_and_broadcast
+    await r.hset(f"room:{CODE}", mapping={"state": RoomState.LOBBY, "admin_id": ADMIN, "practice": "0"})
+    await r.set(f"room:{CODE}:next_game", "reflex")
+
+    await _svc.refresh_room_ttl(CODE)
+
+    assert await r.ttl(f"room:{CODE}:next_game") == rs_module._ACTIVE_ROOM_TTL_SECONDS
 
 
 async def test_host_leaving_an_empty_room_deletes_asked_questions_and_conns_too(patch_redis_and_broadcast):
