@@ -962,7 +962,10 @@ export default function PodiumScreen() {
     .filter(([, o]) => o.chasers > 0)
     .map(([pid, o]) => ({
       pid,
-      name: snapshot?.players[pid]?.display_name ?? 'Player',
+      // Identity flash: no placeholder name here either — an unresolved
+      // snapshot leaves this blank (AvatarCircle falls back to a neutral
+      // circle) rather than labelling someone 'Player'. See summary.tsx.
+      name: snapshot?.players[pid]?.display_name ?? '',
       avatar: snapshot?.players[pid]?.avatar ?? null,
       chasers: o.chasers,
     }));

@@ -75,7 +75,8 @@ export function RoundResultCard({
   allOutcomes: Record<string, PlayerOutcome>;
   players: Record<string, Player>;
   playerId: string | null;
-  displayName: string;
+  /** null until the room snapshot has landed — see summary.tsx. */
+  displayName: string | null;
 }) {
   const insets = useSafeAreaInsets();
   const result = outcome?.result ?? 'SAFE';
@@ -91,11 +92,18 @@ export function RoundResultCard({
   const chasers = outcome?.chasers ?? 0;
 
   // Everyone's round, best performance first — so you see where you landed
+  // Identity flash: `players` comes from the room snapshot, which is empty
+  // for the first frames after router.replace (useRoomSocket opens a fresh
+  // socket per screen — see summary.tsx). This used to substitute 'Player'
+  // and a generic circled "P", i.e. confidently wrong identity that then
+  // snapped to the real name and avatar. null means "not known yet"; the
+  // row keeps its exact footprint below and simply doesn't draw a name or
+  // an avatar until it is.
   const breakdown = Object.entries(allOutcomes)
     .map(([pid, o]) => ({
       pid,
       outcome: o,
-      name: players[pid]?.display_name ?? 'Player',
+      name: players[pid]?.display_name ?? null,
       avatar: players[pid]?.avatar ?? null,
     }))
     .sort((a, b) => performanceKey(a.outcome) - performanceKey(b.outcome));
@@ -204,9 +212,14 @@ export function RoundResultCard({
                 letterSpacing: 4,
                 textTransform: 'uppercase',
                 marginBottom: 10,
+                // Identity flash: hold this line invisible (not filled with
+                // a placeholder name) until the snapshot lands. It still
+                // occupies its full line height, so nothing below moves when
+                // the real name arrives.
+                opacity: displayName ? 1 : 0,
               }}
             >
-              Round verdict · {displayName}
+              Round verdict{displayName ? ` · ${displayName}` : ''}
             </Text>
 
             {/* Split-weight verdict — the brand's thin/heavy signature */}
@@ -329,9 +342,14 @@ export function RoundResultCard({
                 const isMe = row.pid === playerId;
                 const isTop = index === 0;
                 const o = row.outcome;
+                const name = row.name;
                 const avatarSource = row.avatar ? AVATAR_IMAGES[row.avatar] : undefined;
-                const ringColor = row.avatar ? AVATAR_COLORS[row.avatar] : avatarFallbackColor(row.pid);
-                const initial = (row.name.match(/[A-Za-zא-ת؀-ۿ]/)?.[0] ?? '?').toUpperCase();
+                const ringColor = row.avatar
+                  ? AVATAR_COLORS[row.avatar]
+                  : name !== null
+                    ? avatarFallbackColor(row.pid)
+                    : 'rgba(255,255,255,0.18)'; // neutral placeholder, not a guessed identity
+                const initial = name ? (name.match(/[A-Za-zא-ת؀-ۿ]/)?.[0] ?? '?').toUpperCase() : '';
                 return (
                   <View
                     key={row.pid}
@@ -430,8 +448,7 @@ export function RoundResultCard({
                         marginRight: 8,
                       }}
                     >
-                      {row.name}
-                      {isMe ? ' (you)' : ''}
+                      {name !== null ? `${name}${isMe ? ' (you)' : ''}` : ''}
                     </Text>
                     {/* Only losers get an icon — a solid (filled, not
                         outline) glass, so "you're drinking" reads instantly
