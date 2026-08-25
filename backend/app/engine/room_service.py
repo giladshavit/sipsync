@@ -9,7 +9,11 @@ from fastapi import WebSocket
 
 from app.engine import bot_engine, fsm
 from app.engine.deck import deck
-from app.engine.eligibility import count_active_players, resolve_effective_games
+from app.engine.eligibility import (
+    DISCONNECT_GRACE_MS,
+    count_active_players,
+    resolve_effective_games,
+)
 from app.engine.fsm import RoomState
 from app.engine.avatar_pool import AVATAR_POOL, pick_avatar
 from app.engine.game_loader import GAME_REGISTRY, load_game
@@ -76,8 +80,10 @@ _SUMMARY_SAFETY_NET_MS = 25_000
 # Session Resilience: how long a disconnected player's seat, score, and
 # avatar stay reserved before they're permanently removed. Covers brief
 # network blips / app backgrounding without a client having to rejoin from
-# scratch — see handle_disconnect / _disconnect_grace_timeout.
-_DISCONNECT_GRACE_MS = 60_000
+# scratch — see handle_disconnect / _disconnect_grace_timeout. Defined in
+# eligibility.py (count_active_players needs it too, and that module can't
+# import this one back without a cycle).
+_DISCONNECT_GRACE_MS = DISCONNECT_GRACE_MS
 
 # Host Migration: how long a disconnected admin gets before someone else is
 # handed the room — deliberately far shorter than _DISCONNECT_GRACE_MS, but
@@ -122,6 +128,7 @@ def _room_redis_keys(code: str) -> tuple[str, ...]:
         f"room:{code}:deck",
         f"room:{code}:game_ids",
         f"room:{code}:admin_game_ids",
+        f"room:{code}:next_game",
         f"room:{code}:game",
         f"room:{code}:asked_questions",
         f"room:{code}:conns",
@@ -176,6 +183,57 @@ class RoomService:
             for key in _room_redis_keys(code):
                 pipe.expire(key, _EMPTY_ROOM_TTL_SECONDS)
             await pipe.execute()
+
+    @staticmethod
+    def _next_game_key(code: str) -> str:
+        return f"room:{code}:next_game"
+
+    async def _refresh_next_game(self, code: str) -> str | None:
+        """Recompute and persist the room's Up Next card, and return it.
+
+        Up Next is stored room state, not a per-connection derivation. It is
+        written *here* at the handful of moments the queue genuinely changes
+        — the deck being rebuilt (room creation, SET_GAMES, an eligibility
+        re-sync), a game being dealt, a game being skipped — and only ever
+        read everywhere else (ROOM_STATE, the PODIUM FSM_TRANSITIONs,
+        NEXT_GAME_UPDATED).
+
+        That is the whole fix for the podium divergence: it used to be
+        recomputed by every WebSocket connection independently, and since
+        every screen transition reconnects both clients in a stagger, the
+        first handshake back saw a headcount of 1, re-resolved the eligible
+        list, reshuffled the deck, and peeked its own private draw — then the
+        second one did it all again at a headcount of 2. Admin and guest
+        ended up on two different cards, neither of them necessarily the game
+        the next round actually dealt.
+
+        Callers must hold _room_lock, so a concurrent writer can never leave
+        the deck and this key describing two different queues. Room creation
+        is the one exception: nobody else can hold that code yet.
+        """
+        next_game_id = await deck.ensure_next_game(code)
+        key = self._next_game_key(code)
+        if next_game_id is None:
+            await redis.delete(key)
+        else:
+            # Room Garbage Collection: a plain SET drops the key's expiry, so
+            # a write landing after _apply_empty_room_ttl (a disconnect grace
+            # timer firing once the last socket closed) would leave this key
+            # immortal while Redis reclaimed the rest of the room. keepttl
+            # preserves an existing expiry; the ttl<0 branch covers a *first*
+            # write in that same window, where there's no expiry to keep.
+            await redis.set(key, next_game_id, keepttl=True)
+            if await redis.ttl(key) < 0:
+                room_ttl = await redis.ttl(f"room:{code}")
+                if room_ttl > 0:
+                    await redis.expire(key, room_ttl)
+        return next_game_id
+
+    async def _get_next_game(self, code: str) -> str | None:
+        """The room's stored Up Next card — the single value every client is
+        told, and the one deck.pop_next_game will actually deal. See
+        _refresh_next_game."""
+        return await redis.get(self._next_game_key(code))
 
     async def _get_game_state(self, code: str) -> dict:
         raw = await redis.get(f"room:{code}:game")
@@ -237,10 +295,13 @@ class RoomService:
             "practice": practice,
             "active_game": active_game_id,
             # Up Next preview (podium.tsx): present on every ROOM_STATE, not
-            # just while actually on PODIUM — cheap to compute and other
-            # screens simply ignore it, same reasoning as the other fields
-            # on this canonical payload (see this method's own docstring).
-            "next_game_id": await deck.peek_next_game(code),
+            # just while actually on PODIUM — other screens simply ignore it,
+            # same reasoning as the other fields on this canonical payload
+            # (see this method's own docstring). Read straight off the room's
+            # stored card, never recomputed here: this method runs once per
+            # connection, and deriving it per connection is exactly what used
+            # to hand two clients two different podium cards.
+            "next_game_id": await self._get_next_game(code),
             **tutorial_fields,
             **custom_question_fields,
         }
@@ -365,15 +426,34 @@ class RoomService:
         asyncio.create_task(self._summary_timeout(code, safety_net_at))
 
     async def _trigger_next_game_tutorial(self, code: str) -> bool:
-        """Pop the next game, persist it, transition FSM to TUTORIAL, and broadcast."""
-        game_id = await deck.pop_next_game(code)
-        if game_id is None:
-            return False
-        await redis.hset(f"room:{code}", "active_game", game_id)
-        try:
-            await fsm.transition(code, RoomState.TUTORIAL)
-        except ValueError:
-            return False
+        """Pop the next game, persist it, advance the room's stored Up Next
+        card, transition FSM to TUTORIAL, and broadcast.
+
+        The pop and the Up Next refresh are one critical section: dealing the
+        queued game is a genuine queue change, and any window where the
+        stored card still names the game that was just dealt would put a
+        reconnecting client's podium a whole round behind.
+
+        The FSM check comes *before* the pop for the same reason. The admin's
+        Next button has no debounce, and the lock serializes a double-tap
+        rather than letting the two calls interleave — so popping first meant
+        the second tap burned a card out of the shuffle bag and advanced Up
+        Next before the illegal TUTORIAL->TUTORIAL transition raised and it
+        gave up, leaving the room playing the first game with a second one
+        silently gone."""
+        async with self._room_lock(code):
+            state = await redis.hget(f"room:{code}", "state")
+            if state not in (RoomState.LOBBY, RoomState.PODIUM):
+                return False
+            game_id = await deck.pop_next_game(code)
+            if game_id is None:
+                return False
+            await redis.hset(f"room:{code}", "active_game", game_id)
+            await self._refresh_next_game(code)
+            try:
+                await fsm.transition(code, RoomState.TUTORIAL)
+            except ValueError:
+                return False
         game_cls = GAME_REGISTRY.get(game_id)
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
@@ -408,7 +488,7 @@ class RoomService:
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
             "new_state": RoomState.PODIUM.value,
-            "next_game_id": await deck.peek_next_game(code),
+            "next_game_id": await self._get_next_game(code),
         })
 
     async def _game_timeout(self, code: str, timeout_at: int) -> None:
@@ -553,6 +633,9 @@ class RoomService:
         current_ids and each call deck.initialize with a different
         new_ids — the second write would silently discard the first."""
         new_ids: list[str] | None = None
+        next_game_id: str | None = None
+        deck_rebuilt = False
+        next_game_changed = False
         async with self._room_lock(code):
             admin_ids = await redis.lrange(f"room:{code}:admin_game_ids", 0, -1)
             if not admin_ids:
@@ -561,13 +644,36 @@ class RoomService:
             current_ids = await deck.get_game_ids(code)
             new_ids = resolve_effective_games(admin_ids, active_player_count, fallback=admin_ids)
 
-            if new_ids == current_ids:
-                return  # no actual change — don't reshuffle the deck or broadcast for nothing
+            deck_rebuilt = new_ids != current_ids
+            if deck_rebuilt:
+                await deck.initialize(code, new_ids)
 
-            await deck.initialize(code, new_ids)
+            # Refreshed unconditionally, even when the effective list didn't
+            # move: resolve_effective_games hands back the admin's unfiltered
+            # list when *every* selection is above the floor, so a room of
+            # nothing but crowd games dropping from 4 players to 2 produces an
+            # identical list — and returning early on that basis left the
+            # stored card naming a game the room could no longer deal, which
+            # is issue #129's symptom all over again (podium advertising a
+            # 3-player game to 2 players, Next button a silent no-op).
+            # ensure_next_game re-checks the card against the *current*
+            # headcount, so this is what actually clears it.
+            previous_next_game_id = await self._get_next_game(code)
+            next_game_id = await self._refresh_next_game(code)
+            next_game_changed = next_game_id != previous_next_game_id
 
         assert new_ids is not None
-        await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
+        if deck_rebuilt:
+            await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": new_ids})
+        # A rebuilt deck replaced whatever card clients are showing right now,
+        # and a headcount change alone can invalidate it — either way, push the
+        # new value rather than leaving them stale until their next ROOM_STATE.
+        # Silent when nothing moved, so an ordinary join doesn't broadcast for
+        # nothing.
+        if next_game_changed:
+            await self.broadcast(
+                code, {"type": "NEXT_GAME_UPDATED", "next_game_id": next_game_id}
+            )
 
     # ── Public handle_* interface ─────────────────────────────────────────────
 
@@ -670,9 +776,22 @@ class RoomService:
         # ROOM_STATE already reflects the corrected list, instead of a flash
         # of the stale one followed by a GAME_IDS_UPDATED broadcast a moment
         # later.
-        active_count = await count_active_players(redis, code)
-        if active_count is not None:
-            await self._sync_eligible_games(code, active_count)
+        #
+        # Only for a genuine *join*, never for a returning player_id whose
+        # record already existed. Every screen transition (router.replace)
+        # reconnects every client, so this used to run ~8 times a round — and
+        # since each of those handshakes momentarily saw a headcount short by
+        # whoever else was still mid-transition, it resolved a different
+        # effective list each time and reshuffled the whole deck from it.
+        # That destroyed smart shuffle's play-once-per-cycle guarantee and
+        # re-rolled Up Next under everyone. A reconnect tells the room
+        # nothing about its headcount it didn't already know.
+        if is_new_player:
+            active_count = await count_active_players(
+                redis, code, grace_ms=_DISCONNECT_GRACE_MS
+            )
+            if active_count is not None:
+                await self._sync_eligible_games(code, active_count)
 
         admin_id = await redis.hget(f"room:{code}", "admin_id")
 
@@ -734,8 +853,9 @@ class RoomService:
         # player's socket without a close frame, leaving everyone (server
         # included) seeing a "connected" ghost until the websocket ping
         # timeout fires. count_active_players ignores mid-grace disconnected
-        # seats, so a start pressed inside that window is rejected here even
-        # though the button looked enabled. Practice rooms are exempt:
+        # seats by default (deliberately no grace_ms here, unlike the
+        # eligibility callers), so a start pressed inside that window is
+        # rejected here even though the button looked enabled. Practice rooms are exempt:
         # solo-vs-bots is the whole point there. None means "no player hash
         # yet" — nothing meaningful to enforce against (see
         # count_active_players' docstring).
@@ -788,7 +908,9 @@ class RoomService:
             await redis.delete(f"room:{code}:admin_game_ids")
             await redis.rpush(f"room:{code}:admin_game_ids", *normalized)
 
-            active_count = await count_active_players(redis, code)
+            active_count = await count_active_players(
+                redis, code, grace_ms=_DISCONNECT_GRACE_MS
+            )
             effective = (
                 normalized
                 if active_count is None
@@ -796,8 +918,10 @@ class RoomService:
             )
 
             await deck.initialize(code, effective)
+            next_game_id = await self._refresh_next_game(code)
 
         await self.broadcast(code, {"type": "GAME_IDS_UPDATED", "game_ids": effective})
+        await self.broadcast(code, {"type": "NEXT_GAME_UPDATED", "next_game_id": next_game_id})
 
     async def handle_set_avatar(self, code: str, player_id: str | None, avatar: str) -> None:
         """Self-service: any player may change their own room avatar, as long
@@ -1038,7 +1162,7 @@ class RoomService:
         await self.broadcast(code, {
             "type": "FSM_TRANSITION",
             "new_state": RoomState.PODIUM.value,
-            "next_game_id": await deck.peek_next_game(code),
+            "next_game_id": await self._get_next_game(code),
         })
 
     async def handle_admin_next(self, code: str, player_id: str | None) -> None:
@@ -1064,8 +1188,9 @@ class RoomService:
             return
         if await redis.hget(f"room:{code}", "state") != RoomState.PODIUM:
             return
-        await deck.pop_next_game(code)
-        new_next_game_id = await deck.peek_next_game(code)
+        async with self._room_lock(code):
+            await deck.pop_next_game(code)
+            new_next_game_id = await self._refresh_next_game(code)
         await self.broadcast(code, {
             "type": "NEXT_GAME_UPDATED",
             "next_game_id": new_next_game_id,
@@ -1131,7 +1256,9 @@ class RoomService:
         # game's floor (e.g. auction/flying_bomb dropping out). Caller has
         # already deleted this player's Redis record, so the fresh count
         # here already excludes them.
-        active_count = await count_active_players(redis, code)
+        active_count = await count_active_players(
+            redis, code, grace_ms=_DISCONNECT_GRACE_MS
+        )
         if active_count:
             await self._sync_eligible_games(code, active_count)
 

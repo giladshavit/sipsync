@@ -1,7 +1,11 @@
 import random
 from typing import Any
 
-from app.engine.eligibility import count_active_players, min_players_for
+from app.engine.eligibility import (
+    DISCONNECT_GRACE_MS,
+    count_active_players,
+    min_players_for,
+)
 from app.redis_client import redis as _default_redis
 
 
@@ -46,54 +50,85 @@ class Deck:
             pipe.rpush(deck_key, *shuffled)
             await pipe.execute()
 
+    async def _active_count(self, room_code: str) -> int | None:
+        """Headcount every eligibility decision in this module is made
+        against. Counts a player who dropped less than DISCONNECT_GRACE_MS
+        ago as still present: every screen transition closes and reopens each
+        client's socket, and treating that momentary gap as a departure used
+        to make the deck disagree with itself between one connection and the
+        next (see count_active_players' own docstring)."""
+        return await count_active_players(
+            self._redis, room_code, grace_ms=DISCONNECT_GRACE_MS
+        )
+
     async def get_game_ids(self, room_code: str) -> list[str]:
         """Read the room's stored game catalogue (selection order), no mutation."""
         return await self._redis.lrange(self._game_ids_key(room_code), 0, -1)
 
     async def peek_next_game(self, room_code: str) -> str | None:
         """
-        Return the game `pop_next_game` would return next, without removing
-        it. Mirrors pop_next_game's own reshuffle-when-empty branch (and
-        persists that reshuffle) so a peek and the pop that follows it always
-        agree — a peek that reshuffled only in memory would show one game
-        while the next real pop (reshuffling again, independently) handed out
-        a different one. Also mirrors pop_next_game's player-count
-        eligibility skip (see that method) so a game the room currently
-        doesn't have enough people for is never shown as "Up Next" only for
-        the real pop to discard it and hand out something else instead.
+        Return the game `pop_next_game` would deal next, without removing it
+        and without touching Redis at all — a pure read.
 
-        Non-destructive: scans the existing deck from its pop end (rpop
-        takes from the tail, so this reads back-to-front) rather than
-        popping candidates off to inspect them, so a peek never consumes a
-        card from the shuffle bag.
+        It used to mirror pop_next_game's reshuffle-when-exhausted branch
+        *and persist that reshuffle*, so that a peek and the pop after it
+        agreed. That made every reader a writer: ROOM_STATE peeked once per
+        WebSocket connection, so a room whose whole catalogue sat above its
+        headcount grew its Redis deck by a full catalogue on every single
+        handshake (4 → 6 → 8 → 10 → ...) and still returned None. Peek/pop
+        agreement is a stored room fact now — room:{code}:next_game, written
+        by room_service._refresh_next_game at the moments the queue genuinely
+        changes — and `ensure_next_game` below is the single place allowed to
+        replenish the deck on the way to computing it.
+
+        Non-destructive: scans the existing deck from its pop end (rpop takes
+        from the tail, so this reads back-to-front) rather than popping
+        candidates off to inspect them. Returns None when nothing currently
+        in the deck is playable at the room's headcount — a caller that wants
+        a replenished deck asks for one explicitly.
         """
-        ids_key = self._game_ids_key(room_code)
-        deck_key = self._deck_key(room_code)
-
-        game_ids: list[str] = await self._redis.lrange(ids_key, 0, -1)
+        game_ids: list[str] = await self._redis.lrange(self._game_ids_key(room_code), 0, -1)
         if not game_ids:
             return None
 
-        active_count = await count_active_players(self._redis, room_code)
+        active_count = await self._active_count(room_code)
 
-        current_deck: list[str] = await self._redis.lrange(deck_key, 0, -1)
+        current_deck: list[str] = await self._redis.lrange(self._deck_key(room_code), 0, -1)
         for game_id in reversed(current_deck):
             if _is_eligible(game_id, active_count):
                 return game_id
 
-        # Nothing left in the current deck is eligible — either it's
-        # genuinely empty, or every remaining card needs more players than
-        # are present. Reshuffle from the stored catalogue, same as
-        # pop_next_game would, so the two methods keep agreeing.
+        return None
+
+    async def ensure_next_game(self, room_code: str) -> str | None:
+        """The game `pop_next_game` will deal next, reshuffling the deck from
+        the stored catalogue first if nothing left in it is playable at the
+        room's current headcount — so the end of a shuffle cycle advertises a
+        real card instead of a blank one.
+
+        Mutating, unlike `peek_next_game`: call it only from the write paths
+        that hold the room lock and persist the result
+        (room_service._refresh_next_game), never once per connection.
+        Returns None *without touching the deck* when the room's whole
+        catalogue needs more players than are present, so a room parked in
+        that state can't grow an unbounded Redis list.
+        """
+        game_ids: list[str] = await self._redis.lrange(self._game_ids_key(room_code), 0, -1)
+        if not game_ids:
+            return None
+
+        active_count = await self._active_count(room_code)
+        if not any(_is_eligible(game_id, active_count) for game_id in game_ids):
+            return None
+
+        already_queued = await self.peek_next_game(room_code)
+        if already_queued is not None:
+            return already_queued
+
         shuffled = game_ids.copy()
         random.shuffle(shuffled)
-        await self._redis.rpush(deck_key, *shuffled)
-
-        for game_id in reversed(shuffled):
-            if _is_eligible(game_id, active_count):
-                return game_id
-
-        return None  # every game in the room's catalogue needs more players than are currently present
+        await self._redis.rpush(self._deck_key(room_code), *shuffled)
+        return await self.peek_next_game(room_code)
 
     async def pop_next_game(self, room_code: str) -> str | None:
         """
@@ -118,7 +153,7 @@ class Deck:
         if not game_ids:
             return None
 
-        active_count = await count_active_players(self._redis, room_code)
+        active_count = await self._active_count(room_code)
 
         # One pass over whatever's currently in the deck, then (if nothing
         # eligible turned up) one reshuffle-and-retry pass over a fresh

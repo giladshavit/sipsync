@@ -9,6 +9,7 @@ a game's minPlayers changes in constants/games.ts.
 """
 
 import json
+import time
 from typing import Any
 
 MIN_PLAYERS: dict[str, int] = {
@@ -17,22 +18,62 @@ MIN_PLAYERS: dict[str, int] = {
     "black_box": 2,
     "dilemma": 2,
     "closest_average": 3,
+    # Crowd games: they need a group to have a crowd to go with (or against).
+    # At two players a majority/minority vote is either a coin flip (1-1) or
+    # has no losing side at all (2-0) — see app/games/majority.py — and The
+    # Sacrifice has nobody to spread the chasers across.
+    "majority": 3,
+    "minority": 3,
+    "sacrifice": 3,
 }
+
+# Session Resilience: how long a disconnected player's seat stays reserved
+# before they're permanently removed (room_service._DISCONNECT_GRACE_MS is
+# this same value — it lives here because count_active_players below needs
+# it and room_service already imports this module, so the other direction
+# would be an import cycle).
+DISCONNECT_GRACE_MS = 60_000
 
 
 def min_players_for(game_id: str) -> int:
     return MIN_PLAYERS.get(game_id, 1)
 
 
-async def count_active_players(redis_client: Any, room_code: str) -> int | None:
+def _is_present(player: dict, now_ms: int, grace_ms: int) -> bool:
+    if player.get("connected", True) is not False:
+        return True
+    if grace_ms <= 0:
+        return False
+    disconnected_at = player.get("disconnected_at")
+    return (
+        isinstance(disconnected_at, int)
+        and now_ms - disconnected_at < grace_ms
+    )
+
+
+async def count_active_players(
+    redis_client: Any, room_code: str, *, grace_ms: int = 0
+) -> int | None:
     """Players actually present right now — mirrors the frontend's own
     `connected !== false` filter (see lobby.tsx/podium.tsx's
     connectedPlayers) so client-side locks and server-side enforcement agree
-    on the same number. A disconnected player mid-grace-period still holds
-    their seat (see room_service._DISCONNECT_GRACE_MS) but shouldn't count
-    toward whether the room has enough people for a game's floor. Bots have
-    no `connected` field at all, defaulting to counted-as-present, same as
-    a real player who's never disconnected.
+    on the same number. Bots have no `connected` field at all, defaulting to
+    counted-as-present, same as a real player who's never disconnected.
+
+    `grace_ms` widens "present" to also include a player whose socket
+    dropped less than that many milliseconds ago, using the `disconnected_at`
+    stamp handle_disconnect already writes. Eligibility callers pass
+    DISCONNECT_GRACE_MS: every screen transition (router.replace) closes and
+    reopens each client's socket, so mid-transition a genuinely-present
+    player reads as connected=False for a moment — and counting them out
+    re-resolved the room's eligible game list at a headcount of 1 and
+    reshuffled the whole deck underneath everyone, twice per transition (see
+    .superpowers/sdd/podium-bug-investigation.md).
+
+    It stays opt-in rather than becoming the default because one caller
+    genuinely wants the strict reading: handle_admin_start's ghost guard
+    exists precisely to refuse a start when the second "player" is a
+    mid-grace disconnected seat, and would be defeated by counting it.
 
     Returns None, not 0, when `room:{code}:players` doesn't exist at all —
     a non-practice room's player hash is only created lazily by the first
@@ -45,11 +86,12 @@ async def count_active_players(redis_client: Any, room_code: str) -> int | None:
     key = f"room:{room_code}:players"
     if not await redis_client.exists(key):
         return None
+    now_ms = int(time.time() * 1000)
     players_raw = await redis_client.hgetall(key)
     return sum(
         1
         for raw in players_raw.values()
-        if json.loads(raw).get("connected", True) is not False
+        if _is_present(json.loads(raw), now_ms, grace_ms)
     )
 
 

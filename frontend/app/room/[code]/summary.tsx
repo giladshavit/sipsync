@@ -77,8 +77,20 @@ export default function SummaryScreen() {
     }
   }
 
+  // Identity flash: both of this screen's identity sources are async and
+  // resolve independently. usePlayerIdentity reads SecureStore (a real iOS
+  // keychain read), and useRoomSocket opens a *brand-new* socket on every
+  // router.replace, so `snapshot` stays null for a full connect + HANDSHAKE
+  // + ROOM_STATE round-trip. The outcome itself arrives synchronously as a
+  // route param, so the screen used to render completely — real verdict,
+  // real scores — with a confident 'You' in the header that then snapped to
+  // the player's actual name a beat later.
+  //
+  // null means "not known yet". RoundResultCard holds the line's footprint
+  // rather than filling it with a guess: showing nothing briefly is a much
+  // better failure mode than showing the wrong name confidently.
   const displayName =
-    (playerId && snapshot?.players[playerId]?.display_name) ?? 'You';
+    playerId != null ? snapshot?.players[playerId]?.display_name ?? null : null;
 
   // ── Reanimated countdown bar: 1 → 0 over LOCK_MS ──────────────────────────
   const progress = useSharedValue(1);

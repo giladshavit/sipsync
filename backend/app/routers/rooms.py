@@ -51,6 +51,12 @@ async def create_room(body: CreateRoomRequest) -> CreateRoomResponse:
             # room grows past its floor — see handle_set_games/
             # _sync_eligible_games in room_service.py.
             await redis.rpush(f"room:{code}:admin_game_ids", *body.game_ids)
+            # Up Next is stored room state, written once wherever the queue
+            # genuinely changes and only read elsewhere — see
+            # room_service._refresh_next_game. Seeding it here is what makes
+            # the very first ROOM_STATE of a room carry a card at all. No
+            # room lock needed: nobody else can hold this code yet.
+            await room_service._refresh_next_game(code)
 
             if body.practice:
                 bot_records = bot_engine.build_bot_player_records(
