@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,7 +9,7 @@ import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { GAME_CATALOG, getGameById } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
-import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
+import { TutorialStage } from '@/components/tutorials/TutorialStage';
 
 // Static export: prerender a real HTML page per catalog game.
 export function generateStaticParams(): { id: string }[] {
@@ -20,11 +20,20 @@ export default function TutorialPreviewScreen() {
   useWebPageBackground(colors.ink);
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  // Short-window mode. Unlike the in-round host, this screen carries a
+  // back/replay button row, which costs ~66px it can't otherwise give back —
+  // enough that a laptop window shorter than this pushed the who-drinks chips
+  // past the bottom of the stage even after TutorialStage had compressed and
+  // scaled everything it owns. Phones never hit this: the shortest one we
+  // support is 667px.
+  const compact = useWindowDimensions().height < 700;
   const game = getGameById(id ?? '');
   const TutorialComponent = game ? getTutorialComponent(game.id) : null;
   // Tutorial components play their story once and freeze on the final
   // frame — remounting via a bumped key is the simplest way to replay it.
   const [replayKey, setReplayKey] = useState(0);
+  // The stage scales itself to fit this; null until the ScrollView lays out.
+  const [stageHeight, setStageHeight] = useState<number | null>(null);
 
   // Every game's own accent color doubles as this screen's signature —
   // a thin device-indicator underline and icon-button borders, so the same
@@ -69,7 +78,7 @@ export default function TutorialPreviewScreen() {
       <View
         style={{
           flex: 1,
-          paddingTop: insets.top + 16,
+          paddingTop: insets.top + (compact ? 8 : 16),
           // Extra clearance beyond the raw safe-area inset: the who-drinks
           // chip row is the last thing on this screen, sitting right above
           // the home indicator — the ScrollView's own bottom padding (below)
@@ -80,7 +89,7 @@ export default function TutorialPreviewScreen() {
           paddingHorizontal: 24,
         }}
       >
-        <View className="flex-row items-center justify-between mb-6">
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: compact ? 12 : 24 }}>
           <Pressable
             onPress={() => router.back()}
             style={{
@@ -121,36 +130,34 @@ export default function TutorialPreviewScreen() {
             footprint with an explicit bottom buffer (flexShrink: 0 is RN's
             default for a non-flex child, set here for clarity) so it never
             gets squeezed or crowded by the content below it. */}
-        <View style={{ flexShrink: 0, marginBottom: 24 }}>
+        <View style={{ flexShrink: 0, marginBottom: compact ? 12 : 24 }}>
           <Text style={{ color: colors.amber, ...typography.label, fontSize: 11, letterSpacing: 4, marginBottom: 4 }}>
             How to play
           </Text>
-          <Text style={[typography.title, { color: colors.chalk, fontSize: 28, lineHeight: 30 }]}>
+          <Text
+            style={[
+              typography.title,
+              { color: colors.chalk, fontSize: compact ? 22 : 28, lineHeight: compact ? 24 : 30 },
+            ]}
+          >
             {game?.title ?? 'How to play'}
           </Text>
-          <View style={{ width: 44, height: 3, backgroundColor: accent, marginTop: 10 }} />
+          <View style={{ width: 44, height: 3, backgroundColor: accent, marginTop: compact ? 6 : 10 }} />
         </View>
 
         {/* Cue line, the simulated phone screen, and the who-drinks chips —
-            scrollable rather than forced into a fixed centered box: on
-            shorter screens the mockup's own fixed height plus the cue line
-            and drink chips can add up to more than the space left under the
-            header, and a rigid flex:1 + overflow:hidden box was clipping the
-            cue text and chip labels instead of just gracefully yielding
-            scroll. flexGrow + centered contentContainerStyle keeps content
-            vertically centered exactly like before whenever it *does* fit,
-            and only turns into a scroll on the screens where it doesn't. */}
+            handed to TutorialStage, which scales the whole group down to
+            whatever height this ScrollView actually got. The ScrollView stays
+            as the last-resort fallback for the rare screen too short even at
+            the stage's minimum scale; flexGrow + centered contentContainer
+            keeps the group vertically centered whenever it does fit. */}
         <ScrollView
           style={{ flex: 1, width: '100%' }}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 16, paddingBottom: 28 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          onLayout={(e) => setStageHeight(e.nativeEvent.layout.height)}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ alignItems: 'center', gap: 24 }}>
-            {cue && (
-              <View style={{ maxWidth: 300 }}>
-                <CueText line={cue} />
-              </View>
-            )}
+          <TutorialStage cue={cue} rules={game?.drinkingRules} availableHeight={stageHeight}>
             {TutorialComponent ? (
               <TutorialComponent key={replayKey} />
             ) : (
@@ -158,17 +165,7 @@ export default function TutorialPreviewScreen() {
                 No tutorial preview available for this game yet.
               </Text>
             )}
-            {/* Who drinks — condensed to one row of one-or-two-word chips,
-                chaser-glass icon only, never a wine glass or other drink
-                glyph. Extra marginTop on top of the group's own gap — this
-                one edge wants more breathing room than the cue-to-mockup
-                gap does. */}
-            {game && (
-              <View style={{ marginTop: 14 }}>
-                <DrinkRow rules={game.drinkingRules} />
-              </View>
-            )}
-          </View>
+          </TutorialStage>
         </ScrollView>
       </View>
     </View>

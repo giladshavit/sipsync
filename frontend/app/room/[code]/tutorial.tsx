@@ -15,7 +15,7 @@ import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { colors, typography } from '@/constants/design';
 import { TUTORIAL_COMPONENTS } from '@/constants/tutorials';
 import { getGameById } from '@/constants/games';
-import { CueText, DrinkRow } from '@/components/tutorials/TutorialCue';
+import { TutorialStage } from '@/components/tutorials/TutorialStage';
 import { CustomQuestionSourceSheet } from '@/components/CustomQuestionSourceSheet';
 
 // Majority/Minority Rules only: instead of auto-advancing like every other
@@ -69,6 +69,8 @@ export default function TutorialScreen() {
   // (see handleUseBank/handlePickWriter below).
   const [countdownDone, setCountdownDone] = useState(false);
   const [chooserOpen, setChooserOpen] = useState(false);
+  // The stage scales itself to fit this; null until the ScrollView lays out.
+  const [stageHeight, setStageHeight] = useState<number | null>(null);
 
   const durationMs = tutorialAsset ? (DURATION_MS_OVERRIDES[tutorialAsset] ?? DEFAULT_DURATION_MS) : DEFAULT_DURATION_MS;
 
@@ -198,26 +200,20 @@ export default function TutorialScreen() {
         </View>
 
         {/* Cue line, the simulated phone screen, and the who-drinks chips —
-            scrollable rather than forced into a fixed centered box: on
-            shorter screens the mockup's own fixed height plus the cue line
-            and drink chips can add up to more than the space left under the
-            header (and, here, above the countdown bar / Start Game button),
-            and a rigid flex:1 + overflow:hidden box was clipping the cue
-            text and chip labels instead of just gracefully yielding scroll.
-            flexGrow + centered contentContainerStyle keeps content
-            vertically centered exactly like before whenever it *does* fit,
-            and only turns into a scroll on the screens where it doesn't. */}
+            handed to TutorialStage, which scales the whole group down to
+            whatever height is left here between the header and the countdown
+            bar. That matters more on this screen than on the standalone
+            preview: this one auto-advances after a fixed 6-11s, so a player
+            who would have to scroll to reach the who-drinks chips never sees
+            them at all. The ScrollView stays only as a last-resort fallback
+            for a screen too short even at the stage's minimum scale. */}
         <ScrollView
           style={{ flex: 1, width: '100%' }}
-          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 16, paddingBottom: 20 }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          onLayout={(e) => setStageHeight(e.nativeEvent.layout.height)}
           showsVerticalScrollIndicator={false}
         >
-          <View style={{ alignItems: 'center', gap: 22 }}>
-            {cue && (
-              <View style={{ maxWidth: 300 }}>
-                <CueText line={cue} />
-              </View>
-            )}
+          <TutorialStage cue={cue} rules={game?.drinkingRules} availableHeight={stageHeight}>
             {TutorialComponent ? (
               <TutorialComponent />
             ) : (
@@ -225,12 +221,7 @@ export default function TutorialScreen() {
                 Get ready for the next round!
               </Text>
             )}
-            {game && (
-              <View style={{ marginTop: 14 }}>
-                <DrinkRow rules={game.drinkingRules} />
-              </View>
-            )}
-          </View>
+          </TutorialStage>
         </ScrollView>
 
         {!countdownDone ? (

@@ -11,7 +11,8 @@
     "build": "expo export --platform web --clear && node scripts/post-export.mjs",
     "screenshot": "node scripts/screenshot.mjs",
     "smoke:web": "node scripts/smoke-web.mjs",
-    "verify:web": "npm run build && npm run smoke:web"
+    "verify:web": "npm run build && npm run smoke:web && npm run check:tutorials",
+    "check:tutorials": "node scripts/tutorial-fit.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
