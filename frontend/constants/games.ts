@@ -272,6 +272,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: HandHeart,
     categories: ['strategy'],
     accentColor: '#7C3AED',
+    minPlayers: 3, // volunteering only means something with a group to carry the rest
     rules: [
       'The room gets a target number of chasers that need to be drunk.',
       'A 30-second timer starts.',
@@ -354,6 +355,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: Users,
     categories: ['strategy'],
     accentColor: '#059669',
+    minPlayers: 3, // at 2 players a 1-1 vote is a coin flip and a 2-0 vote has no losing side
     rules: [
       'A question is shown on screen with two possible answers.',
       [
@@ -386,6 +388,7 @@ export const GAME_CATALOG: GameMeta[] = [
     Icon: UserMinus,
     categories: ['strategy'],
     accentColor: '#EA580C',
+    minPlayers: 3, // same as majority: no real crowd to break away from at 2
     rules: [
       'A question is shown on screen with two possible answers.',
       [

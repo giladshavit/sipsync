@@ -18,6 +18,13 @@ MIN_PLAYERS: dict[str, int] = {
     "black_box": 2,
     "dilemma": 2,
     "closest_average": 3,
+    # Crowd games: they need a group to have a crowd to go with (or against).
+    # At two players a majority/minority vote is either a coin flip (1-1) or
+    # has no losing side at all (2-0) — see app/games/majority.py — and The
+    # Sacrifice has nobody to spread the chasers across.
+    "majority": 3,
+    "minority": 3,
+    "sacrifice": 3,
 }
 
 # Session Resilience: how long a disconnected player's seat stays reserved
