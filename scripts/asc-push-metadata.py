@@ -224,6 +224,12 @@ def data(type_: str, attributes: dict[str, Any], id_: str | None = None, **rels:
 
 def push_app_info(asc: ASC, listing: dict[str, Any]) -> None:
     print("App info")
+    # Content Rights lives on the app itself, not the app info, and Submit
+    # refuses to proceed while it's unanswered. All art, copy and code is
+    # first-party.
+    asc.write("PATCH", f"/apps/{ASC_APP_ID}",
+              data("apps", {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}, ASC_APP_ID),
+              "content rights")
     infos = asc.get(f"/apps/{ASC_APP_ID}/appInfos")["data"]
     # The editable one is whichever isn't already live.
     info = next((i for i in infos if i["attributes"].get("appStoreState") != "READY_FOR_SALE"), infos[0])
