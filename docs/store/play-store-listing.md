@@ -65,8 +65,9 @@ this declaration and the Data safety form change in the same release.
 | Violence — any | No |
 | Sexuality / nudity | No |
 | Language (profanity) | No |
-| Controlled substances — references to alcohol | **Yes** |
-| Controlled substances — glamorises / encourages alcohol use | **Yes** — honest answer: the losing player is told to drink. The app states it works with any beverage, but the questionnaire asks about the reference, not the caveat. An accurate answer here is what keeps the listing up. |
+| Alcohol — Reference | **Yes** — glass icons, "chaser", "drinks" on most screens |
+| Alcohol — Use | **Yes** — the app tells the losing player to drink ("I'M IN", "chaser to go"). No on-screen characters drink, but this is use by any honest reading; a reviewer would spot "No" in a minute |
+| Alcohol — Encourages / Glamorizes | **No** — Google's own definition: characters *gain advantage or succeed* after drinking, or real-brand advertising. Here drinking is the loser's penalty, never a reward, and there are no brands |
 | Illegal drugs, tobacco | No |
 | Simulated gambling | **No** — Auction / Roulette / Liar's Coin have no casino mechanics, no currency, no odds-based payout |
 | Real-money gambling | No |
