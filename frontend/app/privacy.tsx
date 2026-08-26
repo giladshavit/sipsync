@@ -7,9 +7,9 @@ export default function PrivacyScreen() {
       metaDescription="What limited data Quickle handles: no accounts, an anonymous device ID, transient room state, and how AdSense and analytics work on quicklegame.com."
       canonicalPath="/privacy"
       heading="Privacy Policy"
-      lastUpdated="August 4, 2026"
+      lastUpdated="August 26, 2026"
       intro={
-        'SipSync ("we," "us," the "App") is a party game played with friends in the same room, each on their own phone. This explains what limited data we handle and how third-party services work when you use the web version at quicklegame.com.'
+        'Quickle ("we," "us," the "App") is a party game played with friends in the same room, each on their own phone. This explains what limited data we handle, and how third-party services work when you use the web version at quicklegame.com.'
       }
     >
       <Section title="What we don't collect">
@@ -25,7 +25,16 @@ export default function PrivacyScreen() {
         the duration of an active room, not permanently stored.
       </Section>
 
-      <Section title="Advertising">
+      <Section title="The mobile app">
+        The current version of the Quickle app for iPhone and Android contains
+        no advertising and no analytics. The only data that leaves your phone
+        is what the "What we do collect" section describes. The two sections
+        below apply to the web version at quicklegame.com only. If a future
+        version of the app adds advertising, this policy and the app's store
+        listing will be updated first.
+      </Section>
+
+      <Section title="Advertising (web)">
         The web version shows ads served by Google AdSense. Google and its
         partners may use cookies or similar technologies to serve ads based on
         your visits to this and other sites. You can review your ad
@@ -35,14 +44,14 @@ export default function PrivacyScreen() {
         details.
       </Section>
 
-      <Section title="Analytics">
+      <Section title="Analytics (web)">
         We use Vercel Web Analytics and Speed Insights to understand aggregate,
         anonymized traffic and performance; no personally identifying data is
         collected through this.
       </Section>
 
       <Section title="Children">
-        SipSync is a drinking game intended for adults. It is not directed at
+        Quickle is a party game with drinking-game mechanics, intended for adults. It is not directed at
         children, and we do not knowingly collect data from children.
       </Section>
 
