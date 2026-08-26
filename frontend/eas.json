@@ -11,7 +11,9 @@
     "preview": {
       "channel": "preview",
       "distribution": "internal",
-      "android": { "buildType": "apk" },
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_URL": "https://backend-production-f4b22.up.railway.app"
       }
@@ -25,6 +27,10 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6805344669"
+      }
+    }
   }
 }
