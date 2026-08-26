@@ -13,7 +13,7 @@ Package `com.quicklegame.app` · Free · Game
 | Field | Value |
 |---|---|
 | App name (30) | `Quickle Party Game` (18) — or `Quickle` if the Console accepts it; Play has no name exclusivity |
-| Short description (80) | `Fast, light mini-games for a night out. One phone each. Any drink.` (67) |
+| Short description (80) | `Fast, light mini-games for a night out. One phone each. Any drink.` (66) |
 | Full description (4000) | the English description from the iOS listing, verbatim (991) |
 | App icon | `docs/store/play/icon-512.png` — 512×512 |
 | Feature graphic | `docs/store/play/feature-graphic.png` — 1024×500 |
@@ -26,7 +26,7 @@ Package `com.quicklegame.app` · Free · Game
 | Field | Value |
 |---|---|
 | App name | `Quickle Party Game` (Latin, unchanged) |
-| Short description (80) | `מיני-משחקים מהירים וקלילים לערב עם חברים. טלפון לכל אחד. כל משקה.` (63) |
+| Short description (80) | `מיני-משחקים מהירים וקלילים לערב עם חברים. טלפון לכל אחד. כל משקה.` (65) |
 | Full description | the Hebrew description from the iOS listing, verbatim (796) |
 
 ## Store settings
