@@ -13,11 +13,11 @@ Bundle ID `com.quicklegame.app` · SKU `quickle` · ASC App ID `6805344669`
 
 | Field | Value |
 |---|---|
-| Name | **Quickle** |
-| Subtitle (30) | `Party games. One phone each.` (28) |
+| Name | **Quickle Party Game** — "Quickle" alone was taken |
+| Subtitle (30) | `15 mini-games. One phone each.` (30) — must not repeat "Party Game" from the name |
 | Primary category | Games |
 | Secondary category | Entertainment |
-| Game subcategories | Party, Casual |
+| Game subcategories | Casual, Board — Apple has no "Party" subcategory; "Family" would contradict the 18+ rating |
 | Content rights | Does not contain, show, or access third-party content |
 | Age rating | see below |
 
@@ -39,6 +39,13 @@ Answer honestly — an inaccurate rating is grounds for removal (spec §3.1).
 | Gambling with real money | No | |
 | Loot boxes | No | |
 | Parental controls / kids category | No | |
+| Guns or other weapons | None | Russian Roulette is card flips; no weapon is depicted |
+| Health or wellness topics | No | |
+| Messaging and chat | No | No chat feature |
+| User-generated content | No | Custom questions and nicknames exist only inside a private room among people who know each other — not public UGC (guideline 1.2) |
+| Age assurance | No | Apple means real verification (ID/card); our "I'm 18+" tap is self-declaration, described in the review notes |
+| Social media | No | |
+| Advertising | No | True for v1.0 — **flip to Yes in the release that adds ads** |
 
 Expected result: **18+** (Apple's tier above 17+ since the 2025 questionnaire).
 Do not try to argue it down — the first-launch 18+ consent screen already commits
@@ -183,11 +190,11 @@ If anything is unclear, please contact giladshavit1@gmail.com and I will respond
 
 ## Version 1.0 — Hebrew
 
-Name stays **Quickle** (Latin) in both locales.
+Name stays **Quickle Party Game** (Latin) in both locales.
 
 | Field | Value |
 |---|---|
-| Subtitle (30) | `משחקי מסיבה. טלפון לכל אחד.` (27) |
+| Subtitle (30) | `15 מיני-משחקים. טלפון לכל אחד.` (30) |
 | Keywords (100) | `משחק שתייה,משחק מסיבה,חברים,קבוצה,ערב,בר,צייסר,משחקים,מיני משחקים,רב משתתפים` (76) |
 
 ### Promotional text (170)
