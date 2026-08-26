@@ -33,7 +33,7 @@ Package `com.quicklegame.app` · Free · Game
 
 | Field | Value |
 |---|---|
-| App category | Game → **Casual** |
+| App category | Game → **Board** — the Console offered no Casual; Board is where social tabletop games live, Strategy would file it next to chess |
 | Tags | Party, Multiplayer |
 | Contact email | giladshavit1@gmail.com (public) |
 | Contact website | https://www.quicklegame.com |
