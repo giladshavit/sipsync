@@ -115,9 +115,9 @@ FOR ADULTS
 
 Quickle is intended for players of legal drinking age. If you drink, drink responsibly and never drink and drive. It plays exactly the same with a glass of water.
 
-Guests can also join from any browser at quicklegame.com - only the host needs the app.
+Quickle is also available on the web at quicklegame.com.
 ```
-(1,022)
+(991)
 
 ### Keywords (100)
 
@@ -203,9 +203,9 @@ Quickle הוא משחק מסיבה לחבורת חברים, עם טלפון בכ
 
 Quickle מיועד לשחקנים בגיל שתייה חוקי. אם שותים - שותים באחריות, ולעולם לא שותים ונוהגים. המשחק עובד בדיוק אותו דבר עם כוס מים.
 
-אורחים יכולים להצטרף גם מכל דפדפן ב-quicklegame.com - רק המארח צריך את האפליקציה.
+Quickle זמין גם ב-web, בכתובת quicklegame.com.
 ```
-(831)
+(796)
 
 ---
 
