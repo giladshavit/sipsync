@@ -14,7 +14,7 @@ Bundle ID `com.quicklegame.app` · SKU `quickle` · ASC App ID `6805344669`
 | Field | Value |
 |---|---|
 | Name | **Quickle Party Game** — "Quickle" alone was taken |
-| Subtitle (30) | `15 mini-games. One phone each.` (30) — must not repeat "Party Game" from the name |
+| Subtitle (30) | `Fast, light mini-games` (22) — must not repeat "Party Game" from the name |
 | Primary category | Games |
 | Secondary category | Entertainment |
 | Game subcategories | Casual, Board — Apple has no "Party" subcategory; "Family" would contradict the 18+ rating |
@@ -92,52 +92,32 @@ Privacy policy URL: `https://www.quicklegame.com/privacy`
 ### Promotional text (170)
 
 ```
-15 fast mini-games for a night with friends. Everyone plays on their own phone — no board, no cards, nothing to set up. Works with any drink.
+15 fast mini-games for a night with friends. Everyone plays on their own phone - no board, no cards, nothing to set up. Works with any drink.
 ```
 (141)
 
 ### Description (4000)
 
 ```
-Quickle is a party game for a table full of friends and a phone in every hand.
+Quickle is a party game for a group of friends, with a phone in every hand.
 
-One person opens a room and shares a six-letter code. Everyone else joins from their own phone — no download for guests, no account, no sign-up. Then the room plays a round, and the person who lost it drinks a chaser. Any drink counts: beer, wine, water, soda, whatever's in your glass.
+One player opens a room and shares the code. Everyone else joins from their own phone - no account, no sign-up. Each round is one mini-game, and whoever loses drinks a chaser. Any drink counts: beer, wine, soda or water.
 
-FIFTEEN MINI-GAMES, EACH ONE OVER IN A MINUTE
+15 MINI-GAMES, MORE ON THE WAY
 
-• Green Light — tap the instant it flips green. Slowest drinks.
-• Tap Race — most taps in ten seconds wins.
-• Human Timer — count ten seconds in your head. Farthest off drinks.
-• Russian Roulette — flip cards, dodge the poison.
-• Liar's Coin — heads or tails, and the flipper is allowed to lie.
-• Closest Average — pick a number nearest the room's average.
-• The Sacrifice — volunteer to drink before the clock runs out, or everyone does.
-• Prisoner's Dilemma — help your partner or betray them, in secret.
-• Go with the Flow — vote with the crowd and you're safe.
-• Against the Flow — guess what the minority wants.
-• Strong Point — hit the zone the instant it appears.
-• Flying Bomb — swipe it to someone else before it goes off.
-• 21 — push the counter up. Don't be the one who lands on 21.
-• Auction — bid points and chasers to run the table.
-• Black Box — pick a card, then convince the room what's inside.
+Fast and light, and every one plays differently - some are pure speed, some are luck, some are strategy with a little game theory mixed in.
 
-The room shuffles through the games you picked and never repeats one until it has played them all, so a long night stays fresh.
+Green Light, Tap Race, Human Timer, Russian Roulette, Liar's Coin, Closest Average, The Sacrifice, Prisoner's Dilemma, Go with the Flow, Against the Flow, Strong Point, Flying Bomb, 21, Auction, Black Box.
 
-BUILT FOR THE TABLE, NOT THE SCREEN
-
-• Reflex games are judged on the server, so a slow connection can't win for you.
-• The drinking moment is a six-second window everyone sees at once. No skipping it.
-• Every round ends on a podium, so the running score is always on the table.
-• A short animated tutorial plays before each game, so nobody has to explain the rules.
-• Went to the bathroom? Rejoin with the same code and your seat is still there.
+You choose which games make tonight's lineup, and those are the ones you play.
 
 FOR ADULTS
 
-Quickle is intended for players of legal drinking age. If you drink, drink responsibly, and never drink and drive. It plays exactly the same with a glass of water.
+Quickle is intended for players of legal drinking age. If you drink, drink responsibly and never drink and drive. It plays exactly the same with a glass of water.
 
-Guests can also play from any browser at quicklegame.com — the host is the only one who needs the app.
+Guests can also join from any browser at quicklegame.com - only the host needs the app.
 ```
-(2,184)
+(1,022)
 
 ### Keywords (100)
 
@@ -167,13 +147,13 @@ party game,drinking game,friends,group,multiplayer,mini games,bar,pregame,night 
 This is the part that decides the review. Plain, specific, no marketing.
 
 ```
-Quickle is a multiplayer party game played by a group of people in the same room, each on their own phone. The losing player of each round drinks a "chaser" — any beverage. The app does not sell, serve, or promote alcohol, does not encourage drinking quantities, and states on first launch that it plays the same with any drink. It is rated 18+ and shows an age-confirmation screen before anything else.
+Quickle is a multiplayer party game played by a group of people in the same room, each on their own phone. The losing player of each round drinks a "chaser" - any beverage. The app does not sell, serve, or promote alcohol, does not encourage drinking quantities, and states on first launch that it plays the same with any drink. It is rated 18+ and shows an age-confirmation screen before anything else.
 
 HOW TO TEST WITH ONE DEVICE
 
 1. Launch the app, confirm you are 18+, enter any nickname.
 2. Tap "Games" and open any game (for example "Green Light").
-3. Tap the robot icon at the top of the rules page. This starts a practice round against computer players, so the whole flow — tutorial, round, drinking window, podium — can be seen with a single device.
+3. Tap the robot icon at the top of the rules page. This starts a practice round against computer players, so the whole flow - tutorial, round, drinking window, podium - can be seen with a single device.
 
 HOW TO TEST A REAL ROOM WITH A SECOND PLAYER
 
@@ -181,7 +161,7 @@ HOW TO TEST A REAL ROOM WITH A SECOND PLAYER
 2. In any web browser (desktop is fine), open https://www.quicklegame.com/room/<CODE> and enter a nickname. The browser joins the same room as a second player.
 3. On the device, tap "Start Game".
 
-There are no accounts, no purchases, no ads, and no user-generated content visible to strangers — rooms are private to whoever has the code and are deleted from the server when they end.
+There are no accounts, no purchases, no ads, and no user-generated content visible to strangers - rooms are private to whoever has the code and are deleted from the server when they end.
 
 If anything is unclear, please contact giladshavit1@gmail.com and I will respond the same day.
 ```
@@ -194,58 +174,38 @@ Name stays **Quickle Party Game** (Latin) in both locales.
 
 | Field | Value |
 |---|---|
-| Subtitle (30) | `15 מיני-משחקים. טלפון לכל אחד.` (30) |
+| Subtitle (30) | `מיני-משחקים מהירים וקלילים` (26) |
 | Keywords (100) | `משחק שתייה,משחק מסיבה,חברים,קבוצה,ערב,בר,צייסר,משחקים,מיני משחקים,רב משתתפים` (76) |
 
 ### Promotional text (170)
 
 ```
-15 מיני-משחקים מהירים לערב עם חברים. כל אחד משחק מהטלפון שלו — בלי לוח, בלי קלפים, בלי לסדר כלום. עובד עם כל משקה.
+15 מיני-משחקים מהירים לערב עם חברים. כל אחד משחק מהטלפון שלו - בלי לוח, בלי קלפים, בלי לסדר כלום. עובד עם כל משקה.
 ```
 (114)
 
 ### Description (4000)
 
 ```
-Quickle הוא משחק מסיבה לשולחן מלא חברים וטלפון בכל יד.
+Quickle הוא משחק מסיבה לחבורת חברים, עם טלפון בכל יד.
 
-אחד פותח חדר ומשתף קוד של שש אותיות. כל השאר מצטרפים מהטלפון שלהם — בלי הורדה לאורחים, בלי חשבון, בלי הרשמה. החדר משחק סבב, ומי שהפסיד שותה צ'ייסר. כל משקה נחשב: בירה, יין, מים, סודה, מה שיש בכוס.
+שחקן אחד פותח חדר ומשתף את הקוד. כל השאר מצטרפים מהטלפון שלהם - בלי חשבון, בלי הרשמה. כל סבב הוא מיני-משחק אחד, ומי שמפסיד שותה צ'ייסר. כל משקה נחשב: בירה, יין, סודה או מים.
 
-חמישה-עשר מיני-משחקים, כל אחד נגמר תוך דקה
+15 מיני-משחקים, ועוד בדרך
 
-• אור ירוק — לחץ ברגע שזה מתחלף לירוק. האיטי שותה.
-• מרוץ לחיצות — הכי הרבה לחיצות בעשר שניות מנצח.
-• טיימר אנושי — ספור עשר שניות בראש. הכי רחוק שותה.
-• רולטה רוסית — הפוך קלפים, תתחמק מהרעל.
-• מטבע השקרן — עץ או פלי, ומי שמטיל מותר לו לשקר.
-• הכי קרוב לממוצע — בחר מספר הכי קרוב לממוצע של החדר.
-• הקורבן — התנדב לשתות לפני שהשעון נגמר, או שכולם שותים.
-• דילמת האסיר — עזור לשותף שלך או בגוד בו, בסתר.
-• לזרום עם הרוב — הצבע עם הקהל ואתה בטוח.
-• נגד הזרם — נחש מה המיעוט רוצה.
-• נקודה חזקה — פגע באזור ברגע שהוא מופיע.
-• פצצה מעופפת — העבר אותה למישהו אחר לפני שהיא מתפוצצת.
-• 21 — דחוף את המונה למעלה. אל תהיה זה שנוחת על 21.
-• מכירה פומבית — הצע נקודות וצ'ייסרים כדי לשלוט בשולחן.
-• קופסה שחורה — בחר קלף, ואז שכנע את החדר מה יש בפנים.
+מהירים וקלילים, וכל אחד מהם משחק אחרת - יש כאלה של מהירות טהורה, יש של מזל, ויש של אסטרטגיה עם קצת תורת המשחקים.
 
-החדר מערבב את המשחקים שבחרתם ולא חוזר על אחד עד שכולם שוחקו, כך שערב ארוך נשאר טרי.
+אור ירוק, מרוץ לחיצות, טיימר אנושי, רולטה רוסית, מטבע השקרן, הכי קרוב לממוצע, הקורבן, דילמת האסיר, לזרום עם הרוב, נגד הזרם, נקודה חזקה, פצצה מעופפת, 21, מכירה פומבית, קופסה שחורה.
 
-בנוי לשולחן, לא למסך
-
-• משחקי רפלקס נשפטים בשרת, כך שחיבור איטי לא יכול לנצח בשבילך.
-• רגע השתייה הוא חלון של שש שניות שכולם רואים בו-זמנית. אין דילוג.
-• כל סבב מסתיים בפודיום, כך שהניקוד תמיד על השולחן.
-• הדרכה מונפשת קצרה לפני כל משחק, כדי שאף אחד לא יצטרך להסביר חוקים.
-• הלכת לשירותים? הצטרף מחדש עם אותו קוד והמקום שלך עדיין שם.
+אתם בוחרים אילו משחקים נכנסים להרכב של הערב, ובהם משחקים.
 
 למבוגרים
 
-Quickle מיועד לשחקנים בגיל שתייה חוקי. אם אתם שותים, שתו באחריות, ולעולם אל תשתו ותנהגו. המשחק עובד בדיוק אותו דבר עם כוס מים.
+Quickle מיועד לשחקנים בגיל שתייה חוקי. אם שותים - שותים באחריות, ולעולם לא שותים ונוהגים. המשחק עובד בדיוק אותו דבר עם כוס מים.
 
-אורחים יכולים לשחק גם מכל דפדפן ב-quicklegame.com — רק המארח צריך את האפליקציה.
+אורחים יכולים להצטרף גם מכל דפדפן ב-quicklegame.com - רק המארח צריך את האפליקציה.
 ```
-(1,675)
+(831)
 
 ---
 
