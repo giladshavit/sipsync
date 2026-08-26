@@ -49,8 +49,8 @@ BUILD_NUMBER = os.environ.get("ASC_BUILD_NUMBER")  # e.g. "3"; latest processed 
 # Categories — App Store Connect ids, not display names.
 CATEGORIES = {
     "primaryCategory": "GAMES",
-    "primarySubcategoryOne": "GAMES_PARTY",
-    "primarySubcategoryTwo": "GAMES_CASUAL",
+    "primarySubcategoryOne": "GAMES_CASUAL",
+    "primarySubcategoryTwo": "GAMES_BOARD",
     "secondaryCategory": "ENTERTAINMENT",
 }
 
@@ -74,6 +74,19 @@ AGE_RATING = {
     "gambling": False,
     "unrestrictedWebAccess": False,
     "lootBox": False,
+    # Added by the 2025 questionnaire — all required.
+    "gunsOrOtherWeapons": "NONE",  # Russian Roulette is card flips, no weapon shown
+    "healthOrWellnessTopics": False,
+    "messagingAndChat": False,
+    "parentalControls": False,
+    # Custom questions and nicknames are seen only inside a private room by
+    # people who know each other — not the public UGC guideline 1.2 targets.
+    "userGeneratedContent": False,
+    "advertising": False,  # true for v1.0; flip when ads ship
+    # Apple means real verification (ID, card); our "I'm 18+" tap is a
+    # self-declaration, which the review notes describe separately.
+    "ageAssurance": False,
+    "socialMedia": False,
 }
 
 REVIEW_CONTACT = {
@@ -223,6 +236,9 @@ def push_app_info(asc: ASC, listing: dict[str, Any]) -> None:
     )
 
     existing = {l["attributes"]["locale"]: l for l in asc.get(f"/appInfos/{info_id}/appInfoLocalizations")["data"]}
+    # The store name is per-locale too; a new locale needs it and we keep it
+    # identical everywhere (Latin "Quickle Party Game" in Hebrew as well).
+    store_name = existing["en-US"]["attributes"]["name"]
     for locale, fields in listing["locales"].items():
         attrs = {"subtitle": fields["subtitle"], "privacyPolicyUrl": listing["privacyPolicyUrl"]}
         if locale in existing:
@@ -230,7 +246,8 @@ def push_app_info(asc: ASC, listing: dict[str, Any]) -> None:
                       data("appInfoLocalizations", attrs, existing[locale]["id"]), f"app info [{locale}]")
         else:
             asc.write("POST", "/appInfoLocalizations",
-                      data("appInfoLocalizations", {"locale": locale, **attrs}, appInfo={"type": "appInfos", "id": info_id}),
+                      data("appInfoLocalizations", {"locale": locale, "name": store_name, **attrs},
+                           appInfo={"type": "appInfos", "id": info_id}),
                       f"app info [{locale}] (new locale)")
 
     rating = asc.get(f"/appInfos/{info_id}/ageRatingDeclaration")["data"]
@@ -242,13 +259,19 @@ def push_version(asc: ASC, listing: dict[str, Any]) -> str:
     print(f"Version {VERSION}")
     versions = asc.get(f"/apps/{ASC_APP_ID}/appStoreVersions", **{"filter[platform]": PLATFORM})["data"]
     version = next((v for v in versions if v["attributes"]["versionString"] == VERSION), None)
+    attrs = {"copyright": listing["copyright"]}
     if version is None:
-        sys.exit(f"no App Store version {VERSION} on the app — create it in ASC first (it normally exists from app creation)")
+        # App creation makes a placeholder "1.0"; the App Store version string
+        # has to match the build's CFBundleShortVersionString (app.json
+        # `version`), so rename the editable one rather than leaving two.
+        version = next((v for v in versions if v["attributes"]["appStoreState"] == "PREPARE_FOR_SUBMISSION"), None)
+        if version is None:
+            sys.exit(f"no App Store version {VERSION} and nothing editable to rename — check ASC")
+        attrs["versionString"] = VERSION
     vid = version["id"]
-    print(f"  state: {version['attributes']['appStoreState']}")
+    print(f"  {version['attributes']['versionString']} — {version['attributes']['appStoreState']}")
 
-    asc.write("PATCH", f"/appStoreVersions/{vid}",
-              data("appStoreVersions", {"copyright": listing["copyright"]}, vid), "copyright")
+    asc.write("PATCH", f"/appStoreVersions/{vid}", data("appStoreVersions", attrs, vid), "version string + copyright")
 
     existing = {l["attributes"]["locale"]: l for l in asc.get(f"/appStoreVersions/{vid}/appStoreVersionLocalizations")["data"]}
     for locale, fields in listing["locales"].items():
@@ -271,8 +294,9 @@ def push_version(asc: ASC, listing: dict[str, Any]) -> str:
     detail = asc.get(f"/appStoreVersions/{vid}/appStoreReviewDetail").get("data")
     attrs = {**REVIEW_CONTACT, "notes": listing["reviewNotes"]}
     if not attrs["contactPhone"]:
-        print("  note: ASC_CONTACT_PHONE not set — leaving the phone field for the UI")
-        attrs.pop("contactPhone")
+        # Apple won't create the review record without a phone (in +CC form).
+        print("  SKIP review contact + notes — set ASC_CONTACT_PHONE='+972…' and re-run")
+        return vid
     if detail:
         asc.write("PATCH", f"/appStoreReviewDetails/{detail['id']}",
                   data("appStoreReviewDetails", attrs, detail["id"]), "review contact + notes")
