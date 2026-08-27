@@ -4,6 +4,7 @@ import { useLocalSearchParams, router, Redirect } from 'expo-router';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { apiFetch } from '@/lib/api';
+import { trackPixelEvent } from '@/lib/metaPixel';
 import { colors, typography } from '@/constants/design';
 
 // Deep-link landing pad for `/room/[code]` — shared links point to
@@ -33,6 +34,7 @@ export default function RoomDeepLinkScreen() {
           setNotFound(true);
           return;
         }
+        trackPixelEvent('room_joined', { via: 'link' });
         router.replace(`/room/${code}/lobby`);
       } catch {
         setNotFound(true);

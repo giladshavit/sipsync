@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { X } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { apiFetch } from '@/lib/api';
+import { trackPixelEvent } from '@/lib/metaPixel';
 
 // Room-code entry as an overlay card anchored to the TOP of the screen.
 // A modal instead of an inline field is deliberate: on iOS Safari the
@@ -33,6 +34,7 @@ export default function JoinRoomModal({ onClose }: { onClose: () => void }) {
       }
       // Late Join is allowed — lobby.tsx routes a mid-round arrival to the
       // Waiting Room off the first ROOM_STATE snapshot.
+      trackPixelEvent('room_joined', { via: 'code' });
       onClose();
       router.push(`/room/${trimmed}/lobby`);
     } catch {

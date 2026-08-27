@@ -12,8 +12,8 @@ Status: plan. Prerequisites (§1) are code and are not done yet.
 
 | # | What | Why | Owner |
 |---|---|---|---|
-| 1 | **Meta Pixel** on the web build + Conversions API later | Without it Meta optimises for clicks, not players; the whole test is blind | code |
-| 2 | Custom events: `ViewContent` (landing), `room_created`, `room_joined`, `game_started` | `room_created` is the conversion we buy. `room_joined` proves the multiplier | code |
+| 1 | **Meta Pixel** on the web build — loads only when `EXPO_PUBLIC_META_PIXEL_ID` is set in Vercel (code merged; waiting on the id) | Without it Meta optimises for clicks, not players; the whole test is blind | code ✓ / Gilad |
+| 2 | Custom events `room_created` and `room_joined` (via code / via link) — `lib/metaPixel.ts` | `room_created` is the conversion we buy. `room_joined` proves the multiplier | code ✓ |
 | 3 | **Ad landing page** (`/play` or `/party`) — not the app home | Cold traffic needs "what is this" in 3 s: one line, 3 screenshots, a *Start a room* CTA. Home screen assumes you already know | code |
 | 4 | UTM passthrough: `?utm_source=meta&utm_campaign=…` survives into room creation | Attribution outside Meta's own (inflated) numbers | code |
 | 5 | Meta Business Manager + ad account, domain `quicklegame.com` verified, page for Quickle | Domain verification is required for web conversion events | Gilad |
@@ -24,7 +24,7 @@ Status: plan. Prerequisites (§1) are code and are not done yet.
 ## 2. Positioning for ads
 
 **Lead with:** party game · one phone each · nothing to set up · no download ·
-16 mini-games. **Support with:** "any drink" (true, and the honest way to say
+15 mini-games. **Support with:** "any drink" (true, and the honest way to say
 what it is without tripping alcohol policy in the headline).
 
 Never claim: "drinking game" in the headline, alcohol brands, drinking as a
@@ -88,82 +88,62 @@ campaign will never beat because every room is a group.
 
 ---
 
-## 4. Creative — 6 concepts, statics first
+## 4. Creative v1 — the carousel
 
-Andromeda-era rule: volume of native-looking statics beats one polished
-video. Ship all six as 4:5 feed + 9:16 story; two of them also as 10–15 s
-screen-recorded Reels. Palette: cream `#FFF8E1`, amber `#F59E0B`, ink
-`#0A0A0F`, duck mascot. Don't make it look like an ad.
+Eight 4:5 cards from `uv run scripts/meta-carousel.py` (in
+`docs/marketing/carousel/`): the brand card, then seven full-bleed windows
+onto real screens. No captions on the images, nothing that hints at alcohol
+— the screens speak for themselves and the game plays the same with water.
+Whole screens (for a 9:16 placement later) are in `docs/marketing/screens/`.
 
-### C1 — "Nothing to set up" (utility)
-- **Visual:** one phone, lobby screen with the room code; caption-style text
-  overlay: *"no cards. no board. no deck to buy."*
-- **Headline:** Party game with nothing to set up
-- **Primary:** Everyone's phone is the game. One person opens a room, the rest
-  type a 6-letter code, and you're playing in ten seconds. 16 fast mini-games —
-  reflexes, luck, a bit of game theory. Whoever loses drinks. Any drink counts.
-  quicklegame.com — no download, no account.
+### Primary text — three options (Meta rotates them; long copy gives it context)
 
-### C2 — "10 seconds, no download" (friction)
-- **Visual:** 3-panel static: *type code → pick games → GO*. Stopwatch "0:10".
-- **Headline:** From "let's play something" to playing: 10 seconds
-- **Primary:** No app store. No "wait, download it first". Open the link, join
-  with a code, go. Works on any phone at the table.
+**A — how it works**
+> Everyone's phone is the game. One friend opens a room, the rest join with a
+> 6-letter code, and you're playing in ten seconds — no download, no account,
+> nothing to set up. 15 fast mini-games: some are pure speed, some are luck,
+> some are strategy with a little game theory mixed in. You pick tonight's
+> lineup. quicklegame.com
 
-### C3 — "The morning after" (chat reveal — humour)
-- **Visual:** fake group-chat screenshot (iMessage/WhatsApp style, obviously
-  staged, no real names):
-  > **Sam:** who made me do 4 chasers
-  > **Priya:** the app did. you lost prisoner's dilemma. twice.
-  > **Sam:** I TRUSTED YOU
-  > **Priya:** and I betrayed you. in secret. as instructed.
-  > **Leo:** same time friday?
-- **Headline:** Help your partner — or betray them. In secret.
-- **Primary:** Quickle is 16 mini-games for a night with friends, on
-  everyone's own phone. Some are speed, some are luck, some will end
-  friendships. quicklegame.com
+**B — the games**
+> A coin flip where the flipper is allowed to lie. An auction. A counter
+> nobody wants to be the one to push to 21. A round where you help your
+> partner or betray them — in secret. 15 mini-games for a night with
+> friends, everyone on their own phone. quicklegame.com — free, no download.
 
-### C4 — "16 games" (variety grid)
-- **Visual:** the coloured game-tile grid from the lobby (Green Light, Tap
-  Race, Russian Roulette, Liar's Coin…) — 16 tiles, one word each.
-- **Headline:** 16 mini-games. You pick tonight's lineup.
-- **Primary:** Reflex rounds, bluffing rounds, a coin flip where the flipper
-  can lie, an auction paid in chasers. Choose which ones you play tonight.
+**C — short**
+> 15 fast, fun mini-games for a night with friends. One phone each. Nothing
+> to set up. Play free at quicklegame.com
 
-### C5 — "Prisoner's Dilemma" (game-theory drama, best for Reels)
-- **Visual:** 12 s screen recording: two phones side by side, both choose in
-  secret, reveal → one betrays. Overlay: *"she said she'd cooperate."*
-- **Headline:** She said she'd cooperate.
-- **Primary:** One round of Quickle. Both players choose in secret: help or
-  betray. Then everyone sees. Play it with friends on any phone — quicklegame.com
+### Per-card headline · description (≤ 40 / ≤ 30 characters)
 
-### C6 — "Works with water" (pregame / honest hedge)
-- **Visual:** glass of water next to a beer, both with the duck. Overlay:
-  *"plays exactly the same with water"*.
-- **Headline:** The pregame game. Any drink.
-- **Primary:** Beer, wine, soda, water — Quickle doesn't care what's in the
-  glass, only who lost. 16 mini-games, everyone on their own phone, nothing to
-  install.
+| Card | Headline | Description |
+|---|---|---|
+| 1 brand | Fast & Fun mini-games | Free · no download |
+| 2 games | 15 mini-games, one phone each | You pick tonight's lineup |
+| 3 room | Open a room. Friends join with a code. | Playing in ten seconds |
+| 4 auction | Auction — bid to run the table | Strategy |
+| 5 twenty-one | 21 — don't be the one who hits it | Strategy |
+| 6 roulette | Russian Roulette — dodge the poison | Luck |
+| 7 sacrifice | The Sacrifice — who's in? | Nerve |
+| 8 bomb | Flying Bomb — swipe it away in time | Speed |
 
-### Headline bank (for the 20–40-headline mirror test → winning one becomes the landing H1)
+### The rest of the ad
 
-1. Party game with nothing to set up
-2. Everyone's phone is the game
-3. 16 mini-games. One phone each.
-4. Playing in 10 seconds, no download
-5. She said she'd cooperate.
-6. Help your partner or betray them — in secret
-7. The coin flipper is allowed to lie
-8. Loser drinks. Any drink counts.
-9. No cards, no board, no deck to buy
-10. The pregame game
-11. Type the code. That's the setup.
-12. Bid chasers to run the table
-13. Fast, light mini-games for a night out
-14. Your flat party just got a game master
-15. Game night without the box
+- **CTA button:** Play Game
+- **Website URL (every card, identical):**
+  `https://www.quicklegame.com/?utm_source=meta&utm_medium=paid&utm_campaign=intl_web_v1&utm_content=carousel_v1`
+- **Display link:** quicklegame.com
+- **Identity:** the Quickle Page + the Quickle Instagram account — never a personal profile
+- **"Optimize card order":** off — the brand card stays first
+- **"Add a card at the end with your Page profile picture":** off
 
----
+### Later statics — angles worth a card each once the carousel has a read
+
+1. *Nothing to set up* — one phone, the lobby code, "no cards, no board, no deck to buy"
+2. *10 seconds* — type code → pick games → GO, with a stopwatch
+3. *Prisoner's Dilemma* — "help your partner or betray them — in secret" (best as a Reel)
+4. *Plays the same with water* — the honest hedge, if the alcohol angle ever needs answering
 
 ## 5. Week-by-week
 
