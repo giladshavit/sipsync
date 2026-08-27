@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { Platform, useWindowDimensions } from 'react-native';
 import { Stack, usePathname, type ErrorBoundaryProps } from 'expo-router';
 import Head from '@/lib/head';
-import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Analytics, SpeedInsights } from '@/lib/vercelInsights';
@@ -91,7 +90,11 @@ export default function RootLayout() {
       </Head>
       <GestureHandlerRootView style={rootStyle}>
         <AudioProvider>
-          <StatusBar style="light" />
+          {/* No <StatusBar> here on purpose: a mounted StatusBar component
+              wins over every imperative setStatusBarStyle call (RN keeps a
+              props stack where components outrank the default), which is
+              exactly what kept cream screens' glyphs white. Each screen sets
+              the bar style itself via useWebPageBackground. */}
           <Stack
             screenOptions={{
               headerShown: false,
