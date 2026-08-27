@@ -3,11 +3,13 @@ import { View, Text, Pressable, Platform, ActivityIndicator } from 'react-native
 import * as Updates from 'expo-updates';
 import { RefreshCw } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
+import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 
 // Filled in Phase 4 once the store listings exist.
 const STORE_URL: string | null = null;
 
 export default function UpdateRequiredScreen() {
+  useWebPageBackground(colors.ink);
   const [busy, setBusy] = useState(false);
   const [otaFailed, setOtaFailed] = useState(false);
 

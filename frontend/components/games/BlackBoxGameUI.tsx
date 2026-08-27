@@ -869,7 +869,13 @@ export const BlackBoxGameUI: React.FC<MiniGameProps> = ({ gameState, onAction, c
   // The Holder sees themselves anchored at the bottom of their own screen;
   // everyone else sees the fixed Player-1-top / Player-2-bottom layout.
   const inverted = isA;
-  const layout = computeStageLayout(inverted, stageH, DUEL_TOP_PAD, DUEL_BOTTOM_PAD);
+  // The Holder's own secret label hangs 6px below their avatar block (see the
+  // `secretLabel` View), and in the inverted layout that block sits flush at
+  // the stage's bottom edge — so without reserving the label's height here it
+  // renders past the stage, into the safe-area padding and under Android's
+  // navigation bar. Reserve it for the one viewer who has a secret to show.
+  const bottomPad = inverted ? DUEL_BOTTOM_PAD + 6 + SECRET_LABEL_H : DUEL_BOTTOM_PAD;
+  const layout = computeStageLayout(inverted, stageH, DUEL_TOP_PAD, bottomPad);
   const bands = layout;
 
   const chosenBox = chosenBoxIndex !== null ? (boxes[chosenBoxIndex] ?? null) : null;
