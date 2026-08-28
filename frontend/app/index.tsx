@@ -7,6 +7,7 @@ import { CircleUser, LayoutGrid } from 'lucide-react-native';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import JoinRoomModal from '@/components/JoinRoomModal';
+import { trackPixelEvent } from '@/lib/metaPixel';
 import { apiFetch } from '@/lib/api';
 import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 import HomeWebSections from '@/components/HomeWebSections';
@@ -44,6 +45,7 @@ export default function HomeScreen() {
       });
       if (!res.ok) throw new Error();
       const data: { code: string; share_url: string } = await res.json();
+      trackPixelEvent('room_created');
       router.push({
         pathname: '/room/[code]/lobby',
         params: { code: data.code, isAdmin: 'true', shareUrl: data.share_url },

@@ -60,7 +60,12 @@ CATEGORIES = {
 # those rows in the UI.
 AGE_RATING = {
     "alcoholTobaccoOrDrugUseOrReferences": "FREQUENT_OR_INTENSE",
-    "gamblingSimulated": "INFREQUENT_OR_MILD",
+    # NONE, not "infrequent/mild": Apple means casino-style mechanics (slots,
+    # poker, betting with odds and payouts). Card flips, point bids and a
+    # coin guess are none of that - and an individual developer account
+    # cannot submit an app rated for simulated gambling at all; the first
+    # submission was auto-blocked on exactly this field.
+    "gamblingSimulated": "NONE",
     "contests": "NONE",
     "medicalOrTreatmentInformation": "NONE",
     "profanityOrCrudeHumor": "NONE",

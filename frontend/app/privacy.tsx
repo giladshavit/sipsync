@@ -50,6 +50,15 @@ export default function PrivacyScreen() {
         collected through this.
       </Section>
 
+      <Section title="Advertising measurement (web)">
+        When we advertise Quickle, quicklegame.com loads the Meta Pixel. It
+        tells Meta that a page was viewed and when a room is created or joined,
+        so we can tell whether our ads bring people who actually play. It never
+        receives your nickname, your room code or anything you type. A
+        tracker-blocking browser setting or extension stops it entirely. The
+        native apps do not include it.
+      </Section>
+
       <Section title="Children">
         Quickle is a party game with drinking-game mechanics, intended for adults. It is not directed at
         children, and we do not knowingly collect data from children.

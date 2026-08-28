@@ -29,7 +29,7 @@ Answer honestly — an inaccurate rating is grounds for removal (spec §3.1).
 |---|---|---|
 | Alcohol, Tobacco, or Drug Use or References | **Frequent/Intense** | The whole game is about who drinks a chaser |
 | Contests | None | No real-world prizes |
-| Gambling (simulated) | **Infrequent/Mild** | Russian Roulette / Auction / Liar's Coin use bet-like framing with no stakes and no currency |
+| Gambling (simulated) | **None** | Apple means casino-style mechanics (slots, poker, wagers with odds and payouts). Russian Roulette is card flips, Auction bids points with no cash value, Liar's Coin is a guess - no currency, no odds, no payout. **An individual developer account cannot submit an app rated for simulated gambling at all** - the first submission was auto-blocked on this row when it said Infrequent/Mild |
 | Mature/Suggestive Themes | None | |
 | Profanity or Crude Humor | None | |
 | Violence (any) | None | "Russian Roulette" is a card-flip game; no depiction of violence |
