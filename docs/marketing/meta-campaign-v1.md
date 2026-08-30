@@ -157,3 +157,34 @@ Whole screens (for a 9:16 placement later) are in `docs/marketing/screens/`.
 
 When the iOS build is approved: add an *App Install* campaign only after the
 web one has a proven creative — reuse it, don't restart the test.
+
+## 6. Ads Manager — field by field (the first campaign)
+
+Business portfolio **Quickle** selected top-left before anything else.
+
+**Campaign** (Ads Manager → Create)
+- Buying type: Auction · Objective: **Traffic**
+- Name: `META_Traffic_Intl_WebRoom_2026-09`
+- Special ad categories: none (this is not an alcohol *product* ad; if review pushes back, see §3 kill rules and the C6 hedge)
+- Advantage+ campaign budget: **on**, daily, **$12**
+- Bid strategy: Highest volume
+
+**Ad set A** — name `TierA_UK-AU_18-29`
+- Conversion location: Website · Performance goal: Landing page views
+- Pixel: Quickle Web
+- Locations: United Kingdom, Australia (add Ireland, New Zealand, Canada in week 2)
+- Age: 18–29 · Gender: all · Languages: English (all)
+- Advantage+ audience: on, **no interests, no lookalikes**
+- Placements: Advantage+ placements (check the breakdown on day 4; drop Audience Network if it eats spend)
+
+**Ad set B** — name `US_21-29` — **create in week 2**, duplicate of A with United States, age 21–29.
+
+**Ad** — name `Carousel_v1_screens`
+- Identity: Page **Quickle** · Instagram **@quickle…**
+- Format: **Carousel** · *Optimize card order:* **off** · *Add a card at the end with your profile picture:* **off**
+- Cards 1–8: `docs/marketing/carousel/01..08.png`, headline + description per card from §4, **same URL on every card** (§4 UTM link)
+- Primary text: option A (add B and C as extra text options - Meta rotates them)
+- Call to action: **Play Game** · Display link: `quicklegame.com`
+- Tracking: Website events → Pixel Quickle Web ✓, URL parameters already in the link
+
+**Publish** → review usually clears within hours. Then **nothing for 7 days** except reading numbers on day 4.
