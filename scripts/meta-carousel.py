@@ -35,8 +35,13 @@ CREAM = (0xFF, 0xF8, 0xE1)
 INK = (0x0A, 0x0A, 0x0F)
 AMBER = (0xF5, 0x9E, 0x0B)
 
-FONT = "/System/Library/Fonts/HelveticaNeue.ttc"
-BOLD = 1  # face index inside the .ttc
+FREDOKA = REPO / "docs/marketing/fonts/Fredoka-Variable.ttf"  # the brand's display face (OFL)
+
+
+def fredoka(size: int, weight: int = 700) -> ImageFont.FreeTypeFont:
+    f = ImageFont.truetype(str(FREDOKA), size)
+    f.set_variation_by_axes([weight, 100])  # the file's axes: wght, wdth
+    return f
 
 RAW_W = 1290
 WINDOW_H = round(H * RAW_W / W)  # 1612 capture rows fill a 4:5 card
@@ -85,14 +90,15 @@ def brand_card() -> Image.Image:
     duck = Image.open(ASSETS / "duck-wave.png").convert("RGB").resize((620, 620), Image.LANCZOS)
     im.paste(duck, ((W - 620) // 2, 130))  # flat render on the same cream - no keying needed
 
-    d.text((W / 2, 860), "Fast & Fun mini-games", font=ImageFont.truetype(FONT, 86, index=BOLD), fill=INK, anchor="mm")
+    d.text((W / 2, 820), "Fast & Fun", font=fredoka(96), fill=INK, anchor="mm")
+    d.text((W / 2, 924), "Mini-games", font=fredoka(96), fill=INK, anchor="mm")
 
     bw, bh = 760, 136
-    bx0, by0 = (W - bw) // 2, 960
+    bx0, by0 = (W - bw) // 2, 1020
     bx1, by1 = bx0 + bw, by0 + bh
     d.rounded_rectangle((bx0 + 14, by0 + 14, bx1 + 14, by1 + 14), 24, fill=INK)
     d.rounded_rectangle((bx0, by0, bx1, by1), 24, fill=AMBER, outline=INK, width=6)
-    d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), "quicklegame.com", font=ImageFont.truetype(FONT, 62, index=BOLD), fill=INK, anchor="mm")
+    d.text(((bx0 + bx1) / 2, (by0 + by1) / 2), "quicklegame.com", font=fredoka(64), fill=INK, anchor="mm")
     return im
 
 
