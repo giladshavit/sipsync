@@ -33,6 +33,10 @@ export default function Root({ children }: PropsWithChildren) {
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover"
         />
+        {/* Proves to Meta that quicklegame.com is ours - required before web
+            conversion events can be prioritised for ads. The value is public
+            by design (it appears in the page source of every verified site). */}
+        <meta name="facebook-domain-verification" content="m1l349fownnxxywcrbe2cvfwuip1y1" />
         <ScrollViewStyleReset />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/* Pre-hydration paint: cream matches the app, not browser white. */}
