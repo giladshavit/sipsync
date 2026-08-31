@@ -156,6 +156,37 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #21',
   },
+  'closest-average': {
+    title: 'Closest Average',
+    icon: 'target',
+    accent: '#0EA5E9',
+    screenBg: 'rgb(10, 10, 15)',
+    subtitle: 'Land closest to the average',
+    steps: [
+      {
+        caption: 'Everyone secretly picks a number - 0 to 99.',
+        shot: '01-pick.png',
+        bg: 'rgb(10, 10, 15)',
+        window: { x: 0, y: 860, w: 1179, h: 1073 },
+      },
+      {
+        caption: `All picks in? The room's ${yellow('average')} is revealed.`,
+        shot: '02-average.png',
+        bg: 'rgb(10, 10, 15)',
+        window: { x: 0, y: 700, w: 1179, h: 1073 },
+      },
+      {
+        caption: `${red('Farthest')} from the average? You drink.`,
+        shot: '03-farthest.png',
+        bg: 'rgb(10, 10, 15)',
+        window: { x: 0, y: 700, w: 1179, h: 1073 },
+      },
+    ],
+    whoDrinks: [
+      { label: 'Farthest off', chasers: 1, description: 'Farthest from the room average' },
+    ],
+    hashtags: '#partygame #gamenight #minigames #guessinggame',
+  },
 };
 
 // ---------- HTML ----------
