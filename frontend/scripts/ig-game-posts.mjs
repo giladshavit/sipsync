@@ -35,6 +35,9 @@ const C = {
 // PNG header: width at bytes 16-19, height at 20-23 (big-endian).
 function pngSize(file) {
   const b = fs.readFileSync(file);
+  if (b.readUInt32BE(0) !== 0x89504e47) {
+    throw new Error(`${file} is not a real PNG (a renamed JPEG?) - convert it first: uv run --with pillow python -c "from PIL import Image; Image.open('<f>').convert('RGB').save('<f>','PNG')"`);
+  }
   return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
 }
 
@@ -220,6 +223,48 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #greenlight',
   },
+  'tap-race': {
+    title: 'Tap Race',
+    icon: 'hand',
+    accent: '#2563EB',
+    screenBg: 'rgb(245, 158, 11)',
+    subtitle: 'Most taps in 10 seconds wins',
+    steps: [
+      {
+        caption: `A ${yellow('10-second')} window opens.`,
+        shot: '01-start.png',
+        bg: 'rgb(245, 158, 11)',
+        topStrip: {
+          x: 0, y: 176, w: 1179, h: 150,
+          overlays: [
+            { type: 'patch', from: { x: 700, y: 192 }, to: { x: 1012, y: 192 }, w: 106, h: 24 },  // fill the bar to the end
+          ],
+        },
+        window: { x: 0, y: 1100, w: 1179, h: 680 },
+      },
+      {
+        caption: `${green('Tap')}! As many times as you can!`,
+        shot: '02-tapping.png',
+        bg: 'rgb(240, 144, 20)',
+        topStrip: {
+          x: 0, y: 176, w: 1179, h: 150,
+        },
+        window: { x: 0, y: 1100, w: 1179, h: 680 },
+      },
+      {
+        // pre-cropped capture (1178x753): just the you-DRINK block; the frame's
+        // matching red fills it out to the slide
+        caption: `${red('Fewest')} taps? You drink.`,
+        shot: '03-result.png',
+        bg: 'rgb(201, 59, 49)',
+        window: { x: 0, y: 0, w: 1178, h: 753 },
+      },
+    ],
+    whoDrinks: [
+      { label: 'Fewest taps', chasers: 1, description: 'Tapped the least in the room' },
+    ],
+    hashtags: '#partygame #gamenight #minigames #taprace',
+  },
 };
 
 // ---------- HTML ----------
@@ -254,9 +299,11 @@ const css = `
   .frame { position: absolute; left: ${FRAME.left}px; top: ${FRAME.top}px; width: ${FRAME.w}px; height: ${FRAME.h}px; border: 4px solid ${C.ink}; overflow: hidden; }
   .raw { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
   .bar { position: absolute; top: 0; background-repeat: repeat-x; }
+  .strip { position: absolute; left: 0; top: 0; overflow: hidden; }
+  .clip { position: absolute; overflow: hidden; }
   .raw img { display: block; height: auto; }
   .ov { position: absolute; }
-  .ov-patch { background-repeat: no-repeat; background-size: 1290px auto; }
+  .ov-patch { background-repeat: no-repeat; }
   .ov-text { display: flex; align-items: center; justify-content: center; white-space: nowrap; }
   .ov-card { background: ${C.surface}; border: 4px solid rgb(21,179,80); border-radius: 28px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; }
   .ov-card .pts { font-size: 96px; font-weight: 900; color: rgb(255,218,79); line-height: 1; margin-top: 26px; }
@@ -298,7 +345,7 @@ function overlayHtml(o, img) {
       return `<div class="ov" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-size:${rawW}px auto;background-position:-${rawW - o.x - o.w}px -${o.y}px;transform:scaleX(-1)"></div>`;
     }
     case 'patch':
-      return `<div class="ov ov-patch" style="left:${o.to.x}px;top:${o.to.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-position:-${o.from.x}px -${o.from.y}px"></div>`;
+      return `<div class="ov ov-patch" style="left:${o.to.x}px;top:${o.to.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-size:${o.rawW}px auto;background-position:-${o.from.x}px -${o.from.y}px"></div>`;
     case 'cover':
       return `<div class="ov" style="${box};background:${o.color2 ? `linear-gradient(90deg, ${o.color}, ${o.color2})` : o.color}"></div>`;
     case 'text':
@@ -316,26 +363,48 @@ function stepHtml(g, i, s) {
   const img = path.join(SHOTS, g.slug, s.shot);
   const { w: rawW, h: rawH } = pngSize(img);
   const inner = { w: FRAME.w - 8, h: FRAME.h - 8 };
-  const scale = Math.min(inner.w / s.window.w, inner.h / s.window.h);
-  const dx = (inner.w - s.window.w * scale) / 2 - s.window.x * scale;
-  const dy = (inner.h - s.window.h * scale) / 2 - s.window.y * scale;
+  const strip = s.topStrip;
+  const stripScale = strip ? inner.w / strip.w : 0;
+  const stripH = strip ? Math.round(strip.h * stripScale) : 0;
+  const stripHtml = strip
+    ? `<div class="strip" style="width:${inner.w}px;height:${stripH}px"><div class="raw" style="transform: translate(${-strip.x * stripScale}px, ${-strip.y * stripScale}px) scale(${stripScale})"><img src="file://${img}" style="width:${rawW}px">${(strip.overlays ?? []).map((o) => overlayHtml({ bg: s.bg ?? g.screenBg, rawW, ...o }, img)).join('')}</div></div>`
+    : '';
+  const availH = inner.h - stripH;
+  const scale = Math.min(inner.w / s.window.w, availH / s.window.h);
+  // the window is clipped to its own box, so off-window rows of the capture
+  // can never bleed over the strip or the fill bars
+  const clip = {
+    left: Math.round((inner.w - s.window.w * scale) / 2),
+    top: Math.round(stripH + (availH - s.window.h * scale) / 2),
+    w: Math.round(s.window.w * scale),
+    h: Math.round(s.window.h * scale),
+  };
   // side bars: the capture's outermost columns stretched horizontally, so the
   // background continues seamlessly (vertical gradients survive, no visible join)
   const barW = Math.ceil((inner.w - s.window.w * scale) / 2);
+  const barTop = stripH;
   const stretch = 4000; // one source column spread across the whole bar
   const sizeCss = `background-size:${Math.round(s.window.w * scale * stretch)}px ${Math.round(rawH * scale)}px`;
   const posY = -Math.round(s.window.y * scale);
-  const leftBar = barW > 0 ? `<div class="bar" style="left:0;width:${barW + 1}px;height:${inner.h}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + 2) * scale * stretch)}px ${posY}px"></div>` : '';
-  const rightBar = barW > 0 ? `<div class="bar" style="right:0;width:${barW + 1}px;height:${inner.h}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + s.window.w - 3) * scale * stretch)}px ${posY}px"></div>` : '';
+  const leftBar = barW > 0 ? `<div class="bar" style="left:0;top:${barTop}px;width:${barW + 1}px;height:${availH}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + 2) * scale * stretch)}px ${posY}px"></div>` : '';
+  const rightBar = barW > 0 ? `<div class="bar" style="right:0;top:${barTop}px;width:${barW + 1}px;height:${availH}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + s.window.w - 3) * scale * stretch)}px ${posY}px"></div>` : '';
+  // and the same trick vertically when the window is wider than tall
+  const vBarH = Math.ceil((availH - s.window.h * scale) / 2);
+  const vSizeCss = `background-size:${Math.round(rawW * scale)}px ${Math.round(s.window.h * scale * stretch)}px`;
+  const posX = Math.round(clip.left - s.window.x * scale);
+  const topBar = vBarH > 0 ? `<div class="bar" style="left:0;top:${barTop}px;width:${inner.w}px;height:${vBarH + 1}px;background-image:url(file://${img});${vSizeCss};background-position:${posX}px ${-Math.round((s.window.y + 2) * scale * stretch)}px"></div>` : '';
+  const bottomBar = vBarH > 0 ? `<div class="bar" style="left:0;top:${barTop + availH - vBarH - 1}px;width:${inner.w}px;height:${vBarH + 1}px;background-image:url(file://${img});${vSizeCss};background-position:${posX}px ${-Math.round((s.window.y + s.window.h - 3) * scale * stretch)}px"></div>` : '';
   const overlays = (s.overlays ?? []).map((o) => overlayHtml({ bg: s.bg ?? g.screenBg, rawW, ...o }, img)).join('');
   return page_(`
     <div class="slide step">
       <div class="step-no" style="background:${g.accent}">${i}</div>
       <div class="caption">${s.caption}</div>
       <div class="frame" style="background:${s.bg ?? g.screenBg}">
-        ${leftBar}${rightBar}
-        <div class="raw" style="transform: translate(${dx}px, ${dy}px) scale(${scale})">
-          <img src="file://${img}" style="width:${rawW}px">${overlays}
+        ${leftBar}${rightBar}${topBar}${bottomBar}${stripHtml}
+        <div class="clip" style="left:${clip.left}px;top:${clip.top}px;width:${clip.w}px;height:${clip.h}px">
+          <div class="raw" style="transform: translate(${-s.window.x * scale}px, ${-s.window.y * scale}px) scale(${scale})">
+            <img src="file://${img}" style="width:${rawW}px">${overlays}
+          </div>
         </div>
       </div>
     </div>`);
