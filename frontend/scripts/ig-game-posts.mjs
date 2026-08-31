@@ -265,6 +265,42 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #taprace',
   },
+  'human-timer': {
+    title: 'Human Timer',
+    icon: 'timer',
+    accent: '#F59E0B',
+    screenBg: 'rgb(16, 14, 15)',
+    subtitle: 'Count the seconds in your head',
+    steps: [
+      {
+        caption: `A target appears: ${yellow('22 seconds')}.`,
+        shot: '01-target.png',
+        bg: 'rgb(16, 14, 15)',
+        window: { x: 0, y: 692, w: 1179, h: 1073 },
+      },
+      {
+        caption: `Count in your head. ${green('Tap')} when time's up.`,
+        shot: '02-counting.png',
+        bg: 'rgb(21, 17, 15)',
+        topStrip: {
+          x: 0, y: 168, w: 1179, h: 70,
+          overlays: [{ type: 'patch', from: { x: 34, y: 385 }, to: { x: 34, y: 212 }, w: 176, h: 28 }],
+        },
+        window: { x: 0, y: 758, w: 1179, h: 1013 },
+      },
+      {
+        caption: `${red('Farthest')} from the target? You drink.`,
+        shot: '03-result.png',
+        bg: 'rgb(37, 99, 235)',
+        window: { x: 0, y: 744, w: 1179, h: 1073 },
+      },
+    ],
+    whoDrinks: [
+      { label: 'Farthest off', chasers: 1, description: 'Farthest from the target time' },
+      { label: 'Never tapped', chasers: 1, description: "Didn't tap at all" },
+    ],
+    hashtags: '#partygame #gamenight #minigames #humantimer',
+  },
 };
 
 // ---------- HTML ----------
@@ -441,7 +477,7 @@ const plain = (html) => html.replace(/<[^>]+>/g, '');
 
 function caption(g) {
   const steps = g.steps.map((s, i) => `${i + 1}. ${plain(s.caption)}`).join('\n');
-  return `${g.title} — ${g.subtitle.toLowerCase()}.\n\n${steps}\n\nFast & Fun mini-games for a night with friends — everyone plays on their own phone. No download, no account, nothing to set up. Play free at quicklegame.com (link in bio).\n\n${g.hashtags} #quickle\n`;
+  return `${g.title}: ${g.subtitle.toLowerCase()}.\n\n${steps}\n\nFast & Fun mini-games for a night with friends. Everyone plays on their own phone, no download, no account, nothing to set up. Play free at quicklegame.com (link in bio).\n\n${g.hashtags} #quickle\n`;
 }
 
 // ---------- render ----------

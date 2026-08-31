@@ -22,7 +22,10 @@ the script first and copy its patterns.**
    short captions in simple English; color 1-2 keywords with the script's
    `red()`/`green()`/`yellow()` helpers. Captions compress the `rules` array
    only — a `rulesNote` is context, not a caption; drop it unless it fits a
-   caption naturally. Game hashtag: `#` + slug without dashes. The Icon name
+   caption naturally. Game hashtag: `#` + slug without dashes. No em-dashes
+   anywhere - not in captions, not in caption.md (they read as
+   machine-written, and a dash starting a wrapped line looks broken);
+   use a period or colon instead. The Icon name
    in kebab-case is the lucide file (e.g. `CircleSlash` → `circle-slash`).
 2. **Request captures and STOP.** Print a table: filename
    (`01-…png`, `02-…png`, `03-…png`) → exact game state wanted, and ask Gilad
