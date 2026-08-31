@@ -114,6 +114,48 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #russianroulette',
   },
+  'twenty-one': {
+    title: '21',
+    icon: 'circle-slash',
+    accent: '#D946EF',
+    screenBg: 'rgb(31,13,34)',
+    subtitle: "Don't be the one to hit 21",
+    steps: [
+      {
+        caption: 'A shared counter starts at 0.',
+        shot: '01-zero.png',
+        bg: 'rgb(31,13,34)',
+        window: { x: 0, y: 240, w: 1179, h: 1540 },
+        overlays: [
+          { type: 'mirror', x: 20, y: 201, w: 210, h: 210 },
+          { type: 'cover', x: 350, y: 616, w: 250, h: 52, color: 'rgb(38, 16, 42)', color2: 'rgb(41, 16, 44)' },
+          { type: 'text', x: 350, y: 622, w: 250, text: 'DAVID', size: 30, weight: 700, color: C.chalk, tracking: 0.14 },
+          { type: 'cover', x: 352, y: 1705, w: 470, h: 47, color: 'rgb(33,13,37)' },
+          { type: 'text', x: 352, y: 1707, w: 470, text: "DAVID'S TURN", size: 38, weight: 700, color: C.chalk, tracking: 0.14 },
+        ],
+      },
+      {
+        caption: 'On your turn: +1, +2 or +3',
+        shot: '02-your-turn.png',
+        bg: 'rgb(44,22,32)',
+        window: { x: 0, y: 900, w: 1179, h: 1480 },
+      },
+      {
+        caption: `Hit ${red('21')}? You drink.`,
+        shot: '03-hit-21.png',
+        bg: 'rgb(22,12,20)',
+        window: { x: 0, y: 640, w: 1179, h: 1200 },
+        overlays: [
+          { type: 'cover', x: 280, y: 1268, w: 620, h: 102, color: 'rgb(220,38,38)' },
+          { type: 'text', x: 300, y: 1280, w: 620, text: 'ROB', size: 75, weight: 900, color: C.chalk, tracking: 0.04 },
+        ],
+      },
+    ],
+    whoDrinks: [
+      { label: 'Hit 21', chasers: 2, description: 'Landed on exactly 21' },
+    ],
+    hashtags: '#partygame #gamenight #minigames #21',
+  },
 };
 
 // ---------- HTML ----------
@@ -135,12 +177,11 @@ const css = `
   .slide { position: relative; width: ${W}px; height: ${H}px; display: flex; flex-direction: column; align-items: center; }
   .label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.22em; }
 
-  /* cover: the catalog tile, big */
-  .cover { justify-content: center; }
-  .tile { width: 620px; border: 4px solid ${C.ink}; background: ${C.cream}; }
-  .tile-icon { height: 480px; display: flex; align-items: center; justify-content: center; border-bottom: 4px solid ${C.ink}; }
-  .tile-name { padding: 44px 36px; text-align: center; font-size: 56px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.05; }
-  .subtitle { margin-top: 72px; font-size: 54px; font-weight: 500; letter-spacing: -0.01em; }
+  /* cover: the game's own colour, full bleed - the profile grid becomes the games grid */
+  .cover { justify-content: center; gap: 0; color: ${C.chalk}; }
+  .cover .icon { margin-bottom: 56px; }
+  .cover .name { font-size: 104px; font-weight: 800; letter-spacing: -0.01em; line-height: 1.05; text-align: center; padding: 0 60px; }
+  .cover .subtitle { margin-top: 36px; font-size: 52px; font-weight: 500; opacity: 0.92; }
 
   /* step: centered caption, a closed frame around the whole game area */
   .step { padding-top: 104px; }
@@ -148,6 +189,7 @@ const css = `
   .caption { margin-top: 44px; padding: 0 96px; text-align: center; font-size: 56px; font-weight: 700; line-height: 1.18; letter-spacing: -0.01em; text-wrap: balance; }
   .frame { position: absolute; left: ${FRAME.left}px; top: ${FRAME.top}px; width: ${FRAME.w}px; height: ${FRAME.h}px; border: 4px solid ${C.ink}; overflow: hidden; }
   .raw { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+  .bar { position: absolute; top: 0; background-repeat: repeat-x; }
   .raw img { display: block; height: auto; }
   .ov { position: absolute; }
   .ov-patch { background-repeat: no-repeat; background-size: 1290px auto; }
@@ -177,11 +219,9 @@ const page_ = (body) => `<!doctype html><html><head><meta charset="utf-8">${FONT
 
 function coverHtml(g) {
   return page_(`
-    <div class="slide cover">
-      <div class="tile">
-        <div class="tile-icon" style="background:${g.accent}">${lucide(g.icon, { size: 280, color: C.chalk, strokeWidth: 1.6 })}</div>
-        <div class="tile-name">${g.title}</div>
-      </div>
+    <div class="slide cover" style="background:${g.accent}">
+      <div class="icon">${lucide(g.icon, { size: 320, color: C.chalk, strokeWidth: 1.5 })}</div>
+      <div class="name" style="font-size:${g.title.length <= 3 ? 180 : 104}px">${g.title}</div>
       <div class="subtitle">${g.subtitle}</div>
     </div>`);
 }
@@ -189,10 +229,14 @@ function coverHtml(g) {
 function overlayHtml(o, img) {
   const box = `left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px`;
   switch (o.type) {
+    case 'mirror': {
+      const rawW = o.rawW;
+      return `<div class="ov" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-size:${rawW}px auto;background-position:-${rawW - o.x - o.w}px -${o.y}px;transform:scaleX(-1)"></div>`;
+    }
     case 'patch':
       return `<div class="ov ov-patch" style="left:${o.to.x}px;top:${o.to.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-position:-${o.from.x}px -${o.from.y}px"></div>`;
     case 'cover':
-      return `<div class="ov" style="${box};background:${o.color}"></div>`;
+      return `<div class="ov" style="${box};background:${o.color2 ? `linear-gradient(90deg, ${o.color}, ${o.color2})` : o.color}"></div>`;
     case 'text':
       return `<div class="ov ov-text" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.size * 1.3}px;font-size:${o.size}px;font-weight:${o.weight};color:${o.color};letter-spacing:${o.tracking ?? 0}em">${o.text}</div>`;
     case 'card':
@@ -206,17 +250,26 @@ function overlayHtml(o, img) {
 
 function stepHtml(g, i, s) {
   const img = path.join(SHOTS, g.slug, s.shot);
-  const rawW = pngSize(img).w;
+  const { w: rawW, h: rawH } = pngSize(img);
   const inner = { w: FRAME.w - 8, h: FRAME.h - 8 };
   const scale = Math.min(inner.w / s.window.w, inner.h / s.window.h);
   const dx = (inner.w - s.window.w * scale) / 2 - s.window.x * scale;
   const dy = (inner.h - s.window.h * scale) / 2 - s.window.y * scale;
-  const overlays = (s.overlays ?? []).map((o) => overlayHtml({ bg: s.bg ?? g.screenBg, ...o }, img)).join('');
+  // side bars: the capture's outermost columns stretched horizontally, so the
+  // background continues seamlessly (vertical gradients survive, no visible join)
+  const barW = Math.ceil((inner.w - s.window.w * scale) / 2);
+  const stretch = 4000; // one source column spread across the whole bar
+  const sizeCss = `background-size:${Math.round(s.window.w * scale * stretch)}px ${Math.round(rawH * scale)}px`;
+  const posY = -Math.round(s.window.y * scale);
+  const leftBar = barW > 0 ? `<div class="bar" style="left:0;width:${barW + 1}px;height:${inner.h}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + 2) * scale * stretch)}px ${posY}px"></div>` : '';
+  const rightBar = barW > 0 ? `<div class="bar" style="right:0;width:${barW + 1}px;height:${inner.h}px;background-image:url(file://${img});${sizeCss};background-position:${-Math.round((s.window.x + s.window.w - 3) * scale * stretch)}px ${posY}px"></div>` : '';
+  const overlays = (s.overlays ?? []).map((o) => overlayHtml({ bg: s.bg ?? g.screenBg, rawW, ...o }, img)).join('');
   return page_(`
     <div class="slide step">
       <div class="step-no" style="background:${g.accent}">${i}</div>
       <div class="caption">${s.caption}</div>
       <div class="frame" style="background:${s.bg ?? g.screenBg}">
+        ${leftBar}${rightBar}
         <div class="raw" style="transform: translate(${dx}px, ${dy}px) scale(${scale})">
           <img src="file://${img}" style="width:${rawW}px">${overlays}
         </div>
@@ -255,7 +308,7 @@ const plain = (html) => html.replace(/<[^>]+>/g, '');
 
 function caption(g) {
   const steps = g.steps.map((s, i) => `${i + 1}. ${plain(s.caption)}`).join('\n');
-  return `${g.title} — ${g.subtitle.toLowerCase()}.\n\n${steps}\n\nOne of 15 mini-games in Quickle. Everyone plays on their own phone — no download, no account, nothing to set up. Free at quicklegame.com (link in bio).\n\n${g.hashtags} #quickle\n`;
+  return `${g.title} — ${g.subtitle.toLowerCase()}.\n\n${steps}\n\nFast & Fun mini-games for a night with friends — everyone plays on their own phone. No download, no account, nothing to set up. Play free at quicklegame.com (link in bio).\n\n${g.hashtags} #quickle\n`;
 }
 
 // ---------- render ----------
