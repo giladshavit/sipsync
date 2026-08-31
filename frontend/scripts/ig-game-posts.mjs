@@ -301,6 +301,159 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #humantimer',
   },
+  'go-with-the-flow': {
+    title: 'Go with the Flow',
+    icon: 'users',
+    accent: '#059669',
+    screenBg: 'rgb(255,248,225)',
+    subtitle: 'Land with the crowd and win',
+    steps: [
+      {
+        caption: 'A question. Two answers.',
+        shot: '01-question.png',
+        window: { x: 0, y: 990, w: 1179, h: 800 },
+      },
+      {
+        caption: `Pick a side. Land with the ${green('majority')}.`,
+        shot: '02-reveal.png',
+        window: { x: 0, y: 590, w: 1179, h: 1490 },
+        overlays: [
+          { type: 'cover', x: 175, y: 1445, w: 270, h: 370, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 1442, w: 270, text: 'You', size: 52, weight: 900, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1516, w: 270, text: 'David', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1575, w: 270, text: 'Emma', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1634, w: 270, text: 'Jake', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1693, w: 270, text: 'Noah', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1752, w: 270, text: 'Mia', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 1445, w: 260, h: 115, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 1452, w: 260, text: 'Rob', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1511, w: 260, text: 'Sophie', size: 40, weight: 500, color: '#0A0A0F' },
+        ],
+      },
+      {
+        // the same reveal screen, re-simulated: You switched to No, so 5-3,
+        // the bars re-drawn to scale, and the YOU DRINK button carried over
+        // from the other capture
+        caption: `With the ${red('minority')}? You drink.`,
+        shot: '02-reveal.png',
+        window: { x: 0, y: 590, w: 1179, h: 1490 },
+        overlays: [
+          { type: 'cover', x: 236, y: 784, w: 46, h: 42, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 236, y: 786, w: 46, text: '5', size: 36, weight: 800, color: 'rgb(22,163,74)' },
+          { type: 'cover', x: 796, y: 784, w: 44, h: 42, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 796, y: 786, w: 44, text: '3', size: 36, weight: 800, color: 'rgb(220,38,38)' },
+          { type: 'cover', x: 210, y: 998, w: 200, h: 400, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 218, y: 1066, w: 186, h: 326, color: 'rgb(22,163,74)' },
+          { type: 'cover', x: 766, y: 1260, w: 200, h: 138, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 774, y: 1193, w: 186, h: 199, color: 'rgb(220,38,38)' },
+          { type: 'cover', x: 175, y: 1445, w: 270, h: 310, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 1452, w: 270, text: 'David', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1511, w: 270, text: 'Emma', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1570, w: 270, text: 'Jake', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1629, w: 270, text: 'Noah', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1688, w: 270, text: 'Mia', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 1445, w: 260, h: 200, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 1442, w: 260, text: 'You', size: 52, weight: 900, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1516, w: 260, text: 'Rob', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1575, w: 260, text: 'Sophie', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'patch', shot: '03-result.png', from: { x: 350, y: 1822 }, to: { x: 350, y: 1822 }, w: 480, h: 220 },
+        ],
+      },
+    ],
+    whoDrinks: [
+      { label: 'Minority', chasers: 1, description: 'Picked the minority' },
+      { label: 'Lost the tie', chasers: 1, description: 'Tie, and the coin landed on your answer' },
+    ],
+    hashtags: '#partygame #gamenight #minigames #gowiththeflow',
+  },
+  'against-the-flow': {
+    title: 'Against the Flow',
+    icon: 'user-minus',
+    accent: '#EA580C',
+    screenBg: 'rgb(255,248,225)',
+    subtitle: 'Guess what the minority wants',
+    steps: [
+      {
+        caption: 'A question. Two answers. Opposite goal.',
+        shot: '01-question.png',
+        window: { x: 0, y: 990, w: 1179, h: 800 },
+      },
+      {
+        // simulated from the reveal capture: the majority is red now, the
+        // minority holds the trophy - and You called it
+        caption: `Pick a side. Land with the ${green('minority')}.`,
+        shot: '02-reveal.png',
+        window: { x: 0, y: 590, w: 1179, h: 1490 },
+        overlays: [
+          { type: 'cover', x: 345, y: 600, w: 490, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 345, y: 606, w: 490, text: 'Guess against the majority', size: 36, weight: 700, color: 'rgb(168,151,122)' },
+          { type: 'cover', x: 175, y: 714, w: 270, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 716, w: 270, text: 'Stand-up', size: 50, weight: 800, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 714, w: 260, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 716, w: 260, text: 'Concert', size: 50, weight: 800, color: '#0A0A0F' },
+          { type: 'cover', x: 180, y: 778, w: 260, h: 52, color: 'rgb(255,248,225)' },
+          { type: 'icon', name: 'glass-water', x: 194, y: 782, size: 40, color: 'rgb(220,38,38)' },
+          { type: 'text', x: 240, y: 788, w: 196, text: '5 VOTES', size: 34, weight: 800, color: 'rgb(220,38,38)', tracking: 0.12 },
+          { type: 'cover', x: 748, y: 778, w: 250, h: 52, color: 'rgb(255,248,225)' },
+          { type: 'icon', name: 'trophy', x: 754, y: 782, size: 40, color: 'rgb(22,163,74)' },
+          { type: 'text', x: 800, y: 788, w: 190, text: '3 VOTES', size: 34, weight: 800, color: 'rgb(22,163,74)', tracking: 0.12 },
+          { type: 'cover', x: 210, y: 995, w: 205, h: 405, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 218, y: 1074, w: 186, h: 318, color: 'rgb(220,38,38)' },
+          { type: 'cover', x: 766, y: 1258, w: 205, h: 140, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 774, y: 1201, w: 186, h: 191, color: 'rgb(22,163,74)' },
+          { type: 'cover', x: 175, y: 1445, w: 270, h: 370, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 1452, w: 270, text: 'David', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1511, w: 270, text: 'Sophie', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1570, w: 270, text: 'Jake', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1629, w: 270, text: 'Noah', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1688, w: 270, text: 'Mia', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 1438, w: 260, h: 210, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 1442, w: 260, text: 'You', size: 52, weight: 900, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1516, w: 260, text: 'Emma', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1575, w: 260, text: 'Rob', size: 40, weight: 500, color: '#0A0A0F' },
+        ],
+      },
+      {
+        caption: `With the ${red('majority')}? You drink.`,
+        shot: '02-reveal.png',
+        window: { x: 0, y: 590, w: 1179, h: 1490 },
+        overlays: [
+          { type: 'cover', x: 345, y: 600, w: 490, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 345, y: 606, w: 490, text: 'Guess against the majority', size: 36, weight: 700, color: 'rgb(168,151,122)' },
+          { type: 'cover', x: 175, y: 714, w: 270, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 716, w: 270, text: 'Stand-up', size: 50, weight: 800, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 714, w: 260, h: 54, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 716, w: 260, text: 'Concert', size: 50, weight: 800, color: '#0A0A0F' },
+          { type: 'cover', x: 180, y: 778, w: 260, h: 52, color: 'rgb(255,248,225)' },
+          { type: 'icon', name: 'glass-water', x: 194, y: 782, size: 40, color: 'rgb(220,38,38)' },
+          { type: 'text', x: 240, y: 788, w: 196, text: '6 VOTES', size: 34, weight: 800, color: 'rgb(220,38,38)', tracking: 0.12 },
+          { type: 'cover', x: 748, y: 778, w: 250, h: 52, color: 'rgb(255,248,225)' },
+          { type: 'icon', name: 'trophy', x: 754, y: 782, size: 40, color: 'rgb(22,163,74)' },
+          { type: 'text', x: 800, y: 788, w: 190, text: '2 VOTES', size: 34, weight: 800, color: 'rgb(22,163,74)', tracking: 0.12 },
+          { type: 'cover', x: 210, y: 995, w: 205, h: 405, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 218, y: 1002, w: 186, h: 390, color: 'rgb(220,38,38)' },
+          { type: 'cover', x: 766, y: 1258, w: 205, h: 140, color: 'rgb(255,248,225)' },
+          { type: 'box', x: 774, y: 1266, w: 186, h: 126, color: 'rgb(22,163,74)' },
+          { type: 'cover', x: 175, y: 1445, w: 270, h: 370, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 175, y: 1440, w: 270, text: 'You', size: 52, weight: 900, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1514, w: 270, text: 'David', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1573, w: 270, text: 'Sophie', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1632, w: 270, text: 'Jake', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1691, w: 270, text: 'Noah', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 175, y: 1750, w: 270, text: 'Mia', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'cover', x: 735, y: 1445, w: 260, h: 140, color: 'rgb(255,248,225)' },
+          { type: 'text', x: 735, y: 1452, w: 260, text: 'Emma', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'text', x: 735, y: 1511, w: 260, text: 'Rob', size: 40, weight: 500, color: '#0A0A0F' },
+          { type: 'patch', shot: '03-result.png', from: { x: 350, y: 1822 }, to: { x: 350, y: 1822 }, w: 480, h: 220 },
+        ],
+      },
+    ],
+    whoDrinks: [
+      { label: 'Majority', chasers: 1, description: 'Picked the majority' },
+      { label: 'Lost the tie', chasers: 1, description: 'Tie, and the coin landed on your answer' },
+    ],
+    hashtags: '#partygame #gamenight #minigames #againsttheflow',
+  },
 };
 
 // ---------- HTML ----------
@@ -380,8 +533,15 @@ function overlayHtml(o, img) {
       const rawW = o.rawW;
       return `<div class="ov" style="left:${o.x}px;top:${o.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-size:${rawW}px auto;background-position:-${rawW - o.x - o.w}px -${o.y}px;transform:scaleX(-1)"></div>`;
     }
-    case 'patch':
-      return `<div class="ov ov-patch" style="left:${o.to.x}px;top:${o.to.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${img});background-size:${o.rawW}px auto;background-position:-${o.from.x}px -${o.from.y}px"></div>`;
+    case 'patch': {
+      const src = o.shot ? path.join(path.dirname(img), o.shot) : img;
+      const srcW = o.shot ? pngSize(src).w : o.rawW;
+      return `<div class="ov ov-patch" style="left:${o.to.x}px;top:${o.to.y}px;width:${o.w}px;height:${o.h}px;background-image:url(file://${src});background-size:${srcW}px auto;background-position:-${o.from.x}px -${o.from.y}px"></div>`;
+    }
+    case 'icon':
+      return `<div class="ov" style="left:${o.x}px;top:${o.y}px">${lucide(o.name, { size: o.size, color: o.color, strokeWidth: o.strokeWidth ?? 2.5 })}</div>`;
+    case 'box':
+      return `<div class="ov" style="${box};background:${o.color};border:4px solid #0A0A0F"></div>`;
     case 'cover':
       return `<div class="ov" style="${box};background:${o.color2 ? `linear-gradient(90deg, ${o.color}, ${o.color2})` : o.color}"></div>`;
     case 'text':
