@@ -187,6 +187,39 @@ const GAMES = {
     ],
     hashtags: '#partygame #gamenight #minigames #guessinggame',
   },
+  'green-light': {
+    title: 'Green Light',
+    icon: 'zap',
+    accent: '#16A34A',
+    screenBg: 'rgb(220, 38, 38)',
+    subtitle: 'Tap the instant it flips green',
+    steps: [
+      {
+        caption: `The light starts ${red('red')}. Wait for it.`,
+        shot: '01-red.png',
+        bg: 'rgb(220, 38, 38)',
+        window: { x: 0, y: 740, w: 1179, h: 1073 },
+      },
+      {
+        caption: `${green('Green')}? Tap as fast as you can!`,
+        shot: '02-green.png',
+        bg: 'rgb(22, 163, 74)',
+        window: { x: 0, y: 740, w: 1179, h: 1073 },
+      },
+      {
+        caption: 'Slowest tap? You drink.',
+        shot: '03-result.png',
+        bg: 'rgb(37, 99, 235)',
+        window: { x: 0, y: 740, w: 1179, h: 1073 },
+      },
+    ],
+    whoDrinks: [
+      { label: 'Slowest', chasers: 1, description: 'Slowest valid tap' },
+      { label: 'Too early', chasers: 1, description: 'Tapped during the red light' },
+      { label: "Didn't tap", chasers: 1, description: "Didn't tap at all" },
+    ],
+    hashtags: '#partygame #gamenight #minigames #greenlight',
+  },
 };
 
 // ---------- HTML ----------
@@ -233,14 +266,14 @@ const css = `
   /* who drinks: the tutorial's chips, on cream */
   .who { justify-content: center; }
   .who h1 { font-size: 92px; font-weight: 800; letter-spacing: -0.02em; }
-  .chips { display: flex; gap: 40px; margin-top: 72px; }
+  .chips { display: flex; gap: 36px; margin-top: 72px; padding: 0 64px; justify-content: center; align-self: stretch; }
 
   /* close: the duck and the link */
   .close { justify-content: center; }
   .duck { width: 600px; height: 600px; }
   .close .line { margin-top: 16px; font-size: 76px; font-weight: 700; line-height: 1.12; letter-spacing: -0.01em; text-align: center; }
   .url { margin-top: 48px; width: 760px; height: 132px; display: flex; align-items: center; justify-content: center; background: ${C.amber}; border: 6px solid ${C.ink}; border-radius: 24px; box-shadow: 14px 14px 0 0 ${C.ink}; font-size: 60px; font-weight: 800; }
-  .chip { width: 340px; padding: 44px 28px 38px; display: flex; flex-direction: column; align-items: center; gap: 22px; border: 4px solid ${C.ink}; background: ${C.paper}; box-shadow: 10px 10px 0 0 ${C.ink}; }
+  .chip { flex: 1 1 0; max-width: 340px; min-width: 0; padding: 44px 24px 38px; display: flex; flex-direction: column; align-items: center; gap: 22px; border: 4px solid ${C.ink}; background: ${C.paper}; box-shadow: 10px 10px 0 0 ${C.ink}; }
   .glasses { display: flex; gap: 8px; }
   .chip-label { font-size: 34px; font-weight: 800; }
   .chip-desc { font-size: 26px; color: ${C.chipDesc}; text-align: center; line-height: 1.3; }
