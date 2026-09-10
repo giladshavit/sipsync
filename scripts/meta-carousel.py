@@ -6,7 +6,7 @@
 
     uv run scripts/meta-carousel.py
 
-Writes 1080x1080 (1:1) PNGs to docs/marketing/carousel/ - Meta renders
+Writes 1080x1080 (1:1) PNGs to docs/marketing/carousel/option-1-games-taste/ - Meta renders
 carousel cards square in most placements, so anything but 1:1 gets cropped -
 plus the whole screens (status bar off, native 1290x2646) to
 docs/marketing/screens/ for placements that fit a full phone screen. Card 1
@@ -28,7 +28,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 REPO = Path(__file__).resolve().parent.parent
 SHOTS = REPO / "docs/store/screenshots/iphone/en-US"
 ASSETS = REPO / "frontend/assets"
-OUT = REPO / "docs/marketing/carousel"
+OUT = REPO / "docs/marketing/carousel/option-1-games-taste"
 OUT_FULL = REPO / "docs/marketing/screens"  # the same captures whole (status bar off), native size
 STATUS_BAR_PX = 150  # of a 1290x2796 capture: the clock, signal and battery
 
@@ -54,7 +54,7 @@ WINDOW_H = round(H * RAW_W / W)  # 1290 capture rows fill a 1:1 card
 SCREENS = [
     ("02-games.png", 920),  # two full rows of tiles, the third row peeking below
     ("01-room.png", 520),  # "Waiting for friends...", tonight's games, the host
-    ("04-auction.png", 300),  # highest bid (David), the +1/+10 buttons, custom bid peeking
+    ("04-auction.png", 300),  # highest bid (David) and the +1/+10 buttons only
     ("05-twenty-one.png", 830),  # the counter ring, "YOUR TURN"
     ("06-roulette.png", 935),  # points and the six cards
     ("03-sacrifice.png", 888),  # "1 CHASER TO GO", the I'M IN button
@@ -98,6 +98,10 @@ def screen_card(name: str, top: int) -> Image.Image:
         # mirror would garble the progress bar (~278-295) are also cropped away.
         erase_back_button(src, y0=250)
         rename_wren(src)
+        # Erase the custom-bid panel poking into the window: the glow band
+        # just above its border (row 1440) is one flat colour full-width,
+        # so extending it down removes the panel without a seam.
+        ImageDraw.Draw(src).rectangle((0, 1441, RAW_W, 1620), fill=src.getpixel((645, 1440)))
     window = src.crop((0, top, RAW_W, top + WINDOW_H))
     return window.resize((W, H), Image.LANCZOS)
 
