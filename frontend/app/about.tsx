@@ -24,6 +24,24 @@ export default function AboutScreen() {
         faster hand. Nobody can win by sitting closer to the router.
       </Section>
 
+      <Section title="Fifteen games, three flavours">
+        Speed games are pure reflexes and reward the steadiest thumb in the room. Luck games hand
+        the outcome to a card, a coin or a number and are the great equaliser between the
+        seasoned gamer and the friend who has never played anything. Strategy games are about
+        reading people: bluffing, cooperating, betraying, and guessing what the crowd will do.
+        Most nights mix all three, and the catalog page explains which games open a room, which
+        need a big crowd, and which slow the pace down.
+      </Section>
+
+      <Section title="Design principles">
+        Every game must be learnable in the few seconds its tutorial takes, because nobody at a
+        party reads a manual. Every round must end with a clear result, so the table always
+        knows who lost and why. Nothing requires a shared screen, an account, or a download,
+        because the phones people already hold are enough. And the server, not the phone, is
+        the judge of anything timed, so the game is fair on bad hotel Wi-Fi and good home
+        fibre alike.
+      </Section>
+
       <Section title="Drink responsibly">
         Quickle is for adults of legal drinking age. What goes in your cup is
         entirely up to you — water and soft drinks play exactly as well. Know
@@ -31,8 +49,12 @@ export default function AboutScreen() {
       </Section>
 
       <Section title="Who makes Quickle">
-        Quickle is built and run independently. It started as a way to make
-        game night louder and turned into the site you're reading now.
+        Quickle is built and run by Gilad Shavit, a software developer who wanted a party game
+        that lived on the phones people already had in their pockets instead of on a deck of
+        cards that somebody always forgets to bring. He writes the games, the rules and the
+        pages you are reading, and runs the whole thing independently, with no studio or
+        publisher behind it. It started as a way to make game night louder and turned into
+        the site you're reading now.
       </Section>
 
       <Section title="Contact">
