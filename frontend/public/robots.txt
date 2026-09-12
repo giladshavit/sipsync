@@ -4,4 +4,10 @@ Disallow: /onboarding
 Disallow: /profile
 Allow: /
 
+# AdSense's crawler must be able to read the pages it serves ads on
+# (support.google.com/adsense/answer/10532). Ads only run on the public
+# content pages, which the general rule already allows.
+User-agent: Mediapartners-Google
+Disallow:
+
 Sitemap: https://www.quicklegame.com/sitemap.xml
