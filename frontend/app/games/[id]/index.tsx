@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { Platform, View, Text, Pressable, ScrollView, ActivityIndicator } from 'react-native';
 import Svg, { Line } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -9,6 +9,7 @@ import { colors } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { CATEGORY_LABELS, GAME_CATALOG, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
+import { getGameGuide } from '@/constants/gameGuides';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { apiFetch } from '@/lib/api';
 import { PracticeRoleSheet, type PracticeRole } from '@/components/PracticeRoleSheet';
@@ -94,6 +95,27 @@ function RuleText({ line, fontSize = 14, lineHeight = 20 }: { line: RuleLine; fo
 
 function SectionDivider() {
   return <View style={{ height: 2, backgroundColor: colors.ink, opacity: 0.12, marginVertical: 28 }} />;
+}
+
+// Long-form guide prose (constants/gameGuides.ts) — the part of the page a
+// person reads before game night, and the part crawlers score the page on.
+function GuideParagraph({ children }: { children: string }) {
+  return <Text style={{ color: colors.ink, fontSize: 15, lineHeight: 23 }}>{children}</Text>;
+}
+
+function GuideList({ items }: { items: string[] }) {
+  return (
+    <View style={{ gap: 12 }}>
+      {items.map((item, i) => (
+        <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
+          <Text style={{ color: colors.amber, fontWeight: '900', fontSize: 14, width: 18, lineHeight: 23 }}>
+            {i + 1}
+          </Text>
+          <Text style={{ flex: 1, color: colors.ink, fontSize: 15, lineHeight: 23 }}>{item}</Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 function SectionLabel({ children }: { children: string }) {
@@ -338,6 +360,9 @@ export default function GameRulesScreen() {
   }
 
   const { Icon } = game;
+  // Web only: the prose is for readers and crawlers on quicklegame.com; the
+  // native rules screen keeps its compact card.
+  const guide = Platform.OS === 'web' ? getGameGuide(game.id) : undefined;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
@@ -592,6 +617,26 @@ export default function GameRulesScreen() {
               );
             })}
           </View>
+
+          {guide && (
+            <>
+              <SectionDivider />
+              <SectionLabel>At the table</SectionLabel>
+              <GuideParagraph>{guide.overview}</GuideParagraph>
+
+              <SectionDivider />
+              <SectionLabel>Strategy</SectionLabel>
+              <GuideList items={guide.strategy} />
+
+              <SectionDivider />
+              <SectionLabel>House rules</SectionLabel>
+              <GuideList items={guide.variations} />
+
+              <SectionDivider />
+              <SectionLabel>Without alcohol</SectionLabel>
+              <GuideParagraph>{guide.withoutAlcohol}</GuideParagraph>
+            </>
+          )}
         </View>
       </ScrollView>
 
