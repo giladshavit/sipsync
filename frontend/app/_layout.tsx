@@ -15,7 +15,7 @@ import { useHydrated } from '@/hooks/useHydrated';
 
 export default function RootLayout() {
   const pathname = usePathname();
-  const showAdsScript = Platform.OS === 'web' && isAdEligiblePath(pathname);
+  const adsActive = isAdEligiblePath(pathname);
 
   // Web-only: `height: 100%` on html/body/#root (or `100vh`) both resolve
   // against the browser's *layout* viewport, which iOS Safari doesn't
@@ -104,7 +104,7 @@ export default function RootLayout() {
           />
           {Platform.OS === 'web' && <Analytics />}
           {Platform.OS === 'web' && <SpeedInsights />}
-          {showAdsScript && <AdSenseScript />}
+          {Platform.OS === 'web' && <AdSenseScript active={adsActive} />}
         </AudioProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>

@@ -1,5 +1,6 @@
 import { ScrollViewStyleReset } from 'expo-router/html';
 import type { PropsWithChildren } from 'react';
+import { ADSENSE_CLIENT_ID } from '@/config/adPlacements';
 
 // Static-export HTML shell. Global, page-independent tags only — titles,
 // descriptions and og/social tags live in React (<Head>) so pages can
@@ -37,6 +38,10 @@ export default function Root({ children }: PropsWithChildren) {
             conversion events can be prioritised for ads. The value is public
             by design (it appears in the page source of every verified site). */}
         <meta name="facebook-domain-verification" content="m1l349fownnxxywcrbe2cvfwuip1y1" />
+        {/* AdSense's static site-ownership tag (the ads.txt entry is the
+            other). The Auto-ads script itself is injected at runtime on
+            content pages only — see config/adPlacements.ts. */}
+        <meta name="google-adsense-account" content={ADSENSE_CLIENT_ID} />
         <ScrollViewStyleReset />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/* Pre-hydration paint: cream matches the app, not browser white. */}
