@@ -42,6 +42,9 @@ export default function Root({ children }: PropsWithChildren) {
             other). The Auto-ads script itself is injected at runtime on
             content pages only — see config/adPlacements.ts. */}
         <meta name="google-adsense-account" content={ADSENSE_CLIENT_ID} />
+        {/* Google Search Console ownership proof for the URL-prefix property
+            https://www.quicklegame.com/ — public by design, like the two above. */}
+        <meta name="google-site-verification" content="FIuRUnFZ7qWBs_7m0zH-IiM8URA7eYogE77dwuR8WVU" />
         <ScrollViewStyleReset />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/* Pre-hydration paint: cream matches the app, not browser white. */}
