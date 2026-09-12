@@ -208,7 +208,31 @@ export default function AllGamesScreen() {
             </View>
           ))}
         </View>
+
+        {/* Editorial guide to the catalog: which games open a room, which
+            need a crowd, which slow it down. Web only, like the intro. */}
+        {Platform.OS === 'web' && (
+          <View style={{ marginTop: 40, gap: 14 }}>
+            <Text style={{ color: colors.amber, ...typography.label, fontSize: 11, letterSpacing: 4, textTransform: 'uppercase' }}>
+              Which game, when
+            </Text>
+            {WHICH_GAME_WHEN.map((paragraph) => (
+              <Text key={paragraph.slice(0, 24)} style={{ color: colors.ink, fontSize: 15, lineHeight: 23 }}>
+                {paragraph}
+              </Text>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </View>
   );
 }
+
+const WHICH_GAME_WHEN = [
+  'Opening a fresh room: Green Light and Tap Race need no explaining and get every thumb moving before anyone has settled in. Human Timer and Strong Point follow well once the table is awake, because both reward the people who stop laughing long enough to concentrate.',
+  'Once people are warmed up: Liar\'s Coin and Black Box put one player under the spotlight while the rest of the room watches them bluff, and Prisoner\'s Dilemma turns two friends into cautious partners for a minute. These are the games people talk about on the way home.',
+  'When everyone has an opinion: Go with the Flow and Against the Flow ask a question, split the room in two and reveal the count. The reveal is where the arguments start, and the arguments are the game.',
+  'Big rooms: Auction wants five or more bidders, Flying Bomb wants a ring of at least three phones, and The Sacrifice needs a crowd to carry the target. All three get better with every extra player.',
+  'Slower rounds: 21, Closest Average and Russian Roulette take turns instead of racing, which lets the strategists at the table come out and gives everyone else a moment to breathe.',
+  'The shuffle picks for you, but the host chooses what is in the deck from the lobby, so a table that only wants speed games, or no bluffing games, can have exactly that.',
+];

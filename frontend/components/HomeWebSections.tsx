@@ -24,6 +24,16 @@ const STEPS = [
 
 const TEASER_COUNT = 6;
 
+// The editorial half of the landing page: what makes the format different,
+// how a night runs, and who it is for. Plain paragraphs, no marketing voice.
+const WHY = [
+  'Most party games make everyone stare at one screen, pass one phone around, or wait while somebody reads a card. Quickle puts the whole game on the phones already in the room. Every player sees their own view, the server keeps the round in sync, and nobody has to explain the rules, because each game teaches itself in a few seconds the first time it comes up.',
+  'Rounds are short on purpose. A reflex game is over in a second, a bluffing game in a minute, and the podium between rounds gives the table time to argue about what just happened. A night is as long as you want it to be: the host picks which games are in play, the shuffle keeps them from repeating, and End Night closes the room whenever the group is done.',
+  'Fair play is built in rather than promised. Every timed game is judged on the server with each player\'s clock corrected, so a slow connection never decides a round, and votes and bluffs stay sealed until the reveal.',
+  'What goes in the cup is the table\'s call. The games count in chasers, and a chaser can be a sip, a shot of something mild or a gulp of water. Every rules page explains how the game plays without alcohol, and mixed tables, where some people drink and some are driving, are normal.',
+  'Quickle fits a flat party, a pre-drink before going out, a birthday, a slow evening that needs a jolt, or a group that has played every card game it owns. Two players can start a room; the games get louder with every phone that joins.',
+];
+
 // Web-only: the app's home doubles as quicklegame.com's landing page, so
 // below the CTAs it carries real, crawlable copy — how the game works, links
 // into the rules pages, and a footer. Native home stays just the app UI.
@@ -53,6 +63,17 @@ export default function HomeWebSections() {
               <Text style={{ color: colors.ink, fontSize: 14, lineHeight: 21, opacity: 0.85 }}>{body}</Text>
             </View>
           </View>
+        ))}
+      </View>
+
+      <Text style={{ ...typography.label, color: colors.amber, fontSize: 12, letterSpacing: 2, marginBottom: 20 }}>
+        Why Quickle
+      </Text>
+      <View style={{ gap: 14, marginBottom: 56 }}>
+        {WHY.map((paragraph) => (
+          <Text key={paragraph.slice(0, 24)} style={{ color: colors.ink, fontSize: 14, lineHeight: 21, opacity: 0.85 }}>
+            {paragraph}
+          </Text>
         ))}
       </View>
 
