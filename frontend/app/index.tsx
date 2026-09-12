@@ -11,6 +11,7 @@ import { trackPixelEvent } from '@/lib/metaPixel';
 import { apiFetch } from '@/lib/api';
 import { ACTIVE_GAME_CATALOG } from '@/constants/games';
 import HomeWebSections from '@/components/HomeWebSections';
+import SiteNav from '@/components/SiteNav';
 
 export default function HomeScreen() {
   useWebPageBackground('#FFF8E1');
@@ -76,6 +77,7 @@ export default function HomeScreen() {
           <Image source={require('@/assets/duck.png')} style={{ width: 170, height: 170 }} />
         </View>
       )}
+      <SiteNav variant="overlay" />
       {isOnboarded && (
       <Pressable
         onPress={() => router.push('/profile')}

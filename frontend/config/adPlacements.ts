@@ -22,6 +22,7 @@ const CONTENT_PATHS: readonly RegExp[] = [
   /^\/games$/,
   /^\/games\/[^/]+$/, // rule pages only — /games/<id>/tutorial is an app-like screen
   /^\/about$/,
+  /^\/faq$/,
   /^\/terms$/,
   /^\/privacy$/,
 ];

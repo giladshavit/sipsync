@@ -21,6 +21,7 @@ const CHECKS = [
   { file: 'games/reflex/index.html', mustContain: ['tap as fast as you can'] },
   { file: 'privacy.html', mustContain: ['Privacy Policy', 'No account, email, phone number'] },
   { file: 'about.html', mustContain: ['About Quickle', 'Drink responsibly'] },
+  { file: 'faq.html', mustContain: ['What is Quickle?', 'Can we play without alcohol?'] },
   { file: 'terms.html', mustContain: ['Terms of Use', 'legal drinking age'] },
 ];
 

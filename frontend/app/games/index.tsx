@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { useHydrated } from '@/hooks/useHydrated';
+import SiteNav from '@/components/SiteNav';
 import { ACTIVE_GAME_CATALOG, type GameMeta } from '@/constants/games';
 import { CategoryFilterChips, type CategoryFilter } from '@/components/CategoryFilterChips';
 
@@ -56,6 +57,7 @@ export default function AllGamesScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.cream }}>
+      <SiteNav />
       <Head>
         <title>All 15 Party Drinking Games — Quickle</title>
         <meta
@@ -68,11 +70,12 @@ export default function AllGamesScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: H_PADDING,
-          paddingTop: insets.top + 16,
+          paddingTop: Platform.OS === 'web' ? 28 : insets.top + 16,
           paddingBottom: insets.bottom + 24,
         }}
       >
-        {/* Back to home */}
+        {/* Back to home — native only; web has the site nav above */}
+        {Platform.OS !== 'web' && (
         <Pressable
           onPress={() => router.back()}
           style={{
@@ -88,6 +91,7 @@ export default function AllGamesScreen() {
         >
           <ArrowLeft size={20} color={colors.ink} />
         </Pressable>
+        )}
 
         {/* Header — split-weight signature, matches home/lobby */}
         <View className="mb-6">

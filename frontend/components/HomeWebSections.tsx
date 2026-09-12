@@ -103,6 +103,7 @@ export default function HomeWebSections() {
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', columnGap: 18, rowGap: 8, marginBottom: 16 }}>
           <Link href="/games"><Text style={{ ...typography.label, color: colors.ink, fontSize: 11 }}>Games</Text></Link>
+          <Link href="/faq"><Text style={{ ...typography.label, color: colors.ink, fontSize: 11 }}>FAQ</Text></Link>
           <Link href="/about"><Text style={{ ...typography.label, color: colors.ink, fontSize: 11 }}>About</Text></Link>
           <Link href="/terms"><Text style={{ ...typography.label, color: colors.ink, fontSize: 11 }}>Terms</Text></Link>
           <Link href="/privacy"><Text style={{ ...typography.label, color: colors.ink, fontSize: 11 }}>Privacy</Text></Link>
