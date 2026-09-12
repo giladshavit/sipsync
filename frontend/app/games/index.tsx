@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
+import { Platform, View, Text, Pressable, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, router } from 'expo-router';
 import Head from '@/lib/head';
@@ -110,6 +110,22 @@ export default function AllGamesScreen() {
             Games
           </Text>
         </View>
+
+        {/* Static intro: what the three categories mean and how a night is
+            sequenced. Crawlable prose for a page that is otherwise a grid of
+            links (#179). */}
+        {Platform.OS === 'web' && (
+          <Text style={{ color: colors.ink, fontSize: 15, lineHeight: 23, marginBottom: 20 }}>
+            The mini-games come in three flavours. Speed games are pure reflexes, timed on the
+            server so a slow connection never decides who drinks. Luck games hand the outcome to a
+            card, a coin or a number. Strategy games are about reading the room: bluff, cooperate,
+            betray. Each round the smart shuffle picks a game the room has not played yet tonight,
+            so nothing repeats until everything has had its turn, and a few games need at least
+            three or five players to work. Tap any game for its full rules, who drinks and how
+            scoring works, plus strategy tips and house rules, and run a practice round against
+            bots before game night.
+          </Text>
+        )}
 
         {/* Category filter chips */}
         <CategoryFilterChips value={filter} onChange={setFilter} style={{ marginBottom: 20 }} />
