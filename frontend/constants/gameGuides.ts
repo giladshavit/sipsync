@@ -27,7 +27,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
       'Silence the table for the countdown. A shout of "now!" from a joker is the oldest trick in the game and it still works on somebody every night.',
     ],
     variations: [
-      'Bottom two: the two slowest players drink instead of one. Good for big rooms where a single loser barely dents the group.',
+      'Silent start: nobody may speak from the moment the red light appears. Good for big rooms, where the chatter is usually what makes people jump early.',
       'Champion\'s call: the fastest player picks one extra person to drink, no reason required.',
       'Blind round: phones face down until the host says go, then everyone flips their phone over and plays. Adds a second reflex to the first.',
     ],
@@ -62,8 +62,8 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     ],
     variations: [
       'Eyes closed: everyone shuts their eyes on go and opens them after they tap. Removes the temptation to watch the room.',
-      'Long count: the host announces the round as a long one and the table agrees that the two farthest off both drink.',
-      'Shared penalty: the farthest player names someone else who drinks with them, so the loser is never alone.',
+      'Long count: the host announces the round as a long one, and the farthest player has to explain out loud what they were counting. It is never as accurate as they think.',
+      'Second chance: the farthest player may call a rematch against the closest, best of one, for points only.',
     ],
     withoutAlcohol:
       'Human Timer is a concentration game before it is a drinking game. Play it for points, or have the loser take on a small forfeit, and it stays exactly as tense with a glass of water in hand.',
@@ -80,24 +80,24 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     variations: [
       'No skips: the table agrees to remove the skip entirely. Faster, crueller, and the odds do all the talking.',
       'Dealer\'s choice: the player who found the poison picks who flips first next time it comes around.',
-      'Shared poison: the person who flips the poison and the person who flipped right before them both drink, one chaser each.',
+      'Narrator: the player who flipped right before the poison has to describe, in the most dramatic voice they can manage, exactly how they dodged it.',
     ],
     withoutAlcohol:
       'The dread of the last two cards is the fun of Roulette, and the dread does not care what is in the cup. Play for points, or make the poison card a dare card, and the room will still hold its breath for the flip.',
   },
   coin_flip: {
     overview:
-      'Liar\'s Coin is a bluffing game hiding inside a coin toss. One player flips, sees the result, and announces it, truthfully or not. Everyone else has to decide whether to believe them. Wrong guesses drink, but if more than half the room reads the flipper correctly, the flipper drinks double. The coin is irrelevant within a round or two; what the room is really playing is the person holding it.',
+      'Liar\'s Coin is a bluffing game hiding inside a coin toss. One player flips, sees the result, and announces it, truthfully or not. Everyone else has to decide whether to believe them. Wrong guesses pay a chaser, and if more than half the room reads the flipper correctly, the flipper pays two. The coin is irrelevant within a round or two; what the room is really playing is the person holding it.',
     strategy: [
       'As the flipper, tell the truth more often than you think you should. Most rooms assume a lie, so an honest call is the more surprising play.',
       'As a guesser, forget the coin and read the person. Do they always lie, do they get shifty when honest, did they hesitate before announcing?',
-      'Watch the room, not just the flipper. If the majority is clearly going one way and you agree with them, the flipper is about to drink double, which is worth more than your own safety.',
+      'Watch the room, not just the flipper. If the majority is clearly going one way and you agree with them, the flipper is about to pay two chasers, which is worth more than your own safety.',
       'Always vote. Sitting out counts as a wrong guess, so an uncertain pick still beats no pick.',
     ],
     variations: [
       'Poker face: the flipper announces with no words, only by holding up a thumb up for heads or down for tails, and may not speak until the votes are in.',
       'Rematch: whoever called the flipper correctly in the biggest majority gets to be the next flipper.',
-      'Double stakes: the table agrees that wrong guesses drink two on rounds where the flipper is caught lying.',
+      'Confession: a flipper who is caught lying has to tell the table one true thing about themselves before the next round starts.',
     ],
     withoutAlcohol:
       'Liar\'s Coin is a lie-detector party game that happens to have a drink attached. The points already punish bad reads and reward good ones, so it plays at full strength with nothing stronger than a soda.',
@@ -121,7 +121,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
   },
   sacrifice: {
     overview:
-      'The Sacrifice puts a bill in front of the room and asks who is paying. A target number of chasers appears, a 30-second clock starts, and anyone can tap to take one of them. If the room covers the target in time, only the volunteers drink what they pledged. If the room comes up short, everyone drinks, and the volunteers drink their pledge on top. It is a game about the bystander effect, and it exposes who steps up and who waits for someone else to.',
+      'The Sacrifice puts a bill in front of the room and asks who is paying. A target number of chasers appears, a 30-second clock starts, and anyone can tap to take one of them. If the room covers the target in time, only the volunteers pay what they pledged. If the room comes up short, everyone pays one, and the volunteers pay their pledge on top. It is a game about the bystander effect, and it exposes who steps up and who waits for someone else to.',
     strategy: [
       'Pledge early if you are going to pledge at all. The points for a saved room, 10 per chaser, are the biggest reward in the game, and an early tap encourages the rest of the table to follow.',
       'Know the room. A table that always saves itself is a table where volunteering is nearly free; a table that lets the clock run is a table where a pledge costs you twice.',
@@ -140,7 +140,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     overview:
       'Prisoner\'s Dilemma is the oldest question in game theory with a drink attached. The room is split into random pairs, and each half of a pair secretly chooses to Help or Betray. Mutual help is a small win for both. A betrayal against a helper is a big win for the traitor and a painful loss for the victim. Mutual betrayal hurts both, but less than being the only one who trusted. Over a whole night the pairs shuffle, reputations form, and the room starts to remember who did what.',
     strategy: [
-      'Read the grid before you decide. Betraying a helper earns you 10 points and no drink; helping a betrayer costs you 10 points and two chasers. The gap between those two outcomes is the whole tension.',
+      'Read the grid before you decide. Betraying a helper earns you 10 points and no chaser; helping a betrayer costs you 10 points and two chasers. The gap between those two outcomes is the whole tension.',
       'Reputation matters because the game repeats. A player known for betraying gets betrayed back, and mutual betrayal is a loss for both, so a clean record is worth something later in the night.',
       'Promises across the table are not binding, and everyone knows it. Treat a loud declaration of loyalty as information about the person, not about their choice.',
       'If the room has an odd number of players, one person sits the round out and is immune. Check whether that is you before spending any energy on the decision.',
@@ -165,7 +165,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     variations: [
       'Explain yourself: after the reveal, everyone in the minority explains their reasoning. No extra drinks, but plenty of arguments.',
       'Silent vote: nobody may speak between the question appearing and the reveal. Removes the loud voter problem entirely.',
-      'Lone wolf bonus: if exactly one person is in the minority, the table agrees they drink two, because they clearly were not paying attention.',
+      'Lone wolf: if exactly one person lands in the minority, they have to defend their answer to the table for thirty seconds before the next question.',
     ],
     withoutAlcohol:
       'Go with the Flow is a conversation starter first. The questions get the room talking, the reveal gets it laughing, and the points keep score fine on their own. It is one of the best games in Quickle for a mixed room with non-drinkers.',
@@ -182,7 +182,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     variations: [
       'Mixed mode: the host alternates Go with the Flow and Against the Flow without announcing which is which until the reveal. Chaos, in a good way.',
       'Show your work: minority winners explain what they expected the room to do. It teaches the table how each player thinks, which makes the next round harder.',
-      'Lone wolf: if exactly one player lands in the minority, they pick one extra person from the majority to drink.',
+      'Lone wolf: if exactly one player lands in the minority, everyone else has to say out loud what they expected the room to do. The explanations are usually worse than the guesses.',
     ],
     withoutAlcohol:
       'Against the Flow is a pure prediction game. The scoring already rewards the good reads, so it plays at full strength for points, and it is great for a room where the drinkers and the drivers want to play the same game together.',
@@ -199,7 +199,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     variations: [
       'Phone down: everyone plays with the phone flat on the table and one hand behind their back.',
       'Off hand: non-dominant hand only, which turns everyone into a beginner at once.',
-      'Top three safe: in a big room, only the three fastest hits are safe, and everyone else drinks. Turns a gentle round into a real one.',
+      'Podium call: in a big room, the three fastest hits get read out with their times, and the slowest has to applaud. Turns a gentle round into a real one.',
     ],
     withoutAlcohol:
       'Strong Point is an aim-and-reaction test that does not need a drink to be competitive. The points already separate the sharp from the slow, and the loser can pay in a dare or a sip of water just as well.',
@@ -216,14 +216,14 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     variations: [
       'One direction: the table agrees every bomb travels clockwise only. Simpler, faster, and it removes the ping-pong between two neighbours.',
       'No sound: silent round, no warnings allowed, and nobody may say who has a bomb.',
-      'Shared blast: whoever is holding a bomb at the end also picks one neighbour to drink with them, since the neighbour clearly passed it over.',
+      'Blame game: whoever is holding a bomb at the end gets ten seconds to argue that a neighbour deserved it more. The table votes; nothing changes, but it is very satisfying.',
     ],
     withoutAlcohol:
       'Flying Bomb is a frantic, physical, laugh-out-loud round with or without a drink at the end. Play it for points, or swap the chaser for a forfeit, and the panic when a bomb lands on your screen is exactly the same.',
   },
   twenty_one: {
     overview:
-      '21 is the calmest game in Quickle and one of the deepest. A shared counter starts at 0 and passes around the table. On your turn you push it up by 1, 2 or 3, never past 21, and whoever is forced to land it on exactly 21 drinks two chasers. With two players it is a solved puzzle. With a full table it turns into a game of reading who is about to be trapped and quietly making sure it is not you.',
+      '21 is the calmest game in Quickle and one of the deepest. A shared counter starts at 0 and passes around the table. On your turn you push it up by 1, 2 or 3, never past 21, and whoever is forced to land it on exactly 21 pays two chasers. With two players it is a solved puzzle. With a full table it turns into a game of reading who is about to be trapped and quietly making sure it is not you.',
     strategy: [
       'The magic numbers are multiples of 4. If you leave the counter on 4, 8, 12, 16 or 20, the next player cannot avoid giving you another multiple of 4, and 20 forces them to hit 21.',
       'With three or more players, the maths only works for the last two moves. Focus on not being the person left on 18, 19 or 20 with the turn coming to you.',
@@ -240,7 +240,7 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
   },
   auction: {
     overview:
-      'Auction is the big-room game. A prize goes up for bidding: a pool of chasers that the winner gets to hand out to everyone else. Bids are made in two currencies at once, the chasers you would personally drink and the points you would pay, and every raise resets a 15-second clock. When the clock runs out, the highest bidder pays their bid, then distributes the prize around the table, with a cap of two chasers for any single victim. It needs at least five players, because an auction with three bidders is just a conversation.',
+      'Auction is the big-room game. A prize goes up for bidding: a pool of chasers that the winner gets to hand out to everyone else. Bids are made in two currencies at once, the chasers you would personally take and the points you would pay, and every raise resets a 15-second clock. When the clock runs out, the highest bidder pays their bid, then shares the prize out around the table, never more than two chasers to any one player. It needs at least five players, because an auction with three bidders is just a conversation.',
     strategy: [
       'Price the prize before you bid. The pool is worth handing out only if it is bigger than what you would drink to win it; a bid of three chasers for a pool of three is a losing trade.',
       'Points are the cheaper currency early in the night and the expensive one late. If you are ahead on the scoreboard, bid points; if you are behind, bid chasers.',
@@ -249,8 +249,8 @@ export const GAME_GUIDES: Record<string, GameGuide> = {
     ],
     variations: [
       'Sealed bids: everyone writes a single bid and reveals at once. No clock, no reading the room, just nerve.',
-      'Chasers only: the table agrees that points may not be bid. Every auction becomes a straightforward question of how much you are willing to drink to make others drink more.',
-      'Charity round: the winner must hand the whole pool to a single player, cap removed. Use with care.',
+      'Points only: the table agrees that chasers may not be bid. Every auction becomes a pure scoreboard fight, and the prize is the only thing anyone takes on.',
+      'Open books: bidders must say, before the clock runs out, why they want the prize. Lying is allowed, but the table remembers.',
     ],
     withoutAlcohol:
       'Auction is a bargaining game, and the bargaining is the fun. Bid and pay in points only, or agree that chasers mean sips of water, and the bluffing, the running up and the last-second raises all still work.',
