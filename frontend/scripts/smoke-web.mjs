@@ -12,6 +12,7 @@ const CHECKS = [
   { path: '/', expect: 'Quickle' },             // home page
   { path: '/games', expect: 'Games' },          // catalog index
   { path: '/privacy', expect: 'Privacy Policy' },
+  { path: '/faq', expect: 'What is Quickle?' },
   { path: '/games/reflex', expect: 'tap as fast as you can' }, // dynamic /games/:id rules page
   { path: '/games/reflex/tutorial', expect: 'Green Light' },   // dynamic /games/:id/tutorial page
 ];

@@ -10,6 +10,7 @@ import { useWebPageBackground } from '@/hooks/useWebPageBackground';
 import { CATEGORY_LABELS, GAME_CATALOG, getGameById, type PairwiseMatrix, type RuleLine } from '@/constants/games';
 import { getTutorialComponent } from '@/constants/tutorials';
 import { getGameGuide } from '@/constants/gameGuides';
+import SiteNav from '@/components/SiteNav';
 import { usePlayerIdentity } from '@/hooks/usePlayerIdentity';
 import { apiFetch } from '@/lib/api';
 import { PracticeRoleSheet, type PracticeRole } from '@/components/PracticeRoleSheet';
@@ -374,6 +375,7 @@ export default function GameRulesScreen() {
         />
         <link rel="canonical" href={`https://www.quicklegame.com/games/${game.id}`} />
       </Head>
+      <SiteNav />
       {/* Fixed header — just the banner + the back button floating on it.
           Sits outside the ScrollView so it stays pinned; everything else
           (title, tagline, category badges, the rules themselves) scrolls
@@ -395,7 +397,9 @@ export default function GameRulesScreen() {
         </View>
       </View>
 
-      {/* Back to grid — floats over the banner */}
+      {/* Back to grid — floats over the banner; native only, web has the
+          site nav strip above the banner instead */}
+      {Platform.OS !== 'web' && (
       <Pressable
         onPress={() => router.back()}
         style={{
@@ -414,6 +418,7 @@ export default function GameRulesScreen() {
       >
         <ArrowLeft size={20} color={colors.ink} />
       </Pressable>
+      )}
 
       <ScrollView
         showsVerticalScrollIndicator={false}

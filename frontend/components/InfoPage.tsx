@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { ScrollView, Text, View, Pressable } from 'react-native';
+import { Platform, ScrollView, Text, View, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Head from '@/lib/head';
 import { ArrowLeft } from 'lucide-react-native';
 import { colors, typography } from '@/constants/design';
 import { useWebPageBackground } from '@/hooks/useWebPageBackground';
+import SiteNav from '@/components/SiteNav';
 
 const SITE = 'https://www.quicklegame.com';
 const H_PADDING = 24;
@@ -39,9 +40,11 @@ interface InfoPageProps {
   children: ReactNode;
 }
 
-// Shared scaffold for the static info pages (/privacy, /about, /terms):
-// same back button, heading treatment and Section rhythm on all three, and
-// a per-page <Head> so each exports its own title/description/canonical.
+// Shared scaffold for the static info pages (/privacy, /about, /terms,
+// /faq): same heading treatment and Section rhythm on all of them, and a
+// per-page <Head> so each exports its own title/description/canonical. On
+// web the site navigation sits pinned above the page; native keeps the
+// plain back button.
 export function InfoPage({
   metaTitle,
   metaDescription,
@@ -61,14 +64,16 @@ export function InfoPage({
         <meta name="description" content={metaDescription} />
         <link rel="canonical" href={`${SITE}${canonicalPath}`} />
       </Head>
+      <SiteNav />
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: H_PADDING,
-          paddingTop: insets.top + 16,
+          paddingTop: Platform.OS === 'web' ? 28 : insets.top + 16,
           paddingBottom: insets.bottom + 24,
         }}
       >
+        {Platform.OS !== 'web' && (
         <Pressable
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           style={{
@@ -84,6 +89,7 @@ export function InfoPage({
         >
           <ArrowLeft size={20} color={colors.ink} />
         </Pressable>
+        )}
 
         <Text style={{ ...typography.title, color: colors.amber, fontSize: 28, marginBottom: 4 }}>
           {heading}
